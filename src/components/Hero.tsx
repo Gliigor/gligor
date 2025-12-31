@@ -10,16 +10,15 @@ const Hero = () => {
         </p>
         
         <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-fade-up" style={{ animationDelay: '0.2s' }}>
-          <span className="text-gradient">Building digital</span>
-          <br />
-          <span className="text-foreground">experiences</span>
+          <span className="text-foreground">Hi, I'm </span>
+          <span className="text-gradient">Gligor Jancev</span>
         </h1>
         
         <p className="text-lg text-muted-foreground max-w-xl mx-auto mb-10 animate-fade-up" style={{ animationDelay: '0.3s' }}>
           Passionate about creating clean, efficient, and user-focused applications. 
           Specializing in modern web technologies and scalable solutions.
         </p>
-        
+
         <div className="flex items-center justify-center gap-4 animate-fade-up" style={{ animationDelay: '0.4s' }}>
           <a 
             href="#projects"

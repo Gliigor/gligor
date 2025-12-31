@@ -11,10 +11,10 @@ const Footer = () => {
           </div>
           
           <a 
-            href="mailto:hello@example.com"
+            href="mailto:gligor@jancev.com"
             className="px-6 py-3 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 transition-all glow-primary hover:scale-105"
           >
-            hello@example.com
+            gligor@jancev.com
           </a>
         </div>
 
