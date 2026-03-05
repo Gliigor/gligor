@@ -261,7 +261,6 @@ export default function CsvDashboard() {
                     color: activeTab === tab.id ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
                     borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : "2px solid transparent",
                     background: "none",
-                    border: "none",
                     borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : "2px solid transparent",
                     cursor: "pointer",
                   }}
