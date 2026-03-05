@@ -1,353 +1,486 @@
-import { useMemo, useState } from "react";
+import { useState, useCallback, useRef } from "react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
-type Rules = Record<string, string[]>;
-
-const DEFAULT_RULES: Rules = {
-  Vve: ["vve", "vereniging van eigenaars"],
-  Fbto: ["fbto"],
-  Boodschappen: ["albert heijn", "ah ", "jumbo", "lidl", "aldi", "kruidvat", "etos", "dirk", "plus", "spar"],
-  Action: ["action"],
-  "Tegels en Wc": ["tegels", "sanitair", "wc", "badkamer", "hornbach", "praxis", "gamma", "karwei"],
-  Auto: ["apk", "garage", "onderhoud", "banden"],
-  Benzine: ["tinq", "argos", "shell", "esso", "bp", "total", "texaco", "avia"],
-  "Auto wassen": ["carwash", "auto was", "wasstraat", "wash"],
-  "Basic fit": ["basic fit", "basic-fit"],
-  overlijdensrisicoverzekering: ["overlijdens", "risicoverzekering", "rheinland", "verzekering"],
-  Hypotheek: ["hypotheek"],
-  Nuts: ["vattenfall", "eneco", "essent", "ziggo", "kpn", "odido", "t-mobile", "water", "netbeheer", "stroom", "gas"],
-};
-
-function detectDelimiter(headerLine: string) {
-  const semi = (headerLine.match(/;/g) || []).length;
-  const comma = (headerLine.match(/,/g) || []).length;
-  return semi >= comma ? ";" : ",";
+// ─── Types ───────────────────────────────────────────────────────────────────
+interface Transaction {
+  id: string;
+  date: string;
+  name: string;
+  description: string;
+  amount: number;
+  category: string;
+  manual?: boolean;
 }
 
-function splitCSVLine(line: string, delimiter: string) {
-  const out: string[] = [];
-  let cur = "";
-  let inQuotes = false;
+// ─── Category Rules ───────────────────────────────────────────────────────────
+const CATEGORY_RULES: { label: string; color: string; keywords: string[] }[] = [
+  {
+    label: "Groceries",
+    color: "#4ade80",
+    keywords: ["albert heijn", "ah ", "lidl", "jumbo", "aldi", "plus supermarkt", "dirk", "ah zeist", "albert heijn 1014"],
+  },
+  {
+    label: "Housing & VvE",
+    color: "#60a5fa",
+    keywords: ["vve", "hypotheek", "mortgage", "huur", "rent", "woning"],
+  },
+  {
+    label: "Insurance",
+    color: "#a78bfa",
+    keywords: ["fbto", "verzeker", "insurance", "rheinland", "credit life", "overlijdens"],
+  },
+  {
+    label: "Personal Care",
+    color: "#f472b6",
+    keywords: ["kruidvat", "etos", "trekpleister", "douglas", "hema", "kapper", "salon"],
+  },
+  {
+    label: "Transport & Fuel",
+    color: "#fb923c",
+    keywords: ["tinq", "shell", "bp ", "esso", "total", "benzine", "ns ", "ov-chipkaart", "parkeer", "parking"],
+  },
+  {
+    label: "Fitness & Health",
+    color: "#34d399",
+    keywords: ["basic fit", "sportschool", "gym", "apotheek", "pharmacy", "huisarts", "ziekenhuis"],
+  },
+  {
+    label: "Income",
+    color: "#fbbf24",
+    keywords: ["salaris", "salary", "loon", "inkomen"],
+  },
+  {
+    label: "Shopping",
+    color: "#f87171",
+    keywords: ["argos", "readshop", "bol.com", "amazon", "zalando", "h&m", "zara", "primark", "ikea"],
+  },
+  {
+    label: "Storage & Misc Services",
+    color: "#94a3b8",
+    keywords: ["stalling", "storage", "bck*"],
+  },
+];
 
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+const OTHER_COLOR = "#64748b";
 
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
+function categorize(name: string, description: string): string {
+  const haystack = `${name} ${description}`.toLowerCase();
+  for (const rule of CATEGORY_RULES) {
+    if (rule.keywords.some((kw) => haystack.includes(kw))) return rule.label;
+  }
+  return "Other";
+}
+
+function categoryColor(cat: string): string {
+  return CATEGORY_RULES.find((r) => r.label === cat)?.color ?? OTHER_COLOR;
+}
+
+// ─── CSV Parser (BUNQ format) ─────────────────────────────────────────────────
+function parseAmount(raw: string): number {
+  // BUNQ uses "1.160,68" format — remove dots (thousands), replace comma with dot
+  return parseFloat(raw.replace(/\./g, "").replace(",", "."));
+}
+
+function parseCSV(text: string): Transaction[] {
+  const lines = text.trim().split("\n");
+  const rows = lines.slice(1); // skip header
+  return rows
+    .map((line, i) => {
+      // parse quoted CSV fields
+      const fields: string[] = [];
+      let cur = "";
+      let inQ = false;
+      for (const ch of line) {
+        if (ch === '"') { inQ = !inQ; continue; }
+        if (ch === "," && !inQ) { fields.push(cur); cur = ""; continue; }
+        cur += ch;
       }
-      continue;
-    }
+      fields.push(cur);
+      const [date, , amountRaw, , , name, description] = fields;
+      const amount = parseAmount(amountRaw ?? "0");
+      return {
+        id: `csv-${i}`,
+        date: date?.trim() ?? "",
+        name: name?.trim() ?? "",
+        description: description?.trim() ?? "",
+        amount,
+        category: categorize(name ?? "", description ?? ""),
+      };
+    })
+    .filter((t) => !isNaN(t.amount));
+}
 
-    if (!inQuotes && ch === delimiter) {
-      out.push(cur);
-      cur = "";
-      continue;
-    }
-
-    cur += ch;
+// ─── Summary helpers ──────────────────────────────────────────────────────────
+function summarize(txns: Transaction[]) {
+  const totalIn = txns.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+  const totalOut = txns.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0);
+  const byCategory: Record<string, number> = {};
+  for (const t of txns) {
+    if (t.amount < 0) byCategory[t.category] = (byCategory[t.category] ?? 0) + Math.abs(t.amount);
   }
-  out.push(cur);
-  return out;
+  return { totalIn, totalOut: Math.abs(totalOut), byCategory };
 }
 
-function parseCSV(text: string) {
-  const lines = text
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .filter((l) => l.trim() !== "");
+// ─── Formatters ───────────────────────────────────────────────────────────────
+const fmt = (n: number) =>
+  new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(n);
 
-  if (lines.length < 2) throw new Error("CSV lijkt leeg.");
-
-  const delimiter = detectDelimiter(lines[0]);
-  const headers = splitCSVLine(lines[0], delimiter).map((h) => h.trim());
-
-  const rows: Record<string, string>[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = splitCSVLine(lines[i], delimiter);
-    if (cols.length === 1 && cols[0].trim() === "") continue;
-
-    const obj: Record<string, string> = {};
-    headers.forEach((h, idx) => (obj[h] = (cols[idx] ?? "").trim()));
-    rows.push(obj);
-  }
-  return rows;
+// ─── Download helper ──────────────────────────────────────────────────────────
+function downloadCSV(txns: Transaction[]) {
+  const header = "Date,Name,Description,Amount,Category";
+  const rows = txns.map(
+    (t) => `"${t.date}","${t.name}","${t.description}","${t.amount}","${t.category}"`
+  );
+  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "budget-export.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
-function euroToNumber(s: string) {
-  const cleaned = String(s || "")
-    .replace(/\./g, "") // duizendtallen
-    .replace(",", ".")
-    .replace(/\s/g, "");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
-}
+// ─── All categories for dropdown ─────────────────────────────────────────────
+const ALL_CATEGORIES = [...CATEGORY_RULES.map((r) => r.label), "Other", "Transfer", "Unknown"];
 
-function normalize(s: string) {
-  return String(s || "").toLowerCase();
-}
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function BudgetDashboard() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "raw" | "add">("overview");
+  const [filter, setFilter] = useState("All");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-function monthKey(dateStr: string) {
-  const s = String(dateStr || "").trim();
-  if (!s) return "Onbekend";
+  // Manual add form
+  const [form, setForm] = useState({ date: "", name: "", description: "", amount: "", category: ALL_CATEGORIES[0] });
 
-  const m1 = s.match(/^(\d{4})-(\d{2})-(\d{2})/); // YYYY-MM-DD
-  if (m1) return `${m1[1]}-${m1[2]}`;
+  const loadFile = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      setTransactions(parseCSV(text));
+      setActiveTab("overview");
+    };
+    reader.readAsText(file);
+  }, []);
 
-  const m2 = s.match(/^(\d{2})-(\d{2})-(\d{4})/); // DD-MM-YYYY
-  if (m2) return `${m2[3]}-${m2[2]}`;
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file) loadFile(file);
+    },
+    [loadFile]
+  );
 
-  return "Onbekend";
-}
+  const { totalIn, totalOut, byCategory } = summarize(transactions);
+  const net = totalIn - totalOut;
 
-function categorize(row: Record<string, string>, rules: Rules) {
-  const name = normalize(row["Name"] || row["Naam"] || "");
-  const desc = normalize(row["Description"] || row["Omschrijving"] || row["Beschrijving"] || "");
-  const hay = (name + " " + desc).trim();
+  const pieData = Object.entries(byCategory)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
 
-  for (const [cat, keywords] of Object.entries(rules)) {
-    for (const kw of keywords) {
-      if (!kw) continue;
-      if (hay.includes(String(kw).toLowerCase())) return cat;
-    }
-  }
-  return "Overig";
-}
+  const barData = Object.entries(byCategory)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
 
-function formatEUR(n: number) {
-  return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(n || 0);
-}
+  const filteredTxns =
+    filter === "All" ? transactions : transactions.filter((t) => t.category === filter);
 
-export default function CsvDashboard() {
-  const [status, setStatus] = useState<string>("");
-  const [rulesText, setRulesText] = useState<string>(JSON.stringify(DEFAULT_RULES, null, 2));
-  const [monthTotals, setMonthTotals] = useState<Record<string, number>>({});
-  const [pivot, setPivot] = useState<Record<string, Record<string, number>>>({});
-  const [uncat, setUncat] = useState<Array<any>>([]);
+  const updateCategory = (id: string, cat: string) => {
+    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, category: cat } : t)));
+    setEditingId(null);
+  };
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    Object.values(pivot).forEach((byCat) => Object.keys(byCat).forEach((c) => set.add(c)));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "nl"));
-  }, [pivot]);
+  const addManual = () => {
+    if (!form.date || !form.name || !form.amount) return;
+    const newTx: Transaction = {
+      id: `manual-${Date.now()}`,
+      date: form.date,
+      name: form.name,
+      description: form.description,
+      amount: parseFloat(form.amount),
+      category: form.category,
+      manual: true,
+    };
+    setTransactions((prev) => [...prev, newTx]);
+    setForm({ date: "", name: "", description: "", amount: "", category: ALL_CATEGORIES[0] });
+    setActiveTab("raw");
+  };
 
-  async function handleFile(file: File) {
-    setStatus("Bezig met inlezen...");
-    setMonthTotals({});
-    setPivot({});
-    setUncat([]);
-
-    let rules: Rules = DEFAULT_RULES;
-    try {
-      rules = JSON.parse(rulesText);
-    } catch {
-      // keep default
-    }
-
-    const text = await file.text();
-    const rows = parseCSV(text);
-
-    const mt: Record<string, number> = {};
-    const pv: Record<string, Record<string, number>> = {};
-    const un: any[] = [];
-    let processed = 0;
-
-    for (const row of rows) {
-      const amount = euroToNumber(row["Amount"] || row["Bedrag"]);
-      if (!(amount < 0)) continue; // alleen uitgaven
-
-      const date = row["Date"] || row["Datum"] || row["Booking date"] || "";
-      const month = monthKey(date);
-
-      const cat = categorize(row, rules);
-      const spend = Math.abs(amount);
-
-      mt[month] = (mt[month] || 0) + spend;
-      pv[month] = pv[month] || {};
-      pv[month][cat] = (pv[month][cat] || 0) + spend;
-
-      if (cat === "Overig") {
-        un.push({
-          month,
-          date,
-          amount: spend,
-          name: row["Name"] || row["Naam"] || "",
-          desc: row["Description"] || row["Omschrijving"] || "",
-        });
-      }
-
-      processed++;
-    }
-
-    // sort months
-    const months = Object.keys(mt).sort();
-    const mtSorted: Record<string, number> = {};
-    const pvSorted: Record<string, Record<string, number>> = {};
-    for (const m of months) {
-      mtSorted[m] = mt[m];
-      pvSorted[m] = pv[m];
-    }
-
-    setMonthTotals(mtSorted);
-    setPivot(pvSorted);
-    setUncat(un);
-    setStatus(`Klaar: ${processed} uitgaven verwerkt.`);
-  }
+  const deleteTxn = (id: string) => {
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+  };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-5xl mx-auto p-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-semibold">CSV Dashboard Tool</h1>
-            <p className="text-muted-foreground mt-1">
-              Upload bunq CSV → categoriseer uitgaven → totals per maand en per categorie. Alles lokaal in je browser.
-            </p>
+    <div style={{ minHeight: "100vh", background: "#0a0f1a", color: "#e2e8f0", fontFamily: "'DM Mono', 'Fira Mono', monospace" }}>
+      {/* Google Font */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap');
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0a0f1a; } ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        .tab-btn { background: none; border: none; cursor: pointer; padding: 10px 20px; font-family: inherit; font-size: 13px; letter-spacing: 0.08em; transition: all 0.2s; }
+        .tab-btn.active { color: #fbbf24; border-bottom: 2px solid #fbbf24; }
+        .tab-btn:not(.active) { color: #64748b; }
+        .tab-btn:hover:not(.active) { color: #94a3b8; }
+        .drop-zone { border: 2px dashed #1e3a5f; border-radius: 16px; padding: 60px 40px; text-align: center; transition: all 0.3s; cursor: pointer; }
+        .drop-zone.drag-over { border-color: #60a5fa; background: rgba(96,165,250,0.05); }
+        .btn { border: none; border-radius: 8px; padding: 10px 20px; font-family: inherit; font-size: 12px; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #fbbf24; color: #0a0f1a; font-weight: 700; }
+        .btn-primary:hover { background: #f59e0b; }
+        .btn-ghost { background: #1e293b; color: #94a3b8; }
+        .btn-ghost:hover { background: #273548; color: #e2e8f0; }
+        .btn-danger { background: #3f1a1a; color: #f87171; }
+        .btn-danger:hover { background: #5a1f1f; }
+        .input { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-family: inherit; font-size: 13px; width: 100%; outline: none; }
+        .input:focus { border-color: #60a5fa; }
+        select.input option { background: #0f172a; }
+        .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; letter-spacing: 0.06em; font-weight: 500; }
+        .row-hover:hover { background: #111827 !important; }
+        .stat-card { background: linear-gradient(135deg, #0f172a 0%, #131f35 100%); border: 1px solid #1e293b; border-radius: 14px; padding: 20px 24px; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ borderBottom: "1px solid #1e293b", padding: "20px 40px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: "#fbbf24", letterSpacing: "-0.01em" }}>
+            BUDGET.DASHBOARD
           </div>
-          <a href="/#/" className="underline text-sm text-muted-foreground">
-            ← terug naar home
-          </a>
+          <div style={{ fontSize: 11, color: "#475569", marginTop: 2, letterSpacing: "0.1em" }}>BUNQ · PERSONAL FINANCE</div>
         </div>
+        {transactions.length > 0 && (
+          <button className="btn btn-ghost" onClick={() => downloadCSV(transactions)}>
+            ↓ EXPORT CSV
+          </button>
+        )}
+      </div>
 
-        <div className="mt-6 rounded-xl border p-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void handleFile(f);
-              }}
-            />
-            <button
-              className="rounded-lg border px-3 py-2 text-sm hover:bg-muted"
-              onClick={() => setRulesText(JSON.stringify(DEFAULT_RULES, null, 2))}
-              type="button"
-            >
-              Reset demo categorieën
-            </button>
-            <span className="text-sm text-muted-foreground">{status}</span>
-          </div>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
 
-          <details className="mt-4">
-            <summary className="cursor-pointer text-sm">Keywords aanpassen (optioneel)</summary>
-            <p className="text-sm text-muted-foreground mt-2">
-              JSON mapping: categorie → lijst met keywords (matcht in Name/Description).
-            </p>
-            <textarea
-              className="mt-2 w-full min-h-[160px] rounded-lg border bg-background p-3 text-xs font-mono"
-              value={rulesText}
-              onChange={(e) => setRulesText(e.target.value)}
-            />
-          </details>
-        </div>
-
-        <div className="grid gap-4 mt-6 md:grid-cols-2">
-          <div className="rounded-xl border p-4">
-            <h2 className="font-semibold">Totals per maand</h2>
-            <p className="text-sm text-muted-foreground">Som van alle uitgaven (negatieve bedragen) per maand.</p>
-
-            <div className="mt-3 overflow-auto">
-              {Object.keys(monthTotals).length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nog geen data. Upload een CSV.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 pr-3">Maand</th>
-                      <th className="text-right py-2">Totaal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(monthTotals).map(([m, v]) => (
-                      <tr key={m} className="border-b">
-                        <td className="py-2 pr-3">{m}</td>
-                        <td className="py-2 text-right">{formatEUR(v)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+        {/* Drop Zone (always visible if no data) */}
+        {transactions.length === 0 ? (
+          <div
+            className={`drop-zone ${dragging ? "drag-over" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            onClick={() => fileRef.current?.click()}
+          >
+            <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && loadFile(e.target.files[0])} />
+            <div style={{ fontSize: 40, marginBottom: 16 }}>📂</div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>
+              Drop your BUNQ CSV here
             </div>
+            <div style={{ fontSize: 13, color: "#475569" }}>or click to browse · supports BUNQ export format</div>
           </div>
+        ) : (
+          <>
+            {/* Re-upload button */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div style={{ fontSize: 12, color: "#475569", letterSpacing: "0.08em" }}>
+                {transactions.length} TRANSACTIONS LOADED
+              </div>
+              <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => { setTransactions([]); setActiveTab("overview"); }}>
+                ↺ LOAD NEW FILE
+              </button>
+            </div>
 
-          <div className="rounded-xl border p-4">
-            <h2 className="font-semibold">Per maand × categorie</h2>
-            <p className="text-sm text-muted-foreground">Pivot: uitgaven per categorie per maand.</p>
+            {/* Stat Cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
+              <div className="stat-card">
+                <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 8 }}>TOTAL INCOME</div>
+                <div style={{ fontSize: 26, fontFamily: "'Syne', sans-serif", fontWeight: 800, color: "#4ade80" }}>{fmt(totalIn)}</div>
+              </div>
+              <div className="stat-card">
+                <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 8 }}>TOTAL EXPENSES</div>
+                <div style={{ fontSize: 26, fontFamily: "'Syne', sans-serif", fontWeight: 800, color: "#f87171" }}>{fmt(totalOut)}</div>
+              </div>
+              <div className="stat-card">
+                <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 8 }}>NET BALANCE</div>
+                <div style={{ fontSize: 26, fontFamily: "'Syne', sans-serif", fontWeight: 800, color: net >= 0 ? "#60a5fa" : "#fb923c" }}>{fmt(net)}</div>
+              </div>
+            </div>
 
-            <div className="mt-3 overflow-auto">
-              {Object.keys(pivot).length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nog geen data. Upload een CSV.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 pr-3">Maand</th>
-                      {categories.map((c) => (
-                        <th key={c} className="text-right py-2 px-2">{c}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(pivot).map(([m, byCat]) => (
-                      <tr key={m} className="border-b">
-                        <td className="py-2 pr-3">{m}</td>
-                        {categories.map((c) => {
-                          const v = byCat[c] || 0;
-                          return (
-                            <td key={c} className="py-2 px-2 text-right">
-                              {v ? formatEUR(v) : ""}
+            {/* Tabs */}
+            <div style={{ borderBottom: "1px solid #1e293b", marginBottom: 28, display: "flex", gap: 4 }}>
+              {(["overview", "raw", "add"] as const).map((tab) => (
+                <button key={tab} className={`tab-btn ${activeTab === tab ? "active" : ""}`} onClick={() => setActiveTab(tab)}>
+                  {tab === "overview" ? "OVERVIEW" : tab === "raw" ? "RAW DATA" : "+ ADD ENTRY"}
+                </button>
+              ))}
+            </div>
+
+            {/* ── OVERVIEW TAB ─────────────────────────────────────────── */}
+            {activeTab === "overview" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                {/* Pie Chart */}
+                <div className="card">
+                  <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 20 }}>SPENDING BY CATEGORY</div>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value">
+                        {pieData.map((entry) => (
+                          <Cell key={entry.name} fill={categoryColor(entry.name)} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontFamily: "inherit", fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Legend */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", marginTop: 12 }}>
+                    {pieData.map((d) => (
+                      <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: categoryColor(d.name), flexShrink: 0 }} />
+                        <span style={{ color: "#94a3b8" }}>{d.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bar Chart */}
+                <div className="card">
+                  <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 20 }}>TOP SPENDING CATEGORIES</div>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: "#475569", fontFamily: "inherit" }} tickFormatter={(v) => `€${v}`} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "inherit" }} width={110} />
+                      <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontFamily: "inherit", fontSize: 12 }} />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                        {barData.map((entry) => (
+                          <Cell key={entry.name} fill={categoryColor(entry.name)} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Category breakdown table */}
+                <div className="card" style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 20 }}>CATEGORY BREAKDOWN</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                        {["Category", "Transactions", "Total Spent", "% of Expenses"].map((h) => (
+                          <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, color: "#475569", letterSpacing: "0.1em", fontWeight: 500 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(byCategory).sort((a, b) => b[1] - a[1]).map(([cat, total]) => {
+                        const count = transactions.filter((t) => t.category === cat && t.amount < 0).length;
+                        const pct = totalOut > 0 ? ((total / totalOut) * 100).toFixed(1) : "0";
+                        return (
+                          <tr key={cat} className="row-hover" style={{ borderBottom: "1px solid #0f172a" }}>
+                            <td style={{ padding: "10px 12px" }}>
+                              <span className="badge" style={{ background: categoryColor(cat) + "22", color: categoryColor(cat) }}>{cat}</span>
                             </td>
-                          );
-                        })}
+                            <td style={{ padding: "10px 12px", color: "#64748b" }}>{count}</td>
+                            <td style={{ padding: "10px 12px", color: "#f87171" }}>{fmt(total)}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ height: 4, width: 80, background: "#1e293b", borderRadius: 2, overflow: "hidden" }}>
+                                  <div style={{ height: "100%", width: `${pct}%`, background: categoryColor(cat), borderRadius: 2 }} />
+                                </div>
+                                <span style={{ color: "#64748b", fontSize: 12 }}>{pct}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* ── RAW DATA TAB ──────────────────────────────────────────── */}
+            {activeTab === "raw" && (
+              <div className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em" }}>ALL TRANSACTIONS — {filteredTxns.length} ENTRIES</div>
+                  <select className="input" style={{ width: "auto" }} value={filter} onChange={(e) => setFilter(e.target.value)}>
+                    <option value="All">All Categories</option>
+                    {ALL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                        {["Date", "Name", "Description", "Amount", "Category", ""].map((h) => (
+                          <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, color: "#475569", letterSpacing: "0.1em", fontWeight: 500, whiteSpace: "nowrap" }}>{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border p-4 mt-6">
-          <h2 className="font-semibold">Ongecategoriseerd (Overig)</h2>
-          <p className="text-sm text-muted-foreground">Transacties die geen keyword matchten.</p>
-
-          <div className="mt-3 overflow-auto">
-            {uncat.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Geen (Overig) transacties 🎉</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 pr-3">Maand</th>
-                    <th className="text-left py-2 pr-3">Datum</th>
-                    <th className="text-right py-2 pr-3">Bedrag</th>
-                    <th className="text-left py-2 pr-3">Name</th>
-                    <th className="text-left py-2">Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {uncat.slice(0, 200).map((r, idx) => (
-                    <tr key={idx} className="border-b">
-                      <td className="py-2 pr-3">{r.month}</td>
-                      <td className="py-2 pr-3">{r.date}</td>
-                      <td className="py-2 pr-3 text-right">{formatEUR(r.amount)}</td>
-                      <td className="py-2 pr-3">{r.name}</td>
-                      <td className="py-2">{r.desc}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {filteredTxns.sort((a, b) => b.date.localeCompare(a.date)).map((t) => (
+                        <tr key={t.id} className="row-hover" style={{ borderBottom: "1px solid #0d1420" }}>
+                          <td style={{ padding: "9px 10px", color: "#475569", whiteSpace: "nowrap" }}>{t.date}</td>
+                          <td style={{ padding: "9px 10px", color: "#e2e8f0", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</td>
+                          <td style={{ padding: "9px 10px", color: "#64748b", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.description}</td>
+                          <td style={{ padding: "9px 10px", whiteSpace: "nowrap", color: t.amount >= 0 ? "#4ade80" : "#f87171", fontWeight: 500 }}>{fmt(t.amount)}</td>
+                          <td style={{ padding: "9px 10px" }}>
+                            {editingId === t.id ? (
+                              <select className="input" style={{ padding: "4px 8px", fontSize: 11 }} defaultValue={t.category} onChange={(e) => updateCategory(t.id, e.target.value)} onBlur={() => setEditingId(null)} autoFocus>
+                                {ALL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            ) : (
+                              <span className="badge" style={{ background: categoryColor(t.category) + "22", color: categoryColor(t.category), cursor: "pointer" }} onClick={() => setEditingId(t.id)} title="Click to edit">
+                                {t.category}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: "9px 10px" }}>
+                            <button className="btn btn-danger" style={{ padding: "3px 10px", fontSize: 10 }} onClick={() => deleteTxn(t.id)}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
-            {uncat.length > 200 && (
-              <p className="text-sm text-muted-foreground mt-2">Toont eerste 200 items.</p>
+
+            {/* ── ADD ENTRY TAB ─────────────────────────────────────────── */}
+            {activeTab === "add" && (
+              <div className="card" style={{ maxWidth: 540 }}>
+                <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 24 }}>MANUALLY ADD TRANSACTION</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div>
+                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>DATE</label>
+                    <input type="date" className="input" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>NAME / MERCHANT</label>
+                    <input type="text" className="input" placeholder="e.g. Albert Heijn" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>DESCRIPTION (optional)</label>
+                    <input type="text" className="input" placeholder="Optional note" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>AMOUNT (use - for expenses)</label>
+                    <input type="number" className="input" placeholder="-25.50" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>CATEGORY</label>
+                    <select className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                      {ALL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={addManual}>
+                    + ADD TRANSACTION
+                  </button>
+                </div>
+              </div>
             )}
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
