@@ -1,7 +1,10 @@
 import { useState, useCallback, useRef } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import ConstellationBackground from "@/components/ConstellationBackground";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface Transaction {
   id: string;
   date: string;
@@ -14,54 +17,18 @@ interface Transaction {
 
 // ─── Category Rules ───────────────────────────────────────────────────────────
 const CATEGORY_RULES: { label: string; color: string; keywords: string[] }[] = [
-  {
-    label: "Groceries",
-    color: "#4ade80",
-    keywords: ["albert heijn", "ah ", "lidl", "jumbo", "aldi", "plus supermarkt", "dirk", "ah zeist", "albert heijn 1014"],
-  },
-  {
-    label: "Housing & VvE",
-    color: "#60a5fa",
-    keywords: ["vve", "hypotheek", "mortgage", "huur", "rent", "woning"],
-  },
-  {
-    label: "Insurance",
-    color: "#a78bfa",
-    keywords: ["fbto", "verzeker", "insurance", "rheinland", "credit life", "overlijdens"],
-  },
-  {
-    label: "Personal Care",
-    color: "#f472b6",
-    keywords: ["kruidvat", "etos", "trekpleister", "douglas", "hema", "kapper", "salon"],
-  },
-  {
-    label: "Transport & Fuel",
-    color: "#fb923c",
-    keywords: ["tinq", "shell", "bp ", "esso", "total", "benzine", "ns ", "ov-chipkaart", "parkeer", "parking"],
-  },
-  {
-    label: "Fitness & Health",
-    color: "#34d399",
-    keywords: ["basic fit", "sportschool", "gym", "apotheek", "pharmacy", "huisarts", "ziekenhuis"],
-  },
-  {
-    label: "Income",
-    color: "#fbbf24",
-    keywords: ["salaris", "salary", "loon", "inkomen"],
-  },
-  {
-    label: "Shopping",
-    color: "#f87171",
-    keywords: ["argos", "readshop", "bol.com", "amazon", "zalando", "h&m", "zara", "primark", "ikea"],
-  },
-  {
-    label: "Storage & Misc Services",
-    color: "#94a3b8",
-    keywords: ["stalling", "storage", "bck*"],
-  },
+  { label: "Groceries",            color: "#4ade80", keywords: ["albert heijn", "ah ", "ah zeist", "lidl", "jumbo", "aldi", "plus supermarkt", "dirk"] },
+  { label: "Housing & VvE",        color: "#60a5fa", keywords: ["vve", "hypotheek", "mortgage", "huur", "rent", "woning"] },
+  { label: "Insurance",            color: "#a78bfa", keywords: ["fbto", "verzeker", "insurance", "rheinland", "credit life", "overlijdens"] },
+  { label: "Personal Care",        color: "#f472b6", keywords: ["kruidvat", "etos", "trekpleister", "douglas", "hema", "kapper", "salon"] },
+  { label: "Transport & Fuel",     color: "#fb923c", keywords: ["tinq", "shell", "bp ", "esso", "total", "benzine", "ns ", "ov-chipkaart", "parkeer", "parking"] },
+  { label: "Fitness & Health",     color: "#34d399", keywords: ["basic fit", "sportschool", "gym", "apotheek", "pharmacy", "huisarts", "ziekenhuis"] },
+  { label: "Income",               color: "#00e5ff", keywords: ["salaris", "salary", "loon", "inkomen"] },
+  { label: "Shopping",             color: "#f87171", keywords: ["argos", "readshop", "bol.com", "amazon", "zalando", "h&m", "zara", "primark", "ikea"] },
+  { label: "Storage & Services",   color: "#94a3b8", keywords: ["stalling", "storage", "bck*"] },
 ];
 
-const OTHER_COLOR = "#64748b";
+const OTHER_COLOR = "#334155";
 
 function categorize(name: string, description: string): string {
   const haystack = `${name} ${description}`.toLowerCase();
@@ -75,44 +42,38 @@ function categoryColor(cat: string): string {
   return CATEGORY_RULES.find((r) => r.label === cat)?.color ?? OTHER_COLOR;
 }
 
-// ─── CSV Parser (BUNQ format) ─────────────────────────────────────────────────
+// ─── CSV Parser ───────────────────────────────────────────────────────────────
 function parseAmount(raw: string): number {
-  // BUNQ uses "1.160,68" format — remove dots (thousands), replace comma with dot
   return parseFloat(raw.replace(/\./g, "").replace(",", "."));
 }
 
 function parseCSV(text: string): Transaction[] {
   const lines = text.trim().split("\n");
-  const rows = lines.slice(1); // skip header
-  return rows
-    .map((line, i) => {
-      // parse quoted CSV fields
-      const fields: string[] = [];
-      let cur = "";
-      let inQ = false;
-      for (const ch of line) {
-        if (ch === '"') { inQ = !inQ; continue; }
-        if (ch === "," && !inQ) { fields.push(cur); cur = ""; continue; }
-        cur += ch;
-      }
-      fields.push(cur);
-      const [date, , amountRaw, , , name, description] = fields;
-      const amount = parseAmount(amountRaw ?? "0");
-      return {
-        id: `csv-${i}`,
-        date: date?.trim() ?? "",
-        name: name?.trim() ?? "",
-        description: description?.trim() ?? "",
-        amount,
-        category: categorize(name ?? "", description ?? ""),
-      };
-    })
-    .filter((t) => !isNaN(t.amount));
+  return lines.slice(1).map((line, i) => {
+    const fields: string[] = [];
+    let cur = "", inQ = false;
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === "," && !inQ) { fields.push(cur); cur = ""; continue; }
+      cur += ch;
+    }
+    fields.push(cur);
+    const [date, , amountRaw, , , name, description] = fields;
+    const amount = parseAmount(amountRaw ?? "0");
+    return {
+      id: `csv-${i}`,
+      date: date?.trim() ?? "",
+      name: name?.trim() ?? "",
+      description: description?.trim() ?? "",
+      amount,
+      category: categorize(name ?? "", description ?? ""),
+    };
+  }).filter((t) => !isNaN(t.amount));
 }
 
-// ─── Summary helpers ──────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function summarize(txns: Transaction[]) {
-  const totalIn = txns.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+  const totalIn  = txns.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
   const totalOut = txns.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0);
   const byCategory: Record<string, number> = {};
   for (const t of txns) {
@@ -121,252 +82,245 @@ function summarize(txns: Transaction[]) {
   return { totalIn, totalOut: Math.abs(totalOut), byCategory };
 }
 
-// ─── Formatters ───────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
   new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(n);
 
-// ─── Download helper ──────────────────────────────────────────────────────────
 function downloadCSV(txns: Transaction[]) {
   const header = "Date,Name,Description,Amount,Category";
-  const rows = txns.map(
-    (t) => `"${t.date}","${t.name}","${t.description}","${t.amount}","${t.category}"`
-  );
+  const rows = txns.map((t) => `"${t.date}","${t.name}","${t.description}","${t.amount}","${t.category}"`);
   const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = "budget-export.csv";
-  a.click();
+  a.href = url; a.download = "budget-export.csv"; a.click();
   URL.revokeObjectURL(url);
 }
 
-// ─── All categories for dropdown ─────────────────────────────────────────────
 const ALL_CATEGORIES = [...CATEGORY_RULES.map((r) => r.label), "Other", "Transfer", "Unknown"];
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-export default function BudgetDashboard() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [dragging, setDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "raw" | "add">("overview");
-  const [filter, setFilter] = useState("All");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+// ─── Custom Tooltip ───────────────────────────────────────────────────────────
+const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload?.length) {
+    return (
+      <div style={{ background: "rgba(0,0,0,0.9)", border: "1px solid rgba(0,229,255,0.2)", borderRadius: 8, padding: "10px 14px", fontFamily: "'Exo 2', sans-serif", fontSize: 12 }}>
+        <div style={{ color: "#94a3b8", marginBottom: 4 }}>{payload[0].name}</div>
+        <div style={{ color: "#00e5ff", fontWeight: 600 }}>{fmt(payload[0].value)}</div>
+      </div>
+    );
+  }
+  return null;
+};
 
-  // Manual add form
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function CsvDashboard() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [dragging, setDragging]         = useState(false);
+  const [activeTab, setActiveTab]       = useState<"overview" | "raw" | "add">("overview");
+  const [filter, setFilter]             = useState("All");
+  const [editingId, setEditingId]       = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ date: "", name: "", description: "", amount: "", category: ALL_CATEGORIES[0] });
 
   const loadFile = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result as string;
-      setTransactions(parseCSV(text));
+      setTransactions(parseCSV(e.target?.result as string));
       setActiveTab("overview");
     };
     reader.readAsText(file);
   }, []);
 
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (file) loadFile(file);
-    },
-    [loadFile]
-  );
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault(); setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  }, [loadFile]);
 
   const { totalIn, totalOut, byCategory } = summarize(transactions);
   const net = totalIn - totalOut;
 
-  const pieData = Object.entries(byCategory)
-    .sort((a, b) => b[1] - a[1])
+  const pieData = Object.entries(byCategory).sort((a, b) => b[1] - a[1])
     .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
 
-  const barData = Object.entries(byCategory)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
+  const barData = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 8)
     .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
 
-  const filteredTxns =
-    filter === "All" ? transactions : transactions.filter((t) => t.category === filter);
+  const filteredTxns = filter === "All" ? transactions : transactions.filter((t) => t.category === filter);
 
   const updateCategory = (id: string, cat: string) => {
-    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, category: cat } : t)));
+    setTransactions((prev) => prev.map((t) => t.id === id ? { ...t, category: cat } : t));
     setEditingId(null);
   };
 
   const addManual = () => {
     if (!form.date || !form.name || !form.amount) return;
-    const newTx: Transaction = {
-      id: `manual-${Date.now()}`,
-      date: form.date,
-      name: form.name,
-      description: form.description,
-      amount: parseFloat(form.amount),
-      category: form.category,
-      manual: true,
-    };
-    setTransactions((prev) => [...prev, newTx]);
+    setTransactions((prev) => [...prev, {
+      id: `manual-${Date.now()}`, date: form.date, name: form.name,
+      description: form.description, amount: parseFloat(form.amount),
+      category: form.category, manual: true,
+    }]);
     setForm({ date: "", name: "", description: "", amount: "", category: ALL_CATEGORIES[0] });
     setActiveTab("raw");
   };
 
-  const deleteTxn = (id: string) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
-  };
+  const tabs: { id: "overview" | "raw" | "add"; label: string }[] = [
+    { id: "overview", label: "OVERVIEW" },
+    { id: "raw",      label: "RAW DATA" },
+    { id: "add",      label: "+ ADD ENTRY" },
+  ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0f1a", color: "#e2e8f0", fontFamily: "'DM Mono', 'Fira Mono', monospace" }}>
-      {/* Google Font */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap');
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0a0f1a; } ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-        .tab-btn { background: none; border: none; cursor: pointer; padding: 10px 20px; font-family: inherit; font-size: 13px; letter-spacing: 0.08em; transition: all 0.2s; }
-        .tab-btn.active { color: #fbbf24; border-bottom: 2px solid #fbbf24; }
-        .tab-btn:not(.active) { color: #64748b; }
-        .tab-btn:hover:not(.active) { color: #94a3b8; }
-        .drop-zone { border: 2px dashed #1e3a5f; border-radius: 16px; padding: 60px 40px; text-align: center; transition: all 0.3s; cursor: pointer; }
-        .drop-zone.drag-over { border-color: #60a5fa; background: rgba(96,165,250,0.05); }
-        .btn { border: none; border-radius: 8px; padding: 10px 20px; font-family: inherit; font-size: 12px; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s; }
-        .btn-primary { background: #fbbf24; color: #0a0f1a; font-weight: 700; }
-        .btn-primary:hover { background: #f59e0b; }
-        .btn-ghost { background: #1e293b; color: #94a3b8; }
-        .btn-ghost:hover { background: #273548; color: #e2e8f0; }
-        .btn-danger { background: #3f1a1a; color: #f87171; }
-        .btn-danger:hover { background: #5a1f1f; }
-        .input { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-family: inherit; font-size: 13px; width: 100%; outline: none; }
-        .input:focus { border-color: #60a5fa; }
-        select.input option { background: #0f172a; }
-        .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; }
-        .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; letter-spacing: 0.06em; font-weight: 500; }
-        .row-hover:hover { background: #111827 !important; }
-        .stat-card { background: linear-gradient(135deg, #0f172a 0%, #131f35 100%); border: 1px solid #1e293b; border-radius: 14px; padding: 20px 24px; }
-      `}</style>
+    <div className="min-h-screen bg-background relative" style={{ fontFamily: "'Exo 2', sans-serif" }}>
+      <ConstellationBackground />
+      <Header />
 
-      {/* Header */}
-      <div style={{ borderBottom: "1px solid #1e293b", padding: "20px 40px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: "#fbbf24", letterSpacing: "-0.01em" }}>
-            BUDGET.DASHBOARD
-          </div>
-          <div style={{ fontSize: 11, color: "#475569", marginTop: 2, letterSpacing: "0.1em" }}>BUNQ · PERSONAL FINANCE</div>
+      <main className="relative z-10 max-w-6xl mx-auto px-6 py-16">
+
+        {/* Page Title */}
+        <div className="text-center mb-14">
+          <p className="text-xs tracking-[0.25em] text-primary/60 mb-3 uppercase">Finance Tool</p>
+          <h1 className="text-4xl font-bold text-foreground mb-4" style={{ fontFamily: "'Orbitron', sans-serif" }}>
+            Budget Dashboard
+          </h1>
+          <p className="text-muted-foreground text-sm max-w-md mx-auto">
+            Upload your BUNQ CSV export and get instant visual breakdowns of your spending.
+          </p>
         </div>
-        {transactions.length > 0 && (
-          <button className="btn btn-ghost" onClick={() => downloadCSV(transactions)}>
-            ↓ EXPORT CSV
-          </button>
-        )}
-      </div>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
-
-        {/* Drop Zone (always visible if no data) */}
+        {/* Drop Zone */}
         {transactions.length === 0 ? (
           <div
-            className={`drop-zone ${dragging ? "drag-over" : ""}`}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
             onClick={() => fileRef.current?.click()}
+            className="cursor-pointer mx-auto max-w-lg"
+            style={{
+              border: `2px dashed ${dragging ? "hsl(var(--primary))" : "rgba(0,229,255,0.2)"}`,
+              borderRadius: 12,
+              padding: "64px 40px",
+              textAlign: "center",
+              background: dragging ? "rgba(0,229,255,0.03)" : "rgba(0,229,255,0.01)",
+              transition: "all 0.3s",
+            }}
           >
             <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && loadFile(e.target.files[0])} />
-            <div style={{ fontSize: 40, marginBottom: 16 }}>📂</div>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>
-              Drop your BUNQ CSV here
+            <div style={{ fontSize: 36, marginBottom: 16 }}>📂</div>
+            <div className="text-foreground font-semibold mb-2" style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 15, letterSpacing: "0.05em" }}>
+              DROP YOUR BUNQ CSV
             </div>
-            <div style={{ fontSize: 13, color: "#475569" }}>or click to browse · supports BUNQ export format</div>
+            <div className="text-muted-foreground text-xs tracking-wider">or click to browse</div>
           </div>
         ) : (
           <>
-            {/* Re-upload button */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <div style={{ fontSize: 12, color: "#475569", letterSpacing: "0.08em" }}>
-                {transactions.length} TRANSACTIONS LOADED
+            {/* Top bar */}
+            <div className="flex justify-between items-center mb-8">
+              <span className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+                {transactions.length} transactions loaded
+              </span>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => downloadCSV(transactions)}
+                  className="text-xs tracking-widest px-4 py-2 rounded border border-primary/30 text-primary hover:bg-primary/10 transition-all"
+                  style={{ fontFamily: "'Orbitron', sans-serif" }}
+                >
+                  ↓ EXPORT
+                </button>
+                <button
+                  onClick={() => { setTransactions([]); setActiveTab("overview"); }}
+                  className="text-xs tracking-widest px-4 py-2 rounded border border-border/40 text-muted-foreground hover:border-primary/30 hover:text-primary transition-all"
+                  style={{ fontFamily: "'Orbitron', sans-serif" }}
+                >
+                  ↺ NEW FILE
+                </button>
               </div>
-              <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => { setTransactions([]); setActiveTab("overview"); }}>
-                ↺ LOAD NEW FILE
-              </button>
             </div>
 
             {/* Stat Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
-              <div className="stat-card">
-                <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 8 }}>TOTAL INCOME</div>
-                <div style={{ fontSize: 26, fontFamily: "'Syne', sans-serif", fontWeight: 800, color: "#4ade80" }}>{fmt(totalIn)}</div>
-              </div>
-              <div className="stat-card">
-                <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 8 }}>TOTAL EXPENSES</div>
-                <div style={{ fontSize: 26, fontFamily: "'Syne', sans-serif", fontWeight: 800, color: "#f87171" }}>{fmt(totalOut)}</div>
-              </div>
-              <div className="stat-card">
-                <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 8 }}>NET BALANCE</div>
-                <div style={{ fontSize: 26, fontFamily: "'Syne', sans-serif", fontWeight: 800, color: net >= 0 ? "#60a5fa" : "#fb923c" }}>{fmt(net)}</div>
-              </div>
+            <div className="grid grid-cols-3 gap-4 mb-10">
+              {[
+                { label: "TOTAL INCOME",   value: fmt(totalIn),  color: "#4ade80" },
+                { label: "TOTAL EXPENSES", value: fmt(totalOut), color: "#f87171" },
+                { label: "NET BALANCE",    value: fmt(net),      color: net >= 0 ? "hsl(var(--primary))" : "#fb923c" },
+              ].map((s) => (
+                <div key={s.label} className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500">
+                  <div className="text-[10px] tracking-[0.2em] text-muted-foreground mb-3 uppercase">{s.label}</div>
+                  <div className="text-2xl font-bold" style={{ fontFamily: "'Orbitron', sans-serif", color: s.color }}>{s.value}</div>
+                </div>
+              ))}
             </div>
 
             {/* Tabs */}
-            <div style={{ borderBottom: "1px solid #1e293b", marginBottom: 28, display: "flex", gap: 4 }}>
-              {(["overview", "raw", "add"] as const).map((tab) => (
-                <button key={tab} className={`tab-btn ${activeTab === tab ? "active" : ""}`} onClick={() => setActiveTab(tab)}>
-                  {tab === "overview" ? "OVERVIEW" : tab === "raw" ? "RAW DATA" : "+ ADD ENTRY"}
+            <div className="flex gap-1 border-b border-border/40 mb-8">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className="px-5 py-3 text-xs tracking-[0.15em] transition-all duration-200"
+                  style={{
+                    fontFamily: "'Orbitron', sans-serif",
+                    color: activeTab === tab.id ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
+                    borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : "2px solid transparent",
+                    background: "none",
+                    border: "none",
+                    borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : "2px solid transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  {tab.label}
                 </button>
               ))}
             </div>
 
-            {/* ── OVERVIEW TAB ─────────────────────────────────────────── */}
+            {/* ── OVERVIEW ─────────────────────────────────────────────── */}
             {activeTab === "overview" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                {/* Pie Chart */}
-                <div className="card">
-                  <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 20 }}>SPENDING BY CATEGORY</div>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value">
-                        {pieData.map((entry) => (
-                          <Cell key={entry.name} fill={categoryColor(entry.name)} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontFamily: "inherit", fontSize: 12 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  {/* Legend */}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", marginTop: 12 }}>
-                    {pieData.map((d) => (
-                      <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: categoryColor(d.name), flexShrink: 0 }} />
-                        <span style={{ color: "#94a3b8" }}>{d.name}</span>
-                      </div>
-                    ))}
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Pie */}
+                  <div className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500">
+                    <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase mb-6">Spending by Category</div>
+                    <ResponsiveContainer width="100%" height={240}>
+                      <PieChart>
+                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={2} dataKey="value">
+                          {pieData.map((entry) => <Cell key={entry.name} fill={categoryColor(entry.name)} />)}
+                        </Pie>
+                        <Tooltip content={<CustomTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4">
+                      {pieData.map((d) => (
+                        <div key={d.name} className="flex items-center gap-2 text-[11px]">
+                          <div style={{ width: 7, height: 7, borderRadius: "50%", background: categoryColor(d.name), flexShrink: 0 }} />
+                          <span className="text-muted-foreground">{d.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Bar */}
+                  <div className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500">
+                    <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase mb-6">Top Categories</div>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={barData} layout="vertical" margin={{ left: 8, right: 16 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 10, fill: "#475569", fontFamily: "'Exo 2', sans-serif" }} tickFormatter={(v) => `€${v}`} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "#64748b", fontFamily: "'Exo 2', sans-serif" }} width={115} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                          {barData.map((entry) => <Cell key={entry.name} fill={categoryColor(entry.name)} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
 
-                {/* Bar Chart */}
-                <div className="card">
-                  <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 20 }}>TOP SPENDING CATEGORIES</div>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 10, fill: "#475569", fontFamily: "inherit" }} tickFormatter={(v) => `€${v}`} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "inherit" }} width={110} />
-                      <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontFamily: "inherit", fontSize: 12 }} />
-                      <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                        {barData.map((entry) => (
-                          <Cell key={entry.name} fill={categoryColor(entry.name)} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Category breakdown table */}
-                <div className="card" style={{ gridColumn: "1 / -1" }}>
-                  <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 20 }}>CATEGORY BREAKDOWN</div>
+                {/* Breakdown table */}
+                <div className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500">
+                  <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase mb-6">Category Breakdown</div>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
-                      <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                         {["Category", "Transactions", "Total Spent", "% of Expenses"].map((h) => (
-                          <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, color: "#475569", letterSpacing: "0.1em", fontWeight: 500 }}>{h}</th>
+                          <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, color: "#475569", letterSpacing: "0.12em", fontWeight: 500, fontFamily: "'Orbitron', sans-serif" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -375,18 +329,18 @@ export default function BudgetDashboard() {
                         const count = transactions.filter((t) => t.category === cat && t.amount < 0).length;
                         const pct = totalOut > 0 ? ((total / totalOut) * 100).toFixed(1) : "0";
                         return (
-                          <tr key={cat} className="row-hover" style={{ borderBottom: "1px solid #0f172a" }}>
+                          <tr key={cat} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }} className="hover:bg-white/[0.02] transition-colors">
                             <td style={{ padding: "10px 12px" }}>
-                              <span className="badge" style={{ background: categoryColor(cat) + "22", color: categoryColor(cat) }}>{cat}</span>
+                              <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, background: categoryColor(cat) + "22", color: categoryColor(cat), letterSpacing: "0.05em" }}>{cat}</span>
                             </td>
-                            <td style={{ padding: "10px 12px", color: "#64748b" }}>{count}</td>
-                            <td style={{ padding: "10px 12px", color: "#f87171" }}>{fmt(total)}</td>
+                            <td style={{ padding: "10px 12px", color: "#64748b", fontSize: 12 }}>{count}</td>
+                            <td style={{ padding: "10px 12px", color: "#f87171", fontSize: 12 }}>{fmt(total)}</td>
                             <td style={{ padding: "10px 12px" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <div style={{ height: 4, width: 80, background: "#1e293b", borderRadius: 2, overflow: "hidden" }}>
+                                <div style={{ height: 3, width: 80, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
                                   <div style={{ height: "100%", width: `${pct}%`, background: categoryColor(cat), borderRadius: 2 }} />
                                 </div>
-                                <span style={{ color: "#64748b", fontSize: 12 }}>{pct}%</span>
+                                <span style={{ color: "#64748b", fontSize: 11 }}>{pct}%</span>
                               </div>
                             </td>
                           </tr>
@@ -398,12 +352,16 @@ export default function BudgetDashboard() {
               </div>
             )}
 
-            {/* ── RAW DATA TAB ──────────────────────────────────────────── */}
+            {/* ── RAW DATA ──────────────────────────────────────────────── */}
             {activeTab === "raw" && (
-              <div className="card">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                  <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em" }}>ALL TRANSACTIONS — {filteredTxns.length} ENTRIES</div>
-                  <select className="input" style={{ width: "auto" }} value={filter} onChange={(e) => setFilter(e.target.value)}>
+              <div className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">{filteredTxns.length} entries</div>
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "6px 12px", color: "hsl(var(--foreground))", fontFamily: "'Exo 2', sans-serif", fontSize: 12, outline: "none" }}
+                  >
                     <option value="All">All Categories</option>
                     {ALL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -411,32 +369,45 @@ export default function BudgetDashboard() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                     <thead>
-                      <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                         {["Date", "Name", "Description", "Amount", "Category", ""].map((h) => (
-                          <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, color: "#475569", letterSpacing: "0.1em", fontWeight: 500, whiteSpace: "nowrap" }}>{h}</th>
+                          <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, color: "#475569", letterSpacing: "0.12em", fontWeight: 500, fontFamily: "'Orbitron', sans-serif", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredTxns.sort((a, b) => b.date.localeCompare(a.date)).map((t) => (
-                        <tr key={t.id} className="row-hover" style={{ borderBottom: "1px solid #0d1420" }}>
+                        <tr key={t.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }} className="hover:bg-white/[0.02] transition-colors">
                           <td style={{ padding: "9px 10px", color: "#475569", whiteSpace: "nowrap" }}>{t.date}</td>
-                          <td style={{ padding: "9px 10px", color: "#e2e8f0", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</td>
+                          <td style={{ padding: "9px 10px", color: "hsl(var(--foreground))", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</td>
                           <td style={{ padding: "9px 10px", color: "#64748b", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.description}</td>
-                          <td style={{ padding: "9px 10px", whiteSpace: "nowrap", color: t.amount >= 0 ? "#4ade80" : "#f87171", fontWeight: 500 }}>{fmt(t.amount)}</td>
+                          <td style={{ padding: "9px 10px", whiteSpace: "nowrap", color: t.amount >= 0 ? "#4ade80" : "#f87171", fontWeight: 600 }}>{fmt(t.amount)}</td>
                           <td style={{ padding: "9px 10px" }}>
                             {editingId === t.id ? (
-                              <select className="input" style={{ padding: "4px 8px", fontSize: 11 }} defaultValue={t.category} onChange={(e) => updateCategory(t.id, e.target.value)} onBlur={() => setEditingId(null)} autoFocus>
+                              <select
+                                defaultValue={t.category}
+                                onChange={(e) => updateCategory(t.id, e.target.value)}
+                                onBlur={() => setEditingId(null)}
+                                autoFocus
+                                style={{ background: "rgba(0,0,0,0.6)", border: "1px solid hsl(var(--primary))", borderRadius: 6, padding: "3px 8px", color: "hsl(var(--foreground))", fontFamily: "'Exo 2', sans-serif", fontSize: 11, outline: "none" }}
+                              >
                                 {ALL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                               </select>
                             ) : (
-                              <span className="badge" style={{ background: categoryColor(t.category) + "22", color: categoryColor(t.category), cursor: "pointer" }} onClick={() => setEditingId(t.id)} title="Click to edit">
+                              <span
+                                onClick={() => setEditingId(t.id)}
+                                title="Click to edit"
+                                style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, background: categoryColor(t.category) + "22", color: categoryColor(t.category), cursor: "pointer", letterSpacing: "0.04em" }}
+                              >
                                 {t.category}
                               </span>
                             )}
                           </td>
                           <td style={{ padding: "9px 10px" }}>
-                            <button className="btn btn-danger" style={{ padding: "3px 10px", fontSize: 10 }} onClick={() => deleteTxn(t.id)}>✕</button>
+                            <button
+                              onClick={() => setTransactions((prev) => prev.filter((x) => x.id !== t.id))}
+                              style={{ background: "rgba(248,113,113,0.1)", border: "none", borderRadius: 4, padding: "3px 10px", color: "#f87171", fontSize: 11, cursor: "pointer" }}
+                            >✕</button>
                           </td>
                         </tr>
                       ))}
@@ -446,34 +417,45 @@ export default function BudgetDashboard() {
               </div>
             )}
 
-            {/* ── ADD ENTRY TAB ─────────────────────────────────────────── */}
+            {/* ── ADD ENTRY ─────────────────────────────────────────────── */}
             {activeTab === "add" && (
-              <div className="card" style={{ maxWidth: 540 }}>
-                <div style={{ fontSize: 11, color: "#475569", letterSpacing: "0.1em", marginBottom: 24 }}>MANUALLY ADD TRANSACTION</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="border border-border/60 rounded-lg p-8 bg-card/40 backdrop-blur-sm max-w-lg hover:border-primary/40 transition-all duration-500">
+                <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase mb-8">Manually Add Transaction</div>
+                <div className="space-y-5">
+                  {[
+                    { label: "DATE", type: "date",   key: "date",        placeholder: "" },
+                    { label: "NAME / MERCHANT", type: "text", key: "name", placeholder: "e.g. Albert Heijn" },
+                    { label: "DESCRIPTION (optional)", type: "text", key: "description", placeholder: "Optional note" },
+                    { label: "AMOUNT (use − for expenses)", type: "number", key: "amount", placeholder: "-25.50" },
+                  ].map((field) => (
+                    <div key={field.key}>
+                      <label style={{ display: "block", fontSize: 10, letterSpacing: "0.15em", color: "#475569", marginBottom: 6, fontFamily: "'Orbitron', sans-serif" }}>{field.label}</label>
+                      <input
+                        type={field.type}
+                        placeholder={field.placeholder}
+                        value={(form as any)[field.key]}
+                        onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+                        style={{ width: "100%", background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 14px", color: "hsl(var(--foreground))", fontFamily: "'Exo 2', sans-serif", fontSize: 13, outline: "none" }}
+                        onFocus={(e) => e.target.style.borderColor = "hsl(var(--primary))"}
+                        onBlur={(e) => e.target.style.borderColor = "rgba(255,255,255,0.08)"}
+                      />
+                    </div>
+                  ))}
                   <div>
-                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>DATE</label>
-                    <input type="date" className="input" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>NAME / MERCHANT</label>
-                    <input type="text" className="input" placeholder="e.g. Albert Heijn" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>DESCRIPTION (optional)</label>
-                    <input type="text" className="input" placeholder="Optional note" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>AMOUNT (use - for expenses)</label>
-                    <input type="number" className="input" placeholder="-25.50" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>CATEGORY</label>
-                    <select className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                    <label style={{ display: "block", fontSize: 10, letterSpacing: "0.15em", color: "#475569", marginBottom: 6, fontFamily: "'Orbitron', sans-serif" }}>CATEGORY</label>
+                    <select
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      style={{ width: "100%", background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 14px", color: "hsl(var(--foreground))", fontFamily: "'Exo 2', sans-serif", fontSize: 13, outline: "none" }}
+                    >
                       {ALL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
-                  <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={addManual}>
+                  <button
+                    onClick={addManual}
+                    className="w-full mt-2 px-6 py-3 rounded border border-primary/50 text-primary hover:bg-primary/10 transition-all duration-300 tracking-widest text-xs"
+                    style={{ fontFamily: "'Orbitron', sans-serif" }}
+                  >
                     + ADD TRANSACTION
                   </button>
                 </div>
@@ -481,7 +463,9 @@ export default function BudgetDashboard() {
             )}
           </>
         )}
-      </div>
+      </main>
+
+      <Footer />
     </div>
   );
 }
