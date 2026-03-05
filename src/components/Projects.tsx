@@ -6,5 +6,6 @@ const projects = [
     tags: ["React", "TypeScript", "Tailwind"],
     githubUrl: "https://github.com",
     liveUrl: "/#/csv-dashboard",
+    export default Projects;
   },
 ];
