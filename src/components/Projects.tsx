@@ -7,7 +7,7 @@ const projects = [
       "Upload bank CSV exports and analyze spending per category and month. Visual breakdowns with charts and filters.",
     tags: ["React", "TypeScript", "Tailwind", "Charts"],
     githubUrl: "https://github.com",
-    liveUrl: "https://gligor.xyz/csv-dashboard",
+    liveUrl: "/#/csv-dashboard",
   },
 ];
 
