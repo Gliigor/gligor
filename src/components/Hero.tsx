@@ -33,14 +33,6 @@ const Hero = () => {
         Passionate about AI, technology, and pushing human innovation forward. I love experimenting with new ideas and building things. Feel free to explore my projects.
       </p>
 
-      {/* Description */}
-      <p
-        className="text-sm sm:text-base text-muted-foreground max-w-md text-center mb-12 animate-fade-up leading-relaxed"
-        style={{ animationDelay: "0.95s" }}
-      >
-        Passionate about AI, technology and the advancement of human technology.
-        Loves to try new things. Take a look at my projects.
-      </p>
 
       {/* CTA Button */}
       <a
