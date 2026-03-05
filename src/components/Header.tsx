@@ -8,55 +8,36 @@ const XIcon = ({ size = 20 }: { size?: number }) => (
 
 const Header = () => {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-background/60 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-        <a href="/" className="text-xl font-semibold tracking-tight hover:text-primary transition-colors">
+        <a href="/" className="text-sm tracking-[0.2em] uppercase hover:text-primary transition-colors" style={{ fontFamily: "'Orbitron', sans-serif" }}>
           gligor<span className="text-primary">.</span>xyz
         </a>
         
         <nav className="flex items-center gap-6">
           <a 
             href="#projects" 
-            className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
+            className="text-muted-foreground hover:text-foreground transition-colors text-xs tracking-[0.15em] uppercase"
           >
             Projects
           </a>
           <a 
-            href="#about" 
-            className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
-          >
-            About
-          </a>
-          <a 
             href="#contact" 
-            className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
+            className="text-muted-foreground hover:text-foreground transition-colors text-xs tracking-[0.15em] uppercase"
           >
             Contact
           </a>
         </nav>
 
         <div className="flex items-center gap-4">
-          <a 
-            href="https://github.com" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Github size={20} />
+          <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+            <Github size={18} />
           </a>
-          <a 
-            href="https://x.com" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <XIcon size={18} />
+          <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+            <XIcon size={16} />
           </a>
-          <a 
-            href="mailto:gligor@jancev.com"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Mail size={20} />
+          <a href="mailto:gligor@jancev.com" className="text-muted-foreground hover:text-primary transition-colors">
+            <Mail size={18} />
           </a>
         </div>
       </div>
