@@ -3,14 +3,6 @@ import { ArrowRight } from "lucide-react";
 const Hero = () => {
   return (
     <section className="min-h-screen flex flex-col items-center justify-center px-6 relative z-10">
-      {/* Tagline */}
-      <p
-        className="text-[10px] sm:text-xs tracking-[0.35em] uppercase text-muted-foreground mb-10 animate-fade-in"
-        style={{ animationDelay: "0.2s" }}
-      >
-        Reconnecting Signal • Digital System Reboot
-      </p>
-
       {/* Logo placeholder */}
       <div
         className="relative mb-10 animate-fade-in animate-float"
@@ -25,32 +17,21 @@ const Hero = () => {
         </div>
       </div>
 
-      {/* RETURN headline */}
+      {/* Name headline */}
       <h1
-        className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-[0.2em] mb-6 animate-fade-up"
+        className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-[0.15em] mb-8 animate-fade-up"
         style={{ animationDelay: "0.5s", fontFamily: "'Orbitron', sans-serif" }}
       >
-        RETURN<span className="animate-blink text-primary">|</span>
+        Gligor Jancev<span className="animate-blink text-primary">|</span>
       </h1>
 
-      {/* Name */}
-      <h2
-        className="text-lg sm:text-xl md:text-2xl tracking-[0.15em] text-foreground/80 mb-6 animate-fade-up"
-        style={{ animationDelay: "0.65s", fontFamily: "'Orbitron', sans-serif" }}
+      {/* Description */}
+      <p
+        className="text-sm sm:text-base text-muted-foreground max-w-md text-center mb-12 animate-fade-up leading-relaxed"
+        style={{ animationDelay: "0.7s" }}
       >
-        Gligor Jancev
-      </h2>
-
-      {/* Subheadline */}
-      <div
-        className="text-center max-w-lg mx-auto mb-4 animate-fade-up"
-        style={{ animationDelay: "0.8s" }}
-      >
-        <p className="text-sm sm:text-base text-muted-foreground leading-relaxed italic">
-          "The channel went dark a long time ago. Years of static.
-          <br />A signal returns. Same source. Different frequency."
-        </p>
-      </div>
+        Passionate about AI, technology, and pushing human innovation forward. I love experimenting with new ideas and building things. Feel free to explore my projects.
+      </p>
 
       {/* Description */}
       <p
