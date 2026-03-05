@@ -5,7 +5,8 @@ const projects = [
       "Upload bank CSV exports and analyze spending per category and month.",
     tags: ["React", "TypeScript", "Tailwind"],
     githubUrl: "https://github.com",
-   liveUrl: "/#/csv-dashboard",
-export default Projects;
-},
+    liveUrl: "/#/csv-dashboard",
+  },
 ];
+
+export default projects;
