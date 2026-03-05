@@ -260,8 +260,6 @@ export default function CsvDashboard() {
                     fontFamily: "'Orbitron', sans-serif",
                     color: activeTab === tab.id ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
                     borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : "2px solid transparent",
-                    background: "none",
-                    borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : "2px solid transparent",
                     cursor: "pointer",
                   }}
                 >
