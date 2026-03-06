@@ -3,10 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ConstellationBackground from "@/components/ConstellationBackground";
-import {
-  loadCategories, saveCategories, addCategory as addSharedCategory,
-  categoryColor, SHARED_CATEGORIES_KEY,
-} from "./sharedCategories";
+import { loadCategories, categoryColor, autoClassify } from "./sharedCategories";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Transaction {
@@ -19,35 +16,14 @@ interface Subscription {
 }
 interface BudgetComparison {
   category: string; budgeted: number; actual: number;
-  diff: number; pct: number; status: "under" | "over" | "exact" | "unbudgeted" | "nodata";
+  diff: number; pct: number;
+  status: "under" | "over" | "exact" | "unbudgeted" | "nodata";
 }
-
-// ─── Category keyword rules (auto-classify CSV rows) ─────────────────────────
-const CATEGORY_RULES: { label: string; keywords: string[] }[] = [
-  { label: "Groceries",        keywords: ["albert heijn","ah ","ah zeist","lidl","jumbo","aldi","plus supermarkt","dirk"] },
-  { label: "Housing",          keywords: ["vve","hypotheek","mortgage","huur","rent","woning"] },
-  { label: "Insurance",        keywords: ["fbto","verzeker","insurance","rheinland","credit life","overlijdens"] },
-  { label: "Personal Care",    keywords: ["kruidvat","etos","trekpleister","douglas","hema","kapper","salon"] },
-  { label: "Transport",        keywords: ["tinq","shell","bp ","esso","total","benzine","ns ","ov-chipkaart","parkeer","parking"] },
-  { label: "Health & Fitness", keywords: ["basic fit","sportschool","gym","apotheek","pharmacy","huisarts","ziekenhuis"] },
-  { label: "Income",           keywords: ["salaris","salary","loon","inkomen"] },
-  { label: "Entertainment",    keywords: ["netflix","spotify","disney","cinema","bioscoop"] },
-  { label: "Dining Out",       keywords: ["restaurant","cafe","mcdonalds","thuisbezorgd","uber eats","takeaway"] },
-  { label: "Shopping",         keywords: ["argos","readshop","bol.com","amazon","zalando","h&m","zara","primark","ikea"] },
-  { label: "Subscriptions",    keywords: ["bck*","stalling","storage","adobe","microsoft"] },
-];
 
 const CSV_STORAGE_KEY  = "budget_dashboard_v1";
 const BUDGET_MAKER_KEY = "budget_maker_v1";
 
-function autoClassify(name: string, desc: string): string {
-  const hay = `${name} ${desc}`.toLowerCase();
-  for (const r of CATEGORY_RULES) {
-    if (r.keywords.some((k) => hay.includes(k))) return r.label;
-  }
-  return "Other";
-}
-
+// ─── CSV Parser ───────────────────────────────────────────────────────────────
 function parseAmount(raw: string): number {
   return parseFloat(raw.replace(/\./g, "").replace(",", "."));
 }
@@ -66,13 +42,18 @@ function parseCSV(text: string): Transaction[] {
     const [date, , amountRaw, , , name, description] = fields;
     const amount = parseAmount(amountRaw ?? "0");
     return {
-      id: `csv-${i}`, date: date?.trim() ?? "",
-      name: name?.trim() ?? "", description: description?.trim() ?? "",
-      amount, category: autoClassify(name ?? "", description ?? ""),
+      id: `csv-${i}`,
+      date: date?.trim() ?? "",
+      name: name?.trim() ?? "",
+      description: description?.trim() ?? "",
+      amount,
+      // Use shared autoClassify from sharedCategories.ts
+      category: autoClassify(name ?? "", description ?? ""),
     };
   }).filter((t) => !isNaN(t.amount));
 }
 
+// ─── Subscription Detection ───────────────────────────────────────────────────
 function detectSubscriptions(txns: Transaction[]): Subscription[] {
   const expenses = txns.filter((t) => t.amount < 0);
   const grouped: Record<string, Transaction[]> = {};
@@ -90,7 +71,7 @@ function detectSubscriptions(txns: Transaction[]): Subscription[] {
     if (variance > avg * 0.1) continue;
     const dates = group.map((t) => new Date(t.date)).sort((a, b) => a.getTime() - b.getTime());
     const gaps: number[] = [];
-    for (let i = 1; i < dates.length; i++) gaps.push((dates[i].getTime() - dates[i-1].getTime()) / 86400000);
+    for (let i = 1; i < dates.length; i++) gaps.push((dates[i].getTime() - dates[i - 1].getTime()) / 86400000);
     const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
     let frequency = "Irregular", monthlyEstimate = avg;
     if      (avgGap <= 8)   { frequency = "Weekly";    monthlyEstimate = avg * 4.33; }
@@ -113,6 +94,20 @@ function downloadCSV(txns: Transaction[]) {
   const a = document.createElement("a"); a.href = url; a.download = "budget-export.csv"; a.click();
   URL.revokeObjectURL(url);
 }
+
+// ─── Dropdown style — black bg, white text, clearly readable ─────────────────
+const dropdownStyle: React.CSSProperties = {
+  background: "#1a1a2e",
+  border: "1px solid rgba(255,255,255,0.25)",
+  borderRadius: 6,
+  padding: "4px 8px",
+  color: "#f1f5f9",
+  fontFamily: "'Exo 2',sans-serif",
+  fontSize: 11,
+  cursor: "pointer",
+  outline: "none",
+  appearance: "auto",
+};
 
 // ─── Tooltip ──────────────────────────────────────────────────────────────────
 const CustomTooltip = ({ active, payload }: any) => {
@@ -142,6 +137,7 @@ const DrillDownPanel = ({
   return (
     <div onClick={handleClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: `rgba(0,0,0,${visible ? 0.7 : 0})`, transition: "background 0.3s", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "min(480px,95vw)", height: "100vh", background: "#080e1a", borderLeft: "1px solid rgba(0,229,255,0.15)", transform: visible ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.4,0,0.2,1)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+        {/* Header */}
         <div style={{ padding: "24px 28px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#475569", marginBottom: 6, fontFamily: "'Orbitron',sans-serif" }}>CATEGORY DRILL-DOWN</div>
@@ -154,6 +150,7 @@ const DrillDownPanel = ({
           </div>
           <button onClick={handleClose} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "6px 12px", color: "#94a3b8", cursor: "pointer", fontSize: 13 }}>✕</button>
         </div>
+        {/* Transactions list */}
         <div style={{ padding: "16px 28px", flex: 1 }}>
           {[...transactions].sort((a, b) => b.date.localeCompare(a.date)).map((t) => (
             <div key={t.id} style={{ padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
@@ -164,11 +161,11 @@ const DrillDownPanel = ({
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: t.amount >= 0 ? "#4ade80" : "#f87171", marginBottom: 6 }}>{fmt(t.amount)}</div>
-                {/* Relabel dropdown — shown for ALL categories, not just Other */}
+                {/* Relabel dropdown — visible on every transaction, not just Other */}
                 <select
                   value={t.category}
                   onChange={(e) => onRelabel(t.id, e.target.value)}
-                  style={{ background: "rgba(0,0,0,0.6)", border: `1px solid ${categoryColor(t.category)}55`, borderRadius: 4, padding: "3px 6px", color: categoryColor(t.category), fontFamily: "'Exo 2',sans-serif", fontSize: 10, cursor: "pointer", outline: "none" }}
+                  style={dropdownStyle}
                 >
                   {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -201,8 +198,7 @@ const BudgetCompareModal = ({ rows, onClose }: { rows: BudgetComparison[]; onClo
 
   return (
     <div onClick={close} style={{ position: "fixed", inset: 0, zIndex: 200, background: `rgba(0,0,0,${visible ? 0.8 : 0})`, transition: "background 0.28s", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(780px,98vw)", maxHeight: "90vh", overflowY: "auto", background: "#080e1a", border: "1px solid rgba(0,229,255,0.18)", borderRadius: 14, padding: "28px 32px", transform: visible ? "scale(1)" : "scale(0.94)", opacity: visible ? 1 : 0, transition: "transform 0.28s cubic-bezier(0.34,1.56,0.64,1),opacity 0.28s" }}>
-        {/* Header */}
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(800px,98vw)", maxHeight: "90vh", overflowY: "auto", background: "#080e1a", border: "1px solid rgba(0,229,255,0.18)", borderRadius: 14, padding: "28px 32px", transform: visible ? "scale(1)" : "scale(0.94)", opacity: visible ? 1 : 0, transition: "transform 0.28s cubic-bezier(0.34,1.56,0.64,1),opacity 0.28s" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
           <div>
             <div style={{ fontSize: 10, color: "#475569", letterSpacing: "0.2em", fontFamily: "'Orbitron',sans-serif", marginBottom: 6 }}>ANALYSIS</div>
@@ -210,8 +206,7 @@ const BudgetCompareModal = ({ rows, onClose }: { rows: BudgetComparison[]; onClo
           </div>
           <button onClick={close} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "7px 13px", color: "#94a3b8", cursor: "pointer", fontSize: 13 }}>✕</button>
         </div>
-
-        {/* Summary totals */}
+        {/* Summary cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
           {[
             { label: "TOTAL BUDGETED", value: fmt(totalBudgeted), color: "#60a5fa" },
@@ -224,52 +219,53 @@ const BudgetCompareModal = ({ rows, onClose }: { rows: BudgetComparison[]; onClo
             </div>
           ))}
         </div>
-
         {/* Table */}
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-              {["CATEGORY","BUDGETED","ACTUAL SPENT","DIFFERENCE","USAGE","STATUS"].map((h) => (
-                <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 9, color: "#475569", letterSpacing: "0.12em", fontFamily: "'Orbitron',sans-serif", fontWeight: 500 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const badge = statusBadge(r.status);
-              const barPct = r.budgeted > 0 ? Math.min((r.actual / r.budgeted) * 100, 150) : 0;
-              const barColor = barPct > 100 ? "#f87171" : barPct > 85 ? "#fbbf24" : "#4ade80";
-              return (
-                <tr key={r.category} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                  <td style={{ padding: "11px 10px" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: categoryColor(r.category), flexShrink: 0, display: "inline-block" }} />
-                      <span style={{ fontSize: 12, color: "#e2e8f0" }}>{r.category}</span>
-                    </span>
-                  </td>
-                  <td style={{ padding: "11px 10px", fontSize: 12, color: "#60a5fa" }}>{r.budgeted > 0 ? fmt(r.budgeted) : <span style={{ color: "#334155" }}>—</span>}</td>
-                  <td style={{ padding: "11px 10px", fontSize: 12, color: r.actual > 0 ? "#f87171" : "#475569" }}>{r.actual > 0 ? fmt(r.actual) : <span style={{ color: "#334155" }}>€0</span>}</td>
-                  <td style={{ padding: "11px 10px", fontSize: 12, color: r.diff >= 0 ? "#4ade80" : "#f87171", fontWeight: 600 }}>
-                    {r.status === "unbudgeted" || r.status === "nodata" ? "—" : (r.diff >= 0 ? "+" : "") + fmt(r.diff)}
-                  </td>
-                  <td style={{ padding: "11px 10px" }}>
-                    {r.budgeted > 0 ? (
-                      <div style={{ width: 80 }}>
-                        <div style={{ height: 4, background: "rgba(255,255,255,0.05)", borderRadius: 2, overflow: "hidden", marginBottom: 3 }}>
-                          <div style={{ height: "100%", width: `${Math.min(barPct, 100)}%`, background: barColor, borderRadius: 2, transition: "width 0.4s" }} />
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                {["CATEGORY", "BUDGETED", "ACTUAL SPENT", "DIFFERENCE", "USAGE", "STATUS"].map((h) => (
+                  <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 9, color: "#475569", letterSpacing: "0.12em", fontFamily: "'Orbitron',sans-serif", fontWeight: 500, whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const badge   = statusBadge(r.status);
+                const barPct  = r.budgeted > 0 ? Math.min((r.actual / r.budgeted) * 100, 150) : 0;
+                const barClr  = barPct > 100 ? "#f87171" : barPct > 85 ? "#fbbf24" : "#4ade80";
+                return (
+                  <tr key={r.category} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                    <td style={{ padding: "11px 10px" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: categoryColor(r.category), flexShrink: 0, display: "inline-block" }} />
+                        <span style={{ fontSize: 12, color: "#e2e8f0" }}>{r.category}</span>
+                      </span>
+                    </td>
+                    <td style={{ padding: "11px 10px", fontSize: 12, color: "#60a5fa" }}>{r.budgeted > 0 ? fmt(r.budgeted) : <span style={{ color: "#334155" }}>—</span>}</td>
+                    <td style={{ padding: "11px 10px", fontSize: 12, color: r.actual > 0 ? "#f87171" : "#475569" }}>{r.actual > 0 ? fmt(r.actual) : <span style={{ color: "#334155" }}>€0</span>}</td>
+                    <td style={{ padding: "11px 10px", fontSize: 12, fontWeight: 600, color: r.diff >= 0 ? "#4ade80" : "#f87171" }}>
+                      {r.status === "unbudgeted" || r.status === "nodata" ? "—" : (r.diff >= 0 ? "+" : "") + fmt(r.diff)}
+                    </td>
+                    <td style={{ padding: "11px 10px" }}>
+                      {r.budgeted > 0 ? (
+                        <div style={{ width: 80 }}>
+                          <div style={{ height: 4, background: "rgba(255,255,255,0.05)", borderRadius: 2, overflow: "hidden", marginBottom: 3 }}>
+                            <div style={{ height: "100%", width: `${Math.min(barPct, 100)}%`, background: barClr, borderRadius: 2, transition: "width 0.4s" }} />
+                          </div>
+                          <span style={{ fontSize: 9, color: "#475569" }}>{Math.min(barPct, 999).toFixed(0)}%</span>
                         </div>
-                        <span style={{ fontSize: 9, color: "#475569" }}>{Math.min(barPct, 999).toFixed(0)}%</span>
-                      </div>
-                    ) : <span style={{ color: "#334155", fontSize: 10 }}>—</span>}
-                  </td>
-                  <td style={{ padding: "11px 10px" }}>
-                    <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: badge.bg, color: badge.color }}>{badge.label}</span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      ) : <span style={{ color: "#334155", fontSize: 10 }}>—</span>}
+                    </td>
+                    <td style={{ padding: "11px 10px" }}>
+                      <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: badge.bg, color: badge.color, whiteSpace: "nowrap" }}>{badge.label}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -326,10 +322,10 @@ export default function CsvDashboard() {
   const [transactions,  setTransactions]  = useState<Transaction[]>([]);
   const [categories,    setCategories]    = useState<string[]>(() => loadCategories());
   const [dragging,      setDragging]      = useState(false);
-  const [activeTab,     setActiveTab]     = useState<"overview"|"raw"|"add"|"subscriptions">("overview");
+  const [activeTab,     setActiveTab]     = useState<"overview" | "raw" | "add" | "subscriptions">("overview");
   const [filter,        setFilter]        = useState("All");
-  const [editingId,     setEditingId]     = useState<string|null>(null);
-  const [drillCategory, setDrillCategory] = useState<string|null>(null);
+  const [editingId,     setEditingId]     = useState<string | null>(null);
+  const [drillCategory, setDrillCategory] = useState<string | null>(null);
   const [drillIsIncome, setDrillIsIncome] = useState(false);
   const [hasSaved,      setHasSaved]      = useState(false);
   const [saveMsg,       setSaveMsg]       = useState("");
@@ -337,7 +333,7 @@ export default function CsvDashboard() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ date: "", name: "", description: "", amount: "", category: categories[0] });
 
-  // Sync categories from localStorage (shared with Budget Maker)
+  // Keep categories synced with shared list (Budget Maker may add custom ones)
   useEffect(() => {
     const onStorage = () => setCategories(loadCategories());
     window.addEventListener("storage", onStorage);
@@ -348,7 +344,7 @@ export default function CsvDashboard() {
     try { if (localStorage.getItem(CSV_STORAGE_KEY)) setHasSaved(true); } catch {}
   }, []);
 
-  // Auto-save whenever transactions change
+  // Auto-save on every transaction change
   useEffect(() => {
     if (transactions.length > 0) {
       try { localStorage.setItem(CSV_STORAGE_KEY, JSON.stringify(transactions)); } catch {}
@@ -393,7 +389,6 @@ export default function CsvDashboard() {
     setEditingId(null);
   };
 
-  // Fix 1: relabel persists + closes drill panel if category no longer matches
   const relabelTransaction = (id: string, cat: string) => {
     setTransactions((prev) => prev.map((t) => t.id === id ? { ...t, category: cat } : t));
   };
@@ -409,27 +404,24 @@ export default function CsvDashboard() {
     setActiveTab("raw");
   };
 
-  // ── Derived data ────────────────────────────────────────────────────────
-  // Fix 1: strictly separate income vs expenses for drill-down
+  // ── Derived data ─────────────────────────────────────────────────────────
   const incomeTransactions  = transactions.filter((t) => t.amount > 0);
   const expenseTransactions = transactions.filter((t) => t.amount < 0);
   const totalIn  = incomeTransactions.reduce((s, t) => s + t.amount, 0);
   const totalOut = expenseTransactions.reduce((s, t) => s + Math.abs(t.amount), 0);
   const net      = totalIn - totalOut;
 
-  const incomeByCategory: Record<string, number> = {};
-  for (const t of incomeTransactions) incomeByCategory[t.category] = (incomeByCategory[t.category] ?? 0) + t.amount;
-
+  const incomeByCategory: Record<string, number>  = {};
+  for (const t of incomeTransactions)  incomeByCategory[t.category]  = (incomeByCategory[t.category]  ?? 0) + t.amount;
   const expenseByCategory: Record<string, number> = {};
   for (const t of expenseTransactions) expenseByCategory[t.category] = (expenseByCategory[t.category] ?? 0) + Math.abs(t.amount);
 
-  const incomePieData  = Object.entries(incomeByCategory).sort((a,b)=>b[1]-a[1]).map(([name,value])=>({name,value:parseFloat(value.toFixed(2))}));
-  const expensePieData = Object.entries(expenseByCategory).sort((a,b)=>b[1]-a[1]).map(([name,value])=>({name,value:parseFloat(value.toFixed(2))}));
+  const incomePieData  = Object.entries(incomeByCategory).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
+  const expensePieData = Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
 
-  const filteredTxns = filter === "All" ? transactions : transactions.filter((t) => t.category === filter);
+  const filteredTxns  = filter === "All" ? transactions : transactions.filter((t) => t.category === filter);
   const subscriptions = detectSubscriptions(transactions);
 
-  // Fix 1: drill-down shows only income OR only expense transactions for that category
   const drillTxns = drillCategory
     ? (drillIsIncome ? incomeTransactions : expenseTransactions).filter((t) => t.category === drillCategory)
     : [];
@@ -439,46 +431,51 @@ export default function CsvDashboard() {
     setDrillCategory(cat);
   };
 
-  // ── Budget vs Actual ─────────────────────────────────────────────────────
+  // ── Budget vs Actual ───────────────────────────────────────────────────────
   const buildComparisonRows = (): BudgetComparison[] => {
-    let budgetData: Record<string, number> = {};
+    const budgetMap: Record<string, number> = {};
     try {
       const raw = localStorage.getItem(BUDGET_MAKER_KEY);
       if (raw) {
         const saved = JSON.parse(raw);
+        // Regular expense rows
         for (const row of (saved.expenses ?? [])) {
           const amt = parseFloat(row.amount);
-          if (!isNaN(amt) && amt > 0) budgetData[row.label] = amt;
+          if (!isNaN(amt) && amt > 0) budgetMap[row.label] = (budgetMap[row.label] ?? 0) + amt;
         }
+        // Subscriptions bucket — sum of all named sub-rows
+        const subTotal = (saved.subscriptions ?? []).reduce((s: number, r: { amount: string }) => s + (parseFloat(r.amount) || 0), 0);
+        if (subTotal > 0) budgetMap["Subscriptions"] = (budgetMap["Subscriptions"] ?? 0) + subTotal;
       }
     } catch {}
 
-    const allCats = new Set([...Object.keys(budgetData), ...Object.keys(expenseByCategory)]);
+    const allCats = new Set([...Object.keys(budgetMap), ...Object.keys(expenseByCategory)]);
     const rows: BudgetComparison[] = [];
 
     for (const cat of allCats) {
-      const budgeted = budgetData[cat] ?? 0;
+      if (cat === "Income") continue;
+      const budgeted = budgetMap[cat] ?? 0;
       const actual   = expenseByCategory[cat] ?? 0;
       const diff     = budgeted - actual;
       const pct      = budgeted > 0 ? (actual / budgeted) * 100 : 0;
       let status: BudgetComparison["status"] = "nodata";
-      if (budgeted === 0)         status = "unbudgeted";
-      else if (actual === 0)      status = "nodata";
+      if (budgeted === 0)             status = "unbudgeted";
+      else if (actual === 0)          status = "nodata";
       else if (Math.abs(diff) < 0.01) status = "exact";
-      else if (diff > 0)          status = "under";
-      else                        status = "over";
+      else if (diff > 0)              status = "under";
+      else                            status = "over";
       rows.push({ category: cat, budgeted, actual, diff, pct, status });
     }
     return rows.sort((a, b) => b.actual - a.actual);
   };
 
-  const inputStyle = { width: "100%", background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 14px", color: "hsl(var(--foreground))", fontFamily: "'Exo 2',sans-serif", fontSize: 13, outline: "none" };
+  const inputStyle: React.CSSProperties = { width: "100%", background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontFamily: "'Exo 2',sans-serif", fontSize: 13, outline: "none" };
 
   const tabs = [
-    { id: "overview" as const,      label: "OVERVIEW" },
-    { id: "raw" as const,           label: "RAW DATA" },
+    { id: "overview"      as const, label: "OVERVIEW" },
+    { id: "raw"           as const, label: "RAW DATA" },
     { id: "subscriptions" as const, label: `SUBSCRIPTIONS${subscriptions.length ? ` (${subscriptions.length})` : ""}` },
-    { id: "add" as const,           label: "+ ADD" },
+    { id: "add"           as const, label: "+ ADD" },
   ];
 
   return (
@@ -503,94 +500,95 @@ export default function CsvDashboard() {
               <div style={{ fontSize: 12, color: "#64748b" }}>You have a previously saved dashboard.</div>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={restoreSession} style={{ background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.3)", borderRadius: 6, padding: "8px 16px", color: "#00e5ff", fontFamily: "'Orbitron',sans-serif", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>RESTORE</button>
-              <button onClick={clearSaved} style={{ background: "rgba(248,113,113,0.05)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 6, padding: "8px 16px", color: "#f87171", fontFamily: "'Orbitron',sans-serif", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>CLEAR</button>
+              <button onClick={restoreSession} style={{ background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.3)", borderRadius: 6, padding: "8px 16px", color: "#00e5ff", fontFamily: "'Orbitron',sans-serif", fontSize: 10, cursor: "pointer" }}>RESTORE</button>
+              <button onClick={clearSaved}     style={{ background: "rgba(248,113,113,0.05)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 6, padding: "8px 16px", color: "#f87171", fontFamily: "'Orbitron',sans-serif", fontSize: 10, cursor: "pointer" }}>CLEAR</button>
             </div>
           </div>
         )}
 
         {/* Drop Zone */}
         {transactions.length === 0 ? (
-          <div onDragOver={(e)=>{e.preventDefault();setDragging(true);}} onDragLeave={()=>setDragging(false)} onDrop={onDrop} onClick={()=>fileRef.current?.click()} className="cursor-pointer mx-auto max-w-lg"
-            style={{ border:`2px dashed ${dragging?"hsl(var(--primary))":"rgba(0,229,255,0.2)"}`, borderRadius:12, padding:"64px 40px", textAlign:"center", background:dragging?"rgba(0,229,255,0.03)":"rgba(0,229,255,0.01)", transition:"all 0.3s" }}>
-            <input ref={fileRef} type="file" accept=".csv" style={{ display:"none" }} onChange={(e)=>e.target.files?.[0]&&loadFile(e.target.files[0])} />
-            <div style={{ fontSize:36, marginBottom:16 }}>📂</div>
-            <div className="text-foreground font-semibold mb-2" style={{ fontFamily:"'Orbitron',sans-serif", fontSize:15, letterSpacing:"0.05em" }}>DROP YOUR BUNQ CSV</div>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            onClick={() => fileRef.current?.click()}
+            className="cursor-pointer mx-auto max-w-lg"
+            style={{ border: `2px dashed ${dragging ? "hsl(var(--primary))" : "rgba(0,229,255,0.2)"}`, borderRadius: 12, padding: "64px 40px", textAlign: "center", background: dragging ? "rgba(0,229,255,0.03)" : "rgba(0,229,255,0.01)", transition: "all 0.3s" }}
+          >
+            <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && loadFile(e.target.files[0])} />
+            <div style={{ fontSize: 36, marginBottom: 16 }}>📂</div>
+            <div className="text-foreground font-semibold mb-2" style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 15, letterSpacing: "0.05em" }}>DROP YOUR BUNQ CSV</div>
             <div className="text-muted-foreground text-xs tracking-wider">or click to browse</div>
           </div>
         ) : (
           <>
-            {/* Top bar */}
+            {/* Top action bar */}
             <div className="flex justify-between items-center mb-8 flex-wrap gap-3">
               <span className="text-xs tracking-[0.2em] text-muted-foreground uppercase">{transactions.length} transactions loaded</span>
               <div className="flex gap-3 flex-wrap">
-                {saveMsg && <span style={{ fontSize:11, color:"#00e5ff", alignSelf:"center", letterSpacing:"0.1em" }}>{saveMsg}</span>}
-                <button onClick={()=>setShowCompare(true)} style={{ background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:6, padding:"8px 14px", color:"#fbbf24", fontFamily:"'Orbitron',sans-serif", fontSize:10, letterSpacing:"0.1em", cursor:"pointer" }}>
-                  ⚖️ COMPARE WITH BUDGET
-                </button>
-                <button onClick={saveDashboard} className="text-xs tracking-widest px-4 py-2 rounded border border-primary/30 text-primary hover:bg-primary/10 transition-all" style={{ fontFamily:"'Orbitron',sans-serif" }}>💾 SAVE</button>
-                {hasSaved && <button onClick={clearSaved} className="text-xs tracking-widest px-4 py-2 rounded border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all" style={{ fontFamily:"'Orbitron',sans-serif" }}>CLEAR SAVED</button>}
-                <button onClick={()=>downloadCSV(transactions)} className="text-xs tracking-widest px-4 py-2 rounded border border-border/40 text-muted-foreground hover:border-primary/30 hover:text-primary transition-all" style={{ fontFamily:"'Orbitron',sans-serif" }}>↓ EXPORT</button>
-                <button onClick={()=>{setTransactions([]);setActiveTab("overview");}} className="text-xs tracking-widest px-4 py-2 rounded border border-border/40 text-muted-foreground hover:border-primary/30 hover:text-primary transition-all" style={{ fontFamily:"'Orbitron',sans-serif" }}>↺ NEW FILE</button>
+                {saveMsg && <span style={{ fontSize: 11, color: "#00e5ff", alignSelf: "center", letterSpacing: "0.1em" }}>{saveMsg}</span>}
+                <button onClick={() => setShowCompare(true)} style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 6, padding: "8px 14px", color: "#fbbf24", fontFamily: "'Orbitron',sans-serif", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>⚖️ COMPARE WITH BUDGET</button>
+                <button onClick={saveDashboard} className="text-xs tracking-widest px-4 py-2 rounded border border-primary/30 text-primary hover:bg-primary/10 transition-all" style={{ fontFamily: "'Orbitron',sans-serif" }}>💾 SAVE</button>
+                {hasSaved && <button onClick={clearSaved} className="text-xs tracking-widest px-4 py-2 rounded border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all" style={{ fontFamily: "'Orbitron',sans-serif" }}>CLEAR SAVED</button>}
+                <button onClick={() => downloadCSV(transactions)} className="text-xs tracking-widest px-4 py-2 rounded border border-border/40 text-muted-foreground hover:border-primary/30 hover:text-primary transition-all" style={{ fontFamily: "'Orbitron',sans-serif" }}>↓ EXPORT</button>
+                <button onClick={() => { setTransactions([]); setActiveTab("overview"); }} className="text-xs tracking-widest px-4 py-2 rounded border border-border/40 text-muted-foreground hover:border-primary/30 hover:text-primary transition-all" style={{ fontFamily: "'Orbitron',sans-serif" }}>↺ NEW FILE</button>
               </div>
             </div>
 
             {/* Stat Cards */}
             <div className="grid grid-cols-3 gap-4 mb-10">
               {[
-                { label:"TOTAL INCOME",   value:fmt(totalIn),  color:"#4ade80" },
-                { label:"TOTAL EXPENSES", value:fmt(totalOut), color:"#f87171" },
-                { label:"NET BALANCE",    value:fmt(net),      color:net>=0?"hsl(var(--primary))":"#fb923c" },
-              ].map((s)=>(
+                { label: "TOTAL INCOME",   value: fmt(totalIn),  color: "#4ade80" },
+                { label: "TOTAL EXPENSES", value: fmt(totalOut), color: "#f87171" },
+                { label: "NET BALANCE",    value: fmt(net),      color: net >= 0 ? "hsl(var(--primary))" : "#fb923c" },
+              ].map((s) => (
                 <div key={s.label} className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500">
                   <div className="text-[10px] tracking-[0.2em] text-muted-foreground mb-3 uppercase">{s.label}</div>
-                  <div className="text-2xl font-bold" style={{ fontFamily:"'Orbitron',sans-serif", color:s.color }}>{s.value}</div>
+                  <div className="text-2xl font-bold" style={{ fontFamily: "'Orbitron',sans-serif", color: s.color }}>{s.value}</div>
                 </div>
               ))}
             </div>
 
             {/* Tabs */}
             <div className="flex gap-1 border-b border-border/40 mb-8 overflow-x-auto">
-              {tabs.map((tab)=>(
-                <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{ fontFamily:"'Orbitron',sans-serif", color:activeTab===tab.id?"hsl(var(--primary))":"hsl(var(--muted-foreground))", borderBottom:activeTab===tab.id?"2px solid hsl(var(--primary))":"2px solid transparent", background:"none", border:"none", borderBottom:activeTab===tab.id?"2px solid hsl(var(--primary))":"2px solid transparent", padding:"10px 16px", fontSize:10, letterSpacing:"0.12em", cursor:"pointer", whiteSpace:"nowrap", transition:"all 0.2s" }}>
+              {tabs.map((tab) => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ fontFamily: "'Orbitron',sans-serif", color: activeTab === tab.id ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))", borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : "2px solid transparent", background: "none", border: "none", borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : "2px solid transparent", padding: "10px 16px", fontSize: 10, letterSpacing: "0.12em", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s" }}>
                   {tab.label}
                 </button>
               ))}
             </div>
 
-            {/* ── OVERVIEW ──────────────────────────────────────────────── */}
+            {/* ── OVERVIEW ────────────────────────────────────────────────── */}
             {activeTab === "overview" && (
               <div className="space-y-6">
-                {/* Fix 1: income slice click → income-only drill */}
-                <DonutRow label="ROW 1 — INCOME"   total={totalIn}  color="#4ade80" pieData={incomePieData}  onSliceClick={(cat) => openDrill(cat, true)} />
-                {/* Fix 1: expense slice click → expense-only drill */}
+                <DonutRow label="ROW 1 — INCOME"   total={totalIn}  color="#4ade80" pieData={incomePieData}  onSliceClick={(cat) => openDrill(cat, true)}  />
                 <DonutRow label="ROW 2 — EXPENSES" total={totalOut} color="#f87171" pieData={expensePieData} onSliceClick={(cat) => openDrill(cat, false)} />
-                {/* Category breakdown table */}
                 <div className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm">
                   <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase mb-6">Full Category Breakdown — click to drill down</div>
-                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
-                      <tr style={{ borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-                        {["Category","Transactions","Total","% of Expenses"].map((h)=>(
-                          <th key={h} style={{ padding:"8px 12px", textAlign:"left", fontSize:10, color:"#475569", letterSpacing:"0.12em", fontWeight:500, fontFamily:"'Orbitron',sans-serif" }}>{h}</th>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                        {["Category", "Transactions", "Total", "% of Expenses"].map((h) => (
+                          <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, color: "#475569", letterSpacing: "0.12em", fontWeight: 500, fontFamily: "'Orbitron',sans-serif" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(expenseByCategory).sort((a,b)=>b[1]-a[1]).map(([cat,total])=>{
-                        const count = expenseTransactions.filter((t)=>t.category===cat).length;
-                        const pct = totalOut>0?((total/totalOut)*100).toFixed(1):"0";
+                      {Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]).map(([cat, total]) => {
+                        const count = expenseTransactions.filter((t) => t.category === cat).length;
+                        const pct   = totalOut > 0 ? ((total / totalOut) * 100).toFixed(1) : "0";
                         return (
-                          <tr key={cat} style={{ borderBottom:"1px solid rgba(255,255,255,0.03)", cursor:"pointer" }} className="hover:bg-white/[0.02] transition-colors" onClick={()=>openDrill(cat,false)}>
-                            <td style={{ padding:"10px 12px" }}><span style={{ display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, background:categoryColor(cat)+"22", color:categoryColor(cat) }}>{cat}</span></td>
-                            <td style={{ padding:"10px 12px", color:"#64748b", fontSize:12 }}>{count}</td>
-                            <td style={{ padding:"10px 12px", color:"#f87171", fontSize:12 }}>{fmt(total)}</td>
-                            <td style={{ padding:"10px 12px" }}>
-                              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                                <div style={{ height:3, width:80, background:"rgba(255,255,255,0.06)", borderRadius:2, overflow:"hidden" }}>
-                                  <div style={{ height:"100%", width:`${pct}%`, background:categoryColor(cat), borderRadius:2 }} />
+                          <tr key={cat} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)", cursor: "pointer" }} className="hover:bg-white/[0.02] transition-colors" onClick={() => openDrill(cat, false)}>
+                            <td style={{ padding: "10px 12px" }}><span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, background: categoryColor(cat) + "22", color: categoryColor(cat) }}>{cat}</span></td>
+                            <td style={{ padding: "10px 12px", color: "#64748b", fontSize: 12 }}>{count}</td>
+                            <td style={{ padding: "10px 12px", color: "#f87171", fontSize: 12 }}>{fmt(total)}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ height: 3, width: 80, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+                                  <div style={{ height: "100%", width: `${pct}%`, background: categoryColor(cat), borderRadius: 2 }} />
                                 </div>
-                                <span style={{ color:"#64748b", fontSize:11 }}>{pct}%</span>
+                                <span style={{ color: "#64748b", fontSize: 11 }}>{pct}%</span>
                               </div>
                             </td>
                           </tr>
@@ -602,50 +600,56 @@ export default function CsvDashboard() {
               </div>
             )}
 
-            {/* ── RAW DATA ──────────────────────────────────────────────── */}
+            {/* ── RAW DATA ────────────────────────────────────────────────── */}
             {activeTab === "raw" && (
               <div className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm">
                 <div className="flex justify-between items-center mb-6">
                   <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">{filteredTxns.length} entries</div>
-                  <select value={filter} onChange={(e)=>setFilter(e.target.value)}
-                    style={{ background:"rgba(0,0,0,0.4)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 12px", color:"hsl(var(--foreground))", fontFamily:"'Exo 2',sans-serif", fontSize:12, outline:"none" }}>
+                  {/* Filter dropdown — black on white */}
+                  <select value={filter} onChange={(e) => setFilter(e.target.value)} style={{ ...dropdownStyle, fontSize: 12, padding: "6px 12px" }}>
                     <option value="All">All Categories</option>
-                    {categories.map((c)=><option key={c} value={c}>{c}</option>)}
+                    {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                <div style={{ overflowX:"auto" }}>
-                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                     <thead>
-                      <tr style={{ borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-                        {["Date","Name","Description","Amount","Category",""].map((h)=>(
-                          <th key={h} style={{ padding:"8px 10px", textAlign:"left", fontSize:10, color:"#475569", letterSpacing:"0.12em", fontWeight:500, fontFamily:"'Orbitron',sans-serif", whiteSpace:"nowrap" }}>{h}</th>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                        {["Date", "Name", "Description", "Amount", "Category", ""].map((h) => (
+                          <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, color: "#475569", letterSpacing: "0.12em", fontWeight: 500, fontFamily: "'Orbitron',sans-serif", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {[...filteredTxns].sort((a,b)=>b.date.localeCompare(a.date)).map((t)=>(
-                        <tr key={t.id} style={{ borderBottom:"1px solid rgba(255,255,255,0.03)" }} className="hover:bg-white/[0.02] transition-colors">
-                          <td style={{ padding:"9px 10px", color:"#475569", whiteSpace:"nowrap" }}>{t.date}</td>
-                          <td style={{ padding:"9px 10px", color:"hsl(var(--foreground))", maxWidth:140, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.name}</td>
-                          <td style={{ padding:"9px 10px", color:"#64748b", maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.description}</td>
-                          <td style={{ padding:"9px 10px", whiteSpace:"nowrap", color:t.amount>=0?"#4ade80":"#f87171", fontWeight:600 }}>{fmt(t.amount)}</td>
-                          <td style={{ padding:"9px 10px" }}>
-                            {/* Fix 2: inline category edit on every row */}
+                      {[...filteredTxns].sort((a, b) => b.date.localeCompare(a.date)).map((t) => (
+                        <tr key={t.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }} className="hover:bg-white/[0.02] transition-colors">
+                          <td style={{ padding: "9px 10px", color: "#475569", whiteSpace: "nowrap" }}>{t.date}</td>
+                          <td style={{ padding: "9px 10px", color: "#e2e8f0", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</td>
+                          <td style={{ padding: "9px 10px", color: "#64748b", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.description}</td>
+                          <td style={{ padding: "9px 10px", whiteSpace: "nowrap", color: t.amount >= 0 ? "#4ade80" : "#f87171", fontWeight: 600 }}>{fmt(t.amount)}</td>
+                          <td style={{ padding: "9px 10px" }}>
                             {editingId === t.id ? (
-                              <select defaultValue={t.category} onChange={(e)=>updateCategory(t.id,e.target.value)} onBlur={()=>setEditingId(null)} autoFocus
-                                style={{ background:"rgba(0,0,0,0.6)", border:"1px solid hsl(var(--primary))", borderRadius:6, padding:"3px 8px", color:"hsl(var(--foreground))", fontFamily:"'Exo 2',sans-serif", fontSize:11, outline:"none" }}>
-                                {categories.map((c)=><option key={c} value={c}>{c}</option>)}
+                              <select
+                                defaultValue={t.category}
+                                onChange={(e) => updateCategory(t.id, e.target.value)}
+                                onBlur={() => setEditingId(null)}
+                                autoFocus
+                                style={dropdownStyle}
+                              >
+                                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                               </select>
                             ) : (
-                              <span onClick={()=>setEditingId(t.id)} title="Click to relabel"
-                                style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px", borderRadius:20, fontSize:11, background:categoryColor(t.category)+"22", color:categoryColor(t.category), cursor:"pointer" }}>
-                                {t.category} <span style={{ fontSize:9, opacity:0.6 }}>✎</span>
+                              <span
+                                onClick={() => setEditingId(t.id)}
+                                title="Click to relabel"
+                                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 11, background: categoryColor(t.category) + "22", color: categoryColor(t.category), cursor: "pointer" }}
+                              >
+                                {t.category} <span style={{ fontSize: 9, opacity: 0.6 }}>✎</span>
                               </span>
                             )}
                           </td>
-                          <td style={{ padding:"9px 10px" }}>
-                            <button onClick={()=>setTransactions((prev)=>prev.filter((x)=>x.id!==t.id))}
-                              style={{ background:"rgba(248,113,113,0.1)", border:"none", borderRadius:4, padding:"3px 10px", color:"#f87171", fontSize:11, cursor:"pointer" }}>✕</button>
+                          <td style={{ padding: "9px 10px" }}>
+                            <button onClick={() => setTransactions((prev) => prev.filter((x) => x.id !== t.id))} style={{ background: "rgba(248,113,113,0.1)", border: "none", borderRadius: 4, padding: "3px 10px", color: "#f87171", fontSize: 11, cursor: "pointer" }}>✕</button>
                           </td>
                         </tr>
                       ))}
@@ -655,72 +659,72 @@ export default function CsvDashboard() {
               </div>
             )}
 
-            {/* ── SUBSCRIPTIONS ─────────────────────────────────────────── */}
+            {/* ── SUBSCRIPTIONS ───────────────────────────────────────────── */}
             {activeTab === "subscriptions" && (
               <div className="space-y-4">
                 <div className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm">
                   <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase mb-2">Auto-Detected Recurring Payments</div>
                   <div className="text-xs text-muted-foreground mb-6">Payments with similar amounts appearing multiple times are flagged as subscriptions.</div>
                   {subscriptions.length === 0 ? (
-                    <div style={{ textAlign:"center", padding:"40px 0", color:"#334155", fontSize:13 }}>No recurring payments detected yet.</div>
+                    <div style={{ textAlign: "center", padding: "40px 0", color: "#334155", fontSize: 13 }}>No recurring payments detected yet.</div>
                   ) : (
-                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                       <thead>
-                        <tr style={{ borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-                          {["Merchant","Amount","Frequency","Occurrences","Est. Monthly Cost"].map((h)=>(
-                            <th key={h} style={{ padding:"8px 12px", textAlign:"left", fontSize:10, color:"#475569", letterSpacing:"0.12em", fontWeight:500, fontFamily:"'Orbitron',sans-serif" }}>{h}</th>
+                        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                          {["Merchant", "Amount", "Frequency", "Occurrences", "Est. Monthly Cost"].map((h) => (
+                            <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, color: "#475569", letterSpacing: "0.12em", fontWeight: 500, fontFamily: "'Orbitron',sans-serif" }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {subscriptions.map((s)=>(
-                          <tr key={s.name} style={{ borderBottom:"1px solid rgba(255,255,255,0.03)" }} className="hover:bg-white/[0.02] transition-colors">
-                            <td style={{ padding:"10px 12px", color:"#e2e8f0" }}>{s.name}</td>
-                            <td style={{ padding:"10px 12px", color:"#f87171" }}>{fmt(s.amount)}</td>
-                            <td style={{ padding:"10px 12px" }}><span style={{ display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, background:"rgba(0,229,255,0.1)", color:"#00e5ff" }}>{s.frequency}</span></td>
-                            <td style={{ padding:"10px 12px", color:"#64748b" }}>{s.occurrences}×</td>
-                            <td style={{ padding:"10px 12px", color:"#fb923c", fontWeight:600 }}>{fmt(s.monthlyEstimate)}/mo</td>
+                        {subscriptions.map((s) => (
+                          <tr key={s.name} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }} className="hover:bg-white/[0.02] transition-colors">
+                            <td style={{ padding: "10px 12px", color: "#e2e8f0" }}>{s.name}</td>
+                            <td style={{ padding: "10px 12px", color: "#f87171" }}>{fmt(s.amount)}</td>
+                            <td style={{ padding: "10px 12px" }}><span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, background: "rgba(0,229,255,0.1)", color: "#00e5ff" }}>{s.frequency}</span></td>
+                            <td style={{ padding: "10px 12px", color: "#64748b" }}>{s.occurrences}×</td>
+                            <td style={{ padding: "10px 12px", color: "#fb923c", fontWeight: 600 }}>{fmt(s.monthlyEstimate)}/mo</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   )}
                   {subscriptions.length > 0 && (
-                    <div style={{ marginTop:16, padding:"12px 16px", background:"rgba(251,146,60,0.05)", border:"1px solid rgba(251,146,60,0.15)", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                      <span style={{ fontSize:11, color:"#94a3b8", letterSpacing:"0.08em" }}>ESTIMATED TOTAL MONTHLY SUBSCRIPTIONS</span>
-                      <span style={{ fontSize:16, fontWeight:700, color:"#fb923c", fontFamily:"'Orbitron',sans-serif" }}>{fmt(subscriptions.reduce((s,sub)=>s+sub.monthlyEstimate,0))}/mo</span>
+                    <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(251,146,60,0.05)", border: "1px solid rgba(251,146,60,0.15)", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 11, color: "#94a3b8", letterSpacing: "0.08em" }}>ESTIMATED TOTAL MONTHLY SUBSCRIPTIONS</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: "#fb923c", fontFamily: "'Orbitron',sans-serif" }}>{fmt(subscriptions.reduce((s, sub) => s + sub.monthlyEstimate, 0))}/mo</span>
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            {/* ── ADD ENTRY ─────────────────────────────────────────────── */}
+            {/* ── ADD ENTRY ───────────────────────────────────────────────── */}
             {activeTab === "add" && (
               <div className="border border-border/60 rounded-lg p-8 bg-card/40 backdrop-blur-sm max-w-lg hover:border-primary/40 transition-all duration-500">
                 <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase mb-8">Manually Add Transaction</div>
                 <div className="space-y-5">
                   {[
-                    { label:"DATE",type:"date",key:"date",placeholder:"" },
-                    { label:"NAME / MERCHANT",type:"text",key:"name",placeholder:"e.g. Albert Heijn" },
-                    { label:"DESCRIPTION (optional)",type:"text",key:"description",placeholder:"Optional note" },
-                    { label:"AMOUNT (use − for expenses)",type:"number",key:"amount",placeholder:"-25.50" },
-                  ].map((field)=>(
+                    { label: "DATE",                          type: "date",   key: "date",        placeholder: "" },
+                    { label: "NAME / MERCHANT",               type: "text",   key: "name",        placeholder: "e.g. Albert Heijn" },
+                    { label: "DESCRIPTION (optional)",        type: "text",   key: "description", placeholder: "Optional note" },
+                    { label: "AMOUNT (use − for expenses)",   type: "number", key: "amount",      placeholder: "-25.50" },
+                  ].map((field) => (
                     <div key={field.key}>
-                      <label style={{ display:"block", fontSize:10, letterSpacing:"0.15em", color:"#475569", marginBottom:6, fontFamily:"'Orbitron',sans-serif" }}>{field.label}</label>
+                      <label style={{ display: "block", fontSize: 10, letterSpacing: "0.15em", color: "#475569", marginBottom: 6, fontFamily: "'Orbitron',sans-serif" }}>{field.label}</label>
                       <input type={field.type} placeholder={field.placeholder} value={(form as any)[field.key]}
-                        onChange={(e)=>setForm({...form,[field.key]:e.target.value})} style={inputStyle}
-                        onFocus={(e)=>e.target.style.borderColor="hsl(var(--primary))"}
-                        onBlur={(e)=>e.target.style.borderColor="rgba(255,255,255,0.08)"} />
+                        onChange={(e) => setForm({ ...form, [field.key]: e.target.value })} style={inputStyle}
+                        onFocus={(e) => (e.target.style.borderColor = "hsl(var(--primary))")}
+                        onBlur={(e)  => (e.target.style.borderColor = "rgba(255,255,255,0.08)")} />
                     </div>
                   ))}
                   <div>
-                    <label style={{ display:"block", fontSize:10, letterSpacing:"0.15em", color:"#475569", marginBottom:6, fontFamily:"'Orbitron',sans-serif" }}>CATEGORY</label>
-                    <select value={form.category} onChange={(e)=>setForm({...form,category:e.target.value})} style={inputStyle}>
-                      {categories.map((c)=><option key={c} value={c}>{c}</option>)}
+                    <label style={{ display: "block", fontSize: 10, letterSpacing: "0.15em", color: "#475569", marginBottom: 6, fontFamily: "'Orbitron',sans-serif" }}>CATEGORY</label>
+                    <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} style={{ ...dropdownStyle, width: "100%", padding: "10px 14px", fontSize: 13 }}>
+                      {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
-                  <button onClick={addManual} className="w-full mt-2 px-6 py-3 rounded border border-primary/50 text-primary hover:bg-primary/10 transition-all duration-300 tracking-widest text-xs" style={{ fontFamily:"'Orbitron',sans-serif" }}>
+                  <button onClick={addManual} className="w-full mt-2 px-6 py-3 rounded border border-primary/50 text-primary hover:bg-primary/10 transition-all duration-300 tracking-widest text-xs" style={{ fontFamily: "'Orbitron',sans-serif" }}>
                     + ADD TRANSACTION
                   </button>
                 </div>
@@ -732,22 +736,20 @@ export default function CsvDashboard() {
 
       <Footer />
 
-      {/* Drill-down panel */}
       {drillCategory && (
         <DrillDownPanel
           category={drillCategory}
           transactions={drillTxns}
-          onClose={()=>setDrillCategory(null)}
+          onClose={() => setDrillCategory(null)}
           onRelabel={relabelTransaction}
           allCategories={categories}
         />
       )}
 
-      {/* Budget compare modal */}
       {showCompare && (
         <BudgetCompareModal
           rows={buildComparisonRows()}
-          onClose={()=>setShowCompare(false)}
+          onClose={() => setShowCompare(false)}
         />
       )}
     </div>
