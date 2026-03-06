@@ -29,12 +29,16 @@ const projects = [
 
 const Projects = () => {
   return (
-    <section id="projects" className="min-h-screen flex flex-col items-center justify-center px-6 py-24 relative z-10">
+    <section id="projects" className="flex flex-col items-center px-6 pt-8 pb-24 relative z-10">
       <div className="w-full max-w-4xl">
+
         {/* Section header */}
-        <div className="text-center mb-16">
+        <div className="text-center mb-12">
           <p className="text-xs tracking-[0.25em] text-primary/60 mb-3 uppercase">Signal Log</p>
-          <h2 className="text-4xl font-bold text-foreground mb-4" style={{ fontFamily: "'Orbitron', sans-serif" }}>
+          <h2
+            className="text-3xl font-bold text-foreground mb-3"
+            style={{ fontFamily: "'Orbitron', sans-serif" }}
+          >
             Projects
           </h2>
           <p className="text-muted-foreground text-sm">
@@ -43,13 +47,9 @@ const Projects = () => {
         </div>
 
         {/* Project cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {projects.map((project, index) => (
-            <a
-              key={project.title}
-              href={project.liveUrl}
-              className="block"
-            >
+            <a key={project.title} href={project.liveUrl} className="block">
               <article
                 className="group border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500 cursor-pointer h-full"
                 style={{ animationDelay: `${0.1 * index}s` }}
@@ -97,20 +97,6 @@ const Projects = () => {
           ))}
         </div>
 
-        {/* Footer contact */}
-        <div className="mt-24 pt-12 border-t border-border/30 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground mb-1">Open Channel</h3>
-            <p className="text-muted-foreground text-sm">Transmit a signal. Let's connect.</p>
-          </div>
-          <a
-            href="mailto:gligor@jancev.com"
-            className="px-6 py-3 border border-primary/50 text-primary rounded-md tracking-widest text-xs uppercase hover:bg-primary/10 transition-all duration-300"
-            style={{ fontFamily: "'Orbitron', sans-serif" }}
-          >
-            gligor@jancev.com
-          </a>
-        </div>
       </div>
     </section>
   );
