@@ -6,6 +6,7 @@ import { HashRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import CsvDashboard from "./pages/CsvDashboard";
 import BudgetMaker from "./pages/BudgetMaker";
+import NetWorthTracker from "./pages/NetWorthTracker";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/csv-dashboard" element={<CsvDashboard />} />
           <Route path="/budget-maker" element={<BudgetMaker />} />
+          <Route path="/net-worth" element={<NetWorthTracker />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </HashRouter>
