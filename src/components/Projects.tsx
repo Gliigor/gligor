@@ -2,6 +2,14 @@ import { ExternalLink, Github } from "lucide-react";
 
 const projects = [
   {
+    title: "Budget Maker",
+    description:
+      "Plan your monthly budget with income sources and expense categories. Live totals, allocation bar and localStorage saving.",
+    tags: ["React", "TypeScript", "Tailwind"],
+    githubUrl: "https://github.com",
+    liveUrl: "/#/budget-maker",
+  },
+  {
     title: "CSV Dashboard Tool",
     description:
       "Upload bank CSV exports and analyze spending per category and month. Visual breakdowns with charts and filters.",
