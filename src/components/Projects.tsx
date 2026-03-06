@@ -2,6 +2,14 @@ import { ExternalLink, Github } from "lucide-react";
 
 const projects = [
   {
+    title: "Net Worth Tracker",
+    description:
+      "Track assets, liabilities, live stock & crypto prices with portfolio performance, allocation charts and daily snapshots.",
+    tags: ["React", "CoinGecko", "Yahoo Finance", "Charts"],
+    githubUrl: "https://github.com",
+    liveUrl: "/#/net-worth",
+  },
+  {
     title: "Budget Maker",
     description:
       "Plan your monthly budget with income sources and expense categories. Live totals, allocation bar and localStorage saving.",
