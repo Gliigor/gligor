@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ConstellationBackground from "@/components/ConstellationBackground";
-import { categoryColor, addCustomCategory, BASE_CATEGORIES } from "./sharedCategories";
+import { categoryColor, addCustomCategory } from "./sharedCategories";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface IncomeRow  { id: string; label: string; amount: string; }
@@ -87,117 +87,236 @@ const GroupDivider = ({ label }: { label: string }) => (
   </div>
 );
 
-// ─── Compare Modal (shared component) ────────────────────────────────────────
-const CompareModal = ({ rows, onClose }: { rows: BudgetComparison[]; onClose: () => void }) => {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => { setTimeout(() => setVisible(true), 10); }, []);
-  const close = () => { setVisible(false); setTimeout(onClose, 280); };
+// ─── Inline CSV Comparison Panel ─────────────────────────────────────────────
+const ComparePanel = ({ rows, onClose }: { rows: BudgetComparison[]; onClose: () => void }) => {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setTimeout(() => setMounted(true), 10); }, []);
 
   const totalBudgeted = rows.reduce((s, r) => s + r.budgeted, 0);
   const totalActual   = rows.reduce((s, r) => s + r.actual,   0);
   const totalDiff     = totalBudgeted - totalActual;
 
-  const badge = (s: BudgetComparison["status"]) => {
-    if (s === "under")      return { label: "✅ Under",      color: "#4ade80", bg: "rgba(74,222,128,0.1)" };
-    if (s === "over")       return { label: "⚠️ Over",       color: "#f87171", bg: "rgba(248,113,113,0.1)" };
-    if (s === "exact")      return { label: "🎯 Exact",      color: "#00e5ff", bg: "rgba(0,229,255,0.1)" };
-    if (s === "unbudgeted") return { label: "🔶 Unbudgeted", color: "#fb923c", bg: "rgba(251,146,60,0.1)" };
-    return                         { label: "— No data",    color: "#475569", bg: "rgba(71,85,105,0.1)" };
+  // Split into budget-rows (has budgeted amount) and CSV-only rows
+  const budgetRows = rows.filter((r) => r.budgeted > 0);
+  const csvOnly    = rows.filter((r) => r.budgeted === 0 && r.actual > 0);
+
+  const diffColor  = (d: number) => d > 0 ? "#4ade80" : d < 0 ? "#f87171" : "#64748b";
+  const diffPrefix = (d: number) => d > 0 ? "+" : "";
+
+  // Bar: fills to show actual vs budget, capped at 100% track width
+  const UsageBar = ({ budgeted, actual }: { budgeted: number; actual: number }) => {
+    if (budgeted === 0) return null;
+    const pct = Math.min((actual / budgeted) * 100, 100);
+    const clr = pct > 100 ? "#f87171" : pct > 85 ? "#fbbf24" : "#4ade80";
+    return (
+      <div style={{ marginTop: 6 }}>
+        <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${pct}%`, background: clr, borderRadius: 2, transition: "width 0.5s ease" }} />
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div onClick={close} style={{
-      position: "fixed", inset: 0, zIndex: 200,
-      background: `rgba(0,0,0,${visible ? 0.8 : 0})`, transition: "background 0.28s",
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+    <div style={{
+      marginTop: 16,
+      opacity: mounted ? 1 : 0,
+      transform: mounted ? "translateY(0)" : "translateY(12px)",
+      transition: "opacity 0.3s ease, transform 0.3s ease",
     }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: "min(800px,98vw)", maxHeight: "90vh", overflowY: "auto",
-        background: "#080e1a", border: "1px solid rgba(0,229,255,0.18)", borderRadius: 14,
-        padding: "28px 32px",
-        transform: visible ? "scale(1)" : "scale(0.94)",
-        opacity: visible ? 1 : 0,
-        transition: "transform 0.28s cubic-bezier(0.34,1.56,0.64,1), opacity 0.28s",
+      <div style={{
+        border: "1px solid rgba(251,191,36,0.2)", borderRadius: 14,
+        background: "rgba(251,191,36,0.03)", backdropFilter: "blur(8px)",
+        overflow: "hidden",
       }}>
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-          <div>
-            <div style={{ fontSize: 10, color: "#475569", letterSpacing: "0.2em", fontFamily: "'Orbitron',sans-serif", marginBottom: 6 }}>ANALYSIS</div>
-            <h2 style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 20, fontWeight: 800, color: "#e2e8f0" }}>Budget vs Actual</h2>
+        {/* Panel header */}
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          padding: "18px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(0,0,0,0.2)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 16 }}>⚖️</span>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#475569", fontFamily: "'Orbitron',sans-serif", marginBottom: 2 }}>ANALYSIS</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", fontFamily: "'Orbitron',sans-serif" }}>Budget vs CSV</div>
+            </div>
           </div>
-          <button onClick={close} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "7px 13px", color: "#94a3b8", cursor: "pointer", fontSize: 13 }}>✕</button>
+          <button onClick={onClose} style={{
+            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 6, padding: "6px 12px", color: "#64748b",
+            cursor: "pointer", fontSize: 12, fontFamily: "'Orbitron',sans-serif",
+            letterSpacing: "0.1em",
+          }}
+            onMouseEnter={(e) => e.currentTarget.style.color = "#e2e8f0"}
+            onMouseLeave={(e) => e.currentTarget.style.color = "#64748b"}
+          >✕ CLOSE</button>
         </div>
 
-        {/* Summary cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
+        {/* Summary totals row */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(3,1fr)",
+          gap: 1, borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(255,255,255,0.02)",
+        }}>
           {[
             { label: "TOTAL BUDGETED", value: fmt(totalBudgeted), color: "#60a5fa" },
-            { label: "TOTAL SPENT",    value: fmt(totalActual),   color: "#f87171" },
-            { label: totalDiff >= 0 ? "SURPLUS" : "DEFICIT", value: fmt(Math.abs(totalDiff)), color: totalDiff >= 0 ? "#4ade80" : "#fb923c" },
-          ].map((s) => (
-            <div key={s.label} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px 18px" }}>
-              <div style={{ fontSize: 9, color: "#475569", letterSpacing: "0.15em", fontFamily: "'Orbitron',sans-serif", marginBottom: 6 }}>{s.label}</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'Orbitron',sans-serif" }}>{s.value}</div>
+            { label: "TOTAL CSV SPENT", value: fmt(totalActual),  color: "#f87171" },
+            {
+              label: totalDiff >= 0 ? "TOTAL SURPLUS" : "TOTAL DEFICIT",
+              value: (totalDiff >= 0 ? "+" : "") + fmt(totalDiff),
+              color: diffColor(totalDiff),
+            },
+          ].map((s, i) => (
+            <div key={s.label} style={{
+              padding: "16px 20px",
+              borderRight: i < 2 ? "1px solid rgba(255,255,255,0.04)" : "none",
+            }}>
+              <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#475569", fontFamily: "'Orbitron',sans-serif", marginBottom: 6 }}>{s.label}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: s.color, fontFamily: "'Orbitron',sans-serif" }}>{s.value}</div>
             </div>
           ))}
         </div>
 
         {rows.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#334155", fontSize: 13 }}>
-            No CSV data found. Load and save a CSV in the Budget Dashboard first.
+          <div style={{ padding: "48px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>📂</div>
+            <div style={{ fontSize: 13, color: "#334155", fontFamily: "'Exo 2',sans-serif" }}>
+              No CSV data found. Load a CSV in the Budget Dashboard first, then come back here.
+            </div>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 580 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                  {["CATEGORY", "BUDGETED", "ACTUAL SPENT", "DIFFERENCE", "USAGE", "STATUS"].map((h) => (
-                    <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 9, color: "#475569", letterSpacing: "0.12em", fontFamily: "'Orbitron',sans-serif", fontWeight: 500, whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const b       = badge(r.status);
-                  const barPct  = r.budgeted > 0 ? Math.min((r.actual / r.budgeted) * 100, 150) : 0;
-                  const barClr  = barPct > 100 ? "#f87171" : barPct > 85 ? "#fbbf24" : "#4ade80";
-                  return (
-                    <tr key={r.category} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                      <td style={{ padding: "11px 10px" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: categoryColor(r.category), flexShrink: 0, display: "inline-block" }} />
-                          <span style={{ fontSize: 12, color: "#e2e8f0" }}>{r.category}</span>
+          <div style={{ padding: "0 24px 24px" }}>
+
+            {/* Column headers */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 110px 110px 110px",
+              gap: 8, padding: "14px 0 8px",
+              borderBottom: "1px solid rgba(255,255,255,0.05)",
+              marginBottom: 4,
+            }}>
+              {["CATEGORY", "BUDGET", "CSV ACTUAL", "DIFFERENCE"].map((h, i) => (
+                <div key={h} style={{
+                  fontSize: 9, letterSpacing: "0.15em", color: "#334155",
+                  fontFamily: "'Orbitron',sans-serif",
+                  textAlign: i > 0 ? "right" : "left",
+                }}>{h}</div>
+              ))}
+            </div>
+
+            {/* Budget rows */}
+            {budgetRows.map((r) => {
+              const diff = r.budgeted - r.actual;
+              return (
+                <div key={r.category} style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 110px 110px 110px",
+                  gap: 8,
+                  padding: "11px 0",
+                  borderBottom: "1px solid rgba(255,255,255,0.03)",
+                  alignItems: "center",
+                }}>
+                  {/* Category */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: categoryColor(r.category), flexShrink: 0, display: "inline-block" }} />
+                    <span style={{ fontSize: 13, color: "#cbd5e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.category}</span>
+                  </div>
+
+                  {/* Budget amount */}
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 13, color: "#60a5fa", fontWeight: 600 }}>{fmt(r.budgeted)}</div>
+                    <UsageBar budgeted={r.budgeted} actual={r.actual} />
+                  </div>
+
+                  {/* CSV actual */}
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 13, color: r.actual > 0 ? "#f87171" : "#334155", fontWeight: r.actual > 0 ? 600 : 400 }}>
+                      {r.actual > 0 ? fmt(r.actual) : <span style={{ fontSize: 11 }}>€0</span>}
+                    </div>
+                    {r.actual > 0 && r.budgeted > 0 && (
+                      <div style={{ fontSize: 10, color: "#334155", marginTop: 3 }}>
+                        {Math.round((r.actual / r.budgeted) * 100)}% of budget
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Difference */}
+                  <div style={{ textAlign: "right" }}>
+                    {r.actual === 0 ? (
+                      <span style={{ fontSize: 11, color: "#334155" }}>— no data</span>
+                    ) : (
+                      <div style={{
+                        display: "inline-flex", flexDirection: "column", alignItems: "flex-end",
+                        padding: "4px 10px", borderRadius: 8,
+                        background: diff > 0 ? "rgba(74,222,128,0.07)" : diff < 0 ? "rgba(248,113,113,0.07)" : "rgba(100,116,139,0.07)",
+                        border: `1px solid ${diff > 0 ? "rgba(74,222,128,0.15)" : diff < 0 ? "rgba(248,113,113,0.15)" : "rgba(100,116,139,0.15)"}`,
+                      }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: diffColor(diff), fontFamily: "'Orbitron',sans-serif" }}>
+                          {diffPrefix(diff)}{fmt(diff)}
                         </span>
-                      </td>
-                      <td style={{ padding: "11px 10px", fontSize: 12, color: "#60a5fa" }}>
-                        {r.budgeted > 0 ? fmt(r.budgeted) : <span style={{ color: "#334155" }}>—</span>}
-                      </td>
-                      <td style={{ padding: "11px 10px", fontSize: 12, color: r.actual > 0 ? "#f87171" : "#475569" }}>
-                        {r.actual > 0 ? fmt(r.actual) : <span style={{ color: "#334155" }}>€0</span>}
-                      </td>
-                      <td style={{ padding: "11px 10px", fontSize: 12, fontWeight: 600, color: r.diff >= 0 ? "#4ade80" : "#f87171" }}>
-                        {r.status === "unbudgeted" || r.status === "nodata"
-                          ? "—"
-                          : (r.diff >= 0 ? "+" : "") + fmt(r.diff)}
-                      </td>
-                      <td style={{ padding: "11px 10px" }}>
-                        {r.budgeted > 0 ? (
-                          <div style={{ width: 80 }}>
-                            <div style={{ height: 4, background: "rgba(255,255,255,0.05)", borderRadius: 2, overflow: "hidden", marginBottom: 3 }}>
-                              <div style={{ height: "100%", width: `${Math.min(barPct, 100)}%`, background: barClr, borderRadius: 2, transition: "width 0.4s" }} />
-                            </div>
-                            <span style={{ fontSize: 9, color: "#475569" }}>{Math.min(barPct, 999).toFixed(0)}%</span>
-                          </div>
-                        ) : <span style={{ color: "#334155", fontSize: 10 }}>—</span>}
-                      </td>
-                      <td style={{ padding: "11px 10px" }}>
-                        <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: b.bg, color: b.color, whiteSpace: "nowrap" }}>{b.label}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Subscriptions total row (if present) */}
+            {(() => {
+              const subRow = rows.find((r) => r.category === "Subscriptions");
+              if (!subRow || subRow.budgeted === 0) return null;
+              return null; // already included in budgetRows above
+            })()}
+
+            {/* CSV-only rows (unbudgeted) */}
+            {csvOnly.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#fb923c", fontFamily: "'Orbitron',sans-serif", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(251,146,60,0.1)" }}>
+                  🔶 IN CSV BUT NOT BUDGETED
+                </div>
+                {csvOnly.map((r) => (
+                  <div key={r.category} style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 110px 110px 110px",
+                    gap: 8, padding: "10px 0",
+                    borderBottom: "1px solid rgba(255,255,255,0.03)",
+                    alignItems: "center",
+                    opacity: 0.75,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: categoryColor(r.category), flexShrink: 0, display: "inline-block" }} />
+                      <span style={{ fontSize: 13, color: "#94a3b8" }}>{r.category}</span>
+                    </div>
+                    <div style={{ textAlign: "right", fontSize: 11, color: "#334155" }}>—</div>
+                    <div style={{ textAlign: "right", fontSize: 13, color: "#f87171", fontWeight: 600 }}>{fmt(r.actual)}</div>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: "rgba(251,146,60,0.1)", color: "#fb923c" }}>unbudgeted</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Totals footer */}
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr 110px 110px 110px",
+              gap: 8, padding: "14px 0 0",
+              marginTop: 8, borderTop: "1px solid rgba(255,255,255,0.08)",
+            }}>
+              <div style={{ fontSize: 10, color: "#475569", fontFamily: "'Orbitron',sans-serif", letterSpacing: "0.1em", alignSelf: "center" }}>TOTAL</div>
+              <div style={{ textAlign: "right", fontSize: 14, fontWeight: 700, color: "#60a5fa", fontFamily: "'Orbitron',sans-serif" }}>{fmt(totalBudgeted)}</div>
+              <div style={{ textAlign: "right", fontSize: 14, fontWeight: 700, color: "#f87171", fontFamily: "'Orbitron',sans-serif" }}>{fmt(totalActual)}</div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{
+                  fontSize: 14, fontWeight: 800, fontFamily: "'Orbitron',sans-serif",
+                  color: diffColor(totalDiff),
+                }}>
+                  {diffPrefix(totalDiff)}{fmt(totalDiff)}
+                </span>
+              </div>
+            </div>
+
           </div>
         )}
       </div>
@@ -418,6 +537,17 @@ export default function BudgetMaker() {
 
   return (
     <div className="min-h-screen bg-background relative" style={{ fontFamily: "'Exo 2',sans-serif" }}>
+      <style>{`
+        @media (max-width: 600px) {
+          .compare-grid { grid-template-columns: 1fr !important; gap: 4px !important; }
+          .compare-grid > div { text-align: left !important; }
+          .compare-summary { grid-template-columns: 1fr !important; }
+          .compare-headers { display: none !important; }
+          .compare-row { display: block !important; padding: 12px 0 !important; }
+          .compare-row-cat { margin-bottom: 6px; }
+          .compare-row-vals { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
+        }
+      `}</style>
       <ConstellationBackground />
       <Header />
 
@@ -611,11 +741,11 @@ export default function BudgetMaker() {
         {/* ── Actions ──────────────────────────────────────────────────────── */}
         <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap" }}>
           {saveMsg && <span style={{ fontSize: 11, color: "#00e5ff", alignSelf: "center", letterSpacing: "0.1em", fontFamily: "'Orbitron',sans-serif" }}>{saveMsg}</span>}
-          <button onClick={() => setShowCompare(true)}
-            style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 8, padding: "11px 24px", color: "#fbbf24", fontFamily: "'Orbitron',sans-serif", fontSize: 10, letterSpacing: "0.15em", cursor: "pointer" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(251,191,36,0.15)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(251,191,36,0.08)")}>
-            ⚖️ COMPARE WITH CSV
+          <button onClick={() => setShowCompare((v) => !v)}
+            style={{ background: showCompare ? "rgba(251,191,36,0.18)" : "rgba(251,191,36,0.08)", border: `1px solid ${showCompare ? "rgba(251,191,36,0.6)" : "rgba(251,191,36,0.3)"}`, borderRadius: 8, padding: "11px 24px", color: "#fbbf24", fontFamily: "'Orbitron',sans-serif", fontSize: 10, letterSpacing: "0.15em", cursor: "pointer", transition: "all 0.2s" }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(251,191,36,0.22)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = showCompare ? "rgba(251,191,36,0.18)" : "rgba(251,191,36,0.08)"}>
+            {showCompare ? "▲ HIDE COMPARISON" : "⚖️ COMPARE WITH CSV"}
           </button>
           <button onClick={saveBudget}
             style={{ background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.3)", borderRadius: 8, padding: "11px 24px", color: "#00e5ff", fontFamily: "'Orbitron',sans-serif", fontSize: 10, letterSpacing: "0.15em", cursor: "pointer" }}
@@ -630,10 +760,13 @@ export default function BudgetMaker() {
             ↺ RESET
           </button>
         </div>
+        {/* ── CSV Comparison Panel (inline, below actions) ─────────────────── */}
+        {showCompare && (
+          <ComparePanel rows={buildRows()} onClose={() => setShowCompare(false)} />
+        )}
       </main>
 
       <Footer />
-      {showCompare && <CompareModal rows={buildRows()} onClose={() => setShowCompare(false)} />}
     </div>
   );
 }
