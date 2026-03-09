@@ -21,6 +21,7 @@ export const BASE_CATEGORIES: string[] = [
   "Clothing",
   "Education",
   "Income",
+  "Internal",
   "Other",
 ];
 
@@ -71,6 +72,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Clothing":            "#f87171",
   "Education":           "#22d3ee",
   "Income":              "#4ade80",
+  "Internal":            "#94a3b8",
   "Other":               "#475569",
 };
 
@@ -95,6 +97,7 @@ export const CLASSIFICATION_RULES: { category: string; keywords: string[] }[] = 
   { category: "Education",           keywords: ["udemy","coursera","duolingo","school","universiteit","hogeschool","studie"] },
   { category: "Savings",             keywords: ["spaarrekening","savings transfer","oranje spaarrekening"] },
   { category: "Investments",         keywords: ["degiro","trading 212","bux ","peaks ","meesman","robinhood"] },
+  { category: "Internal",            keywords: ["own account","eigen rekening","interne overboeking","tussenrekening","spaar naar","naar spaar","overboeking eigen","internal transfer","between accounts","van eigen","naar eigen"] },
   { category: "Income",              keywords: ["salaris","salary","loon","inkomen","dividend"] },
 ];
 
