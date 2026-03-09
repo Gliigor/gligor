@@ -9,7 +9,7 @@ import { loadCategories, categoryColor, autoClassify, CLASSIFICATION_RULES } fro
 interface Transaction {
   id: string; date: string; name: string; description: string;
   amount: number; category: string; confidence: "high" | "low" | "rule";
-  manual?: boolean;
+  manual?: boolean; internalSuggested?: boolean;
 }
 interface Subscription {
   name: string; amount: number; frequency: string;
@@ -26,6 +26,9 @@ interface CategoryRule { name: string; category: string; }
 const CSV_KEY        = "budget_dashboard_v1";
 const BUDGET_KEY     = "budget_maker_v1";
 const RULES_KEY      = "category_rules_v1";
+
+/** Transactions with this category are excluded from all financial totals. */
+const INTERNAL = "Internal";
 
 // ─── Smart classifier ─────────────────────────────────────────────────────────
 // Returns { category, confidence } instead of just a string.
@@ -118,6 +121,29 @@ function detectSubscriptions(txns: Transaction[]): Subscription[] {
     subs.push({ name: group[0].name, amount: avg, frequency, monthlyEstimate, occurrences: group.length });
   }
   return subs.sort((a, b) => b.monthlyEstimate - a.monthlyEstimate);
+}
+
+// ─── Internal Transfer Pair Detection ────────────────────────────────────────
+// Returns IDs of transactions that look like mirrored internal transfers:
+// same absolute amount, opposite sign, within 3 days of each other.
+function detectInternalPairs(txns: Transaction[]): Set<string> {
+  const suggested = new Set<string>();
+  // Only consider non-already-internal transactions
+  const candidates = txns.filter((t) => t.category !== INTERNAL);
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      const a = candidates[i], b = candidates[j];
+      // Must be opposite signs, same absolute amount (within €0.01)
+      if (Math.sign(a.amount) === Math.sign(b.amount)) continue;
+      if (Math.abs(Math.abs(a.amount) - Math.abs(b.amount)) > 0.01) continue;
+      // Must be within 3 days
+      const da = new Date(a.date).getTime(), db = new Date(b.date).getTime();
+      if (Math.abs(da - db) > 3 * 86400000) continue;
+      suggested.add(a.id);
+      suggested.add(b.id);
+    }
+  }
+  return suggested;
 }
 
 const fmt = (n: number) => new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(n);
@@ -407,7 +433,7 @@ export default function CsvDashboard() {
     try { return JSON.parse(localStorage.getItem(RULES_KEY) ?? "[]"); } catch { return []; }
   });
   const [dragging,      setDragging]      = useState(false);
-  const [activeTab,     setActiveTab]     = useState<"overview"|"review"|"raw"|"subscriptions"|"rules"|"add">("overview");
+  const [activeTab,     setActiveTab]     = useState<"overview"|"review"|"internal"|"raw"|"subscriptions"|"rules"|"add">("overview");
   const [filter,        setFilter]        = useState("All");
   const [editingId,     setEditingId]     = useState<string|null>(null);
   const [drillCategory, setDrillCategory] = useState<string|null>(null);
@@ -488,7 +514,12 @@ export default function CsvDashboard() {
     try { localStorage.removeItem(CSV_KEY); setHasSaved(false); } catch {}
   };
 
-  // ── Category update helpers ─────────────────────────────────────────────────
+  // Mark all auto-detected internal pairs as Internal in one click
+  const markAllSuggestedInternal = (ids: string[]) => {
+    setTransactions((p) => p.map((t) =>
+      ids.includes(t.id) ? { ...t, category: INTERNAL, confidence: "high" as const } : t
+    ));
+  };
   const updateOne = (id: string, cat: string) => {
     setTransactions((p) => p.map((t) => t.id === id ? { ...t, category: cat, confidence: "high" } : t));
     setEditingId(null);
@@ -528,28 +559,39 @@ export default function CsvDashboard() {
   };
 
   // ── Derived data ─────────────────────────────────────────────────────────────
-  const incomeT  = transactions.filter((t) => t.amount > 0);
-  const expenseT = transactions.filter((t) => t.amount < 0);
-  const totalIn  = incomeT.reduce((s, t) => s + t.amount, 0);
-  const totalOut = expenseT.reduce((s, t) => s + Math.abs(t.amount), 0);
-  const net      = totalIn - totalOut;
+  // Internal transactions are excluded from all financial calculations
+  const internalT = transactions.filter((t) => t.category === INTERNAL);
+  const incomeT   = transactions.filter((t) => t.amount > 0 && t.category !== INTERNAL);
+  const expenseT  = transactions.filter((t) => t.amount < 0 && t.category !== INTERNAL);
+  const totalIn   = incomeT.reduce((s, t) => s + t.amount, 0);
+  const totalOut  = expenseT.reduce((s, t) => s + Math.abs(t.amount), 0);
+  const net       = totalIn - totalOut;
 
   const incomeByCategory:  Record<string,number> = {};
   const expenseByCategory: Record<string,number> = {};
   for (const t of incomeT)  incomeByCategory[t.category]  = (incomeByCategory[t.category]  ?? 0) + t.amount;
   for (const t of expenseT) expenseByCategory[t.category] = (expenseByCategory[t.category] ?? 0) + Math.abs(t.amount);
 
+  // Pie data excludes Internal automatically (since it's not in incomeT/expenseT)
   const incomePieData  = Object.entries(incomeByCategory).sort((a,b)=>b[1]-a[1]).map(([name,value])=>({name,value:parseFloat(value.toFixed(2))}));
   const expensePieData = Object.entries(expenseByCategory).sort((a,b)=>b[1]-a[1]).map(([name,value])=>({name,value:parseFloat(value.toFixed(2))}));
 
   const filteredTxns  = filter === "All" ? transactions : transactions.filter((t) => t.category === filter);
-  const subscriptions = detectSubscriptions(transactions);
+  const subscriptions = detectSubscriptions(transactions.filter((t) => t.category !== INTERNAL));
 
-  // Transactions needing review = low confidence expenses only
-  const reviewTxns = transactions.filter((t) => t.confidence === "low" && t.amount < 0);
+  // Smart internal pair suggestions (transactions not yet marked Internal)
+  const internalSuggestions = detectInternalPairs(transactions);
+  const suggestedButNotLabeled = transactions.filter(
+    (t) => internalSuggestions.has(t.id) && t.category !== INTERNAL
+  );
+
+  // Transactions needing review = low confidence expenses only (excluding Internal)
+  const reviewTxns = transactions.filter((t) => t.confidence === "low" && t.amount < 0 && t.category !== INTERNAL);
 
   const drillTxns = drillCategory
-    ? (drillIsIncome ? incomeT : expenseT).filter((t) => t.category === drillCategory)
+    ? drillCategory === INTERNAL
+      ? internalT
+      : (drillIsIncome ? incomeT : expenseT).filter((t) => t.category === drillCategory)
     : [];
 
   const openDrill = (cat: string, isIncome: boolean) => { setDrillIsIncome(isIncome); setDrillCategory(cat); };
@@ -572,7 +614,7 @@ export default function CsvDashboard() {
     const allCats = new Set([...Object.keys(budgetMap), ...Object.keys(expenseByCategory)]);
     const rows: BudgetComparison[] = [];
     for (const cat of allCats) {
-      if (cat === "Income") continue;
+      if (cat === "Income" || cat === INTERNAL) continue;  // exclude Internal from budget comparison
       const budgeted = budgetMap[cat] ?? 0;
       const actual   = expenseByCategory[cat] ?? 0;
       const diff     = budgeted - actual;
@@ -593,6 +635,7 @@ export default function CsvDashboard() {
   const tabs = [
     { id: "overview"      as const, label: "OVERVIEW" },
     { id: "review"        as const, label: `REVIEW${reviewTxns.length ? ` (${reviewTxns.length})` : ""}`, alert: reviewTxns.length > 0 },
+    { id: "internal"      as const, label: `INTERNAL${internalT.length ? ` (${internalT.length})` : ""}`, alert: suggestedButNotLabeled.length > 0 },
     { id: "raw"           as const, label: "RAW DATA" },
     { id: "subscriptions" as const, label: `SUBS${subscriptions.length ? ` (${subscriptions.length})` : ""}` },
     { id: "rules"         as const, label: `RULES${rules.length ? ` (${rules.length})` : ""}` },
@@ -665,6 +708,28 @@ export default function CsvDashboard() {
             </div>
 
             {/* Stat Cards */}
+            {/* Internal transfer suggestion banner */}
+            {suggestedButNotLabeled.length > 0 && (
+              <div style={{ background: "rgba(148,163,184,0.05)", border: "1px solid rgba(148,163,184,0.25)", borderRadius: 10, padding: "14px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: "'Orbitron',sans-serif", letterSpacing: "0.1em", marginBottom: 3 }}>🔄 INTERNAL TRANSFER PAIRS DETECTED</div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>
+                    {suggestedButNotLabeled.length} transaction{suggestedButNotLabeled.length !== 1 ? "s" : ""} look like mirrored internal transfers (same amount, opposite direction, within 3 days). These inflate your income and expense totals.
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setActiveTab("internal")}
+                    style={{ background: "rgba(148,163,184,0.1)", border: "1px solid rgba(148,163,184,0.3)", borderRadius: 6, padding: "7px 14px", color: "#94a3b8", fontFamily: "'Orbitron',sans-serif", fontSize: 9, letterSpacing: "0.1em", cursor: "pointer" }}>
+                    REVIEW
+                  </button>
+                  <button onClick={() => markAllSuggestedInternal(suggestedButNotLabeled.map((t) => t.id))}
+                    style={{ background: "rgba(148,163,184,0.15)", border: "1px solid rgba(148,163,184,0.4)", borderRadius: 6, padding: "7px 14px", color: "#cbd5e1", fontFamily: "'Orbitron',sans-serif", fontSize: 9, letterSpacing: "0.1em", cursor: "pointer" }}>
+                    MARK ALL AS INTERNAL
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-3 gap-4 mb-10">
               {[
                 { label: "TOTAL INCOME",   value: fmt(totalIn),  color: "#4ade80" },
@@ -677,23 +742,33 @@ export default function CsvDashboard() {
                 </div>
               ))}
             </div>
+            {internalT.length > 0 && (
+              <div style={{ fontSize: 11, color: "#475569", textAlign: "center", marginTop: -28, marginBottom: 24, letterSpacing: "0.05em" }}>
+                ↳ {internalT.length} internal transfer{internalT.length !== 1 ? "s" : ""} ({fmt(internalT.reduce((s,t)=>s+Math.abs(t.amount),0))}) excluded from all totals
+              </div>
+            )}
 
             {/* Tabs */}
             <div className="flex gap-1 border-b border-border/40 mb-8 overflow-x-auto">
-              {tabs.map((tab) => (
+              {tabs.map((tab) => {
+                const isInternal = tab.id === "internal";
+                const alertColor = isInternal ? "#94a3b8" : "#fbbf24";
+                const alertBorder = isInternal ? "rgba(148,163,184,0.4)" : "rgba(251,191,36,0.4)";
+                return (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
                   fontFamily: "'Orbitron',sans-serif",
-                  color: activeTab === tab.id ? "hsl(var(--primary))" : tab.alert ? "#fbbf24" : "hsl(var(--muted-foreground))",
+                  color: activeTab === tab.id ? "hsl(var(--primary))" : tab.alert ? alertColor : "hsl(var(--muted-foreground))",
                   background: "none", border: "none",
-                  borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : tab.alert ? "2px solid rgba(251,191,36,0.4)" : "2px solid transparent",
+                  borderBottom: activeTab === tab.id ? "2px solid hsl(var(--primary))" : tab.alert ? `2px solid ${alertBorder}` : "2px solid transparent",
                   padding: "10px 16px", fontSize: 10, letterSpacing: "0.12em",
                   cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s",
                   position: "relative",
                 }}>
                   {tab.label}
-                  {tab.alert && <span style={{ position: "absolute", top: 6, right: 6, width: 5, height: 5, borderRadius: "50%", background: "#fbbf24" }} />}
+                  {tab.alert && <span style={{ position: "absolute", top: 6, right: 6, width: 5, height: 5, borderRadius: "50%", background: alertColor }} />}
                 </button>
-              ))}
+                );
+              })}
             </div>
 
             {/* ── OVERVIEW ───────────────────────────────────────────────── */}
@@ -814,6 +889,88 @@ export default function CsvDashboard() {
                       })()}
                     </>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* ── INTERNAL ───────────────────────────────────────────────── */}
+            {activeTab === "internal" && (
+              <div className="space-y-4">
+                <div className="border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm">
+                  <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase mb-1">Internal Transfers</div>
+                  <p style={{ fontSize: 12, color: "#475569", marginBottom: 20 }}>
+                    Transactions labeled <span style={{ color: "#94a3b8", fontWeight: 600 }}>Internal</span> are visible here but excluded from income totals, expense totals, charts, and budget comparisons. Label both legs of an internal transfer to keep your books clean.
+                  </p>
+
+                  {/* Smart suggestions section */}
+                  {suggestedButNotLabeled.length > 0 && (
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#94a3b8", fontFamily: "'Orbitron',sans-serif" }}>
+                          🔄 SUGGESTED PAIRS — {suggestedButNotLabeled.length} transactions
+                        </div>
+                        <button onClick={() => markAllSuggestedInternal(suggestedButNotLabeled.map((t) => t.id))}
+                          style={{ background: "rgba(148,163,184,0.1)", border: "1px solid rgba(148,163,184,0.3)", borderRadius: 6, padding: "6px 14px", color: "#94a3b8", fontFamily: "'Orbitron',sans-serif", fontSize: 9, letterSpacing: "0.1em", cursor: "pointer" }}>
+                          MARK ALL AS INTERNAL
+                        </button>
+                      </div>
+                      {suggestedButNotLabeled.map((t) => (
+                        <div key={t.id} style={{ padding: "10px 16px", marginBottom: 6, border: "1px solid rgba(148,163,184,0.15)", borderRadius: 8, background: "rgba(148,163,184,0.03)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                              <span style={{ fontSize: 13, color: "#cbd5e1" }}>{t.name}</span>
+                              <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: "rgba(148,163,184,0.15)", color: "#94a3b8" }}>
+                                {t.amount > 0 ? "↓ incoming" : "↑ outgoing"}
+                              </span>
+                            </div>
+                            {t.description && <div style={{ fontSize: 11, color: "#475569" }}>{t.description}</div>}
+                            <div style={{ fontSize: 10, color: "#334155", marginTop: 2 }}>{t.date}</div>
+                          </div>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                            <span style={{ fontSize: 13, color: t.amount > 0 ? "#4ade80" : "#f87171", fontWeight: 600 }}>{fmt(t.amount)}</span>
+                            <button onClick={() => updateOne(t.id, INTERNAL)}
+                              style={{ background: "rgba(148,163,184,0.12)", border: "1px solid rgba(148,163,184,0.3)", borderRadius: 6, padding: "5px 12px", color: "#94a3b8", fontFamily: "'Orbitron',sans-serif", fontSize: 9, cursor: "pointer" }}>
+                              MARK INTERNAL
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Already-labeled Internal transactions */}
+                  <div>
+                    <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#475569", fontFamily: "'Orbitron',sans-serif", marginBottom: 10 }}>
+                      ✓ LABELED INTERNAL — {internalT.length} transaction{internalT.length !== 1 ? "s" : ""}
+                      {internalT.length > 0 && (
+                        <span style={{ color: "#334155", marginLeft: 10, fontSize: 10, fontFamily: "'Exo 2',sans-serif", letterSpacing: 0 }}>
+                          ({fmt(internalT.reduce((s,t)=>s+Math.abs(t.amount),0))} excluded from totals)
+                        </span>
+                      )}
+                    </div>
+                    {internalT.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "24px 0", color: "#334155", fontSize: 13 }}>
+                        No transactions labeled Internal yet.
+                      </div>
+                    ) : (
+                      internalT.map((t) => (
+                        <div key={t.id} style={{ padding: "10px 16px", marginBottom: 6, border: "1px solid rgba(255,255,255,0.04)", borderRadius: 8, background: "rgba(0,0,0,0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", opacity: 0.7 }}>
+                          <div>
+                            <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 3 }}>{t.name}</div>
+                            {t.description && <div style={{ fontSize: 11, color: "#334155" }}>{t.description}</div>}
+                            <div style={{ fontSize: 10, color: "#334155", marginTop: 2 }}>{t.date}</div>
+                          </div>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                            <span style={{ fontSize: 13, color: "#475569", fontWeight: 600 }}>{fmt(t.amount)}</span>
+                            {/* Allow un-labeling */}
+                            <select value={t.category} onChange={(e) => updateOne(t.id, e.target.value)} style={{ ...DROP, fontSize: 11, padding: "4px 8px" }}>
+                              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             )}
