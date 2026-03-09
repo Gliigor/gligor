@@ -29,7 +29,7 @@ const Hero = () => {
         }
       `}</style>
 
-      {/* Logo orb — smaller */}
+      {/* Logo orb */}
       <div
         className="relative mb-7 animate-fade-in animate-float"
         style={{ animationDelay: "0.2s" }}
@@ -42,21 +42,29 @@ const Hero = () => {
         </div>
       </div>
 
-      {/* Name — hacker style */}
+      {/* Name */}
       <h1
-        className="hacker-name text-3xl sm:text-4xl md:text-5xl mb-5 animate-fade-up"
+        className="hacker-name text-3xl sm:text-4xl md:text-5xl mb-4 animate-fade-up"
         style={{ animationDelay: "0.3s" }}
       >
         Gligor Jancev<span className="terminal-cursor">▮</span>
       </h1>
 
-      {/* Tagline */}
+      {/* Primary tagline — honest and specific */}
+      <p
+        className="text-base sm:text-lg text-foreground/80 font-medium text-center mb-3 animate-fade-up tracking-wide"
+        style={{ animationDelay: "0.4s", fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
+      >
+        I build tools I actually use.
+      </p>
+
+      {/* Supporting copy */}
       <p
         className="text-sm sm:text-base text-muted-foreground max-w-md text-center mb-8 animate-fade-up leading-relaxed"
         style={{ animationDelay: "0.5s" }}
       >
-        Passionate about AI, technology, and pushing human innovation forward.
-        I love experimenting with new ideas and building things.
+        Three working personal finance tools — built out of frustration with apps
+        that don't do exactly what I want. Open, fast, and no account required.
       </p>
 
       {/* CTA */}
@@ -65,7 +73,7 @@ const Hero = () => {
         className="group relative px-7 py-2.5 border border-primary/60 text-primary rounded-md tracking-widest text-xs uppercase transition-all duration-300 hover:bg-primary/10 hover:border-primary animate-fade-up flex items-center gap-3"
         style={{ animationDelay: "0.7s", background: "none", cursor: "pointer" }}
       >
-        Enter Projects
+        See the Tools
         <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
       </button>
     </section>
