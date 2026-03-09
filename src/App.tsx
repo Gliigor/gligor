@@ -7,7 +7,7 @@ import Index from "./pages/Index";
 import CsvDashboard from "./pages/CsvDashboard";
 import BudgetMaker from "./pages/BudgetMaker";
 import NetWorthTracker from "./pages/NetWorthTracker";
-import FireCalculator from "./pages/FireCalculator"; // ← ADD THIS
+import FireCalculator from "./pages/FireCalculator";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,5 +23,12 @@ const App = () => (
           <Route path="/csv-dashboard" element={<CsvDashboard />} />
           <Route path="/budget-maker" element={<BudgetMaker />} />
           <Route path="/net-worth" element={<NetWorthTracker />} />
-          <Route path="/fire-calculator" element={<FireCalculator />} /> // ← ADD THIS
-          <Route path="*" element={
+          <Route path="/fire-calculator" element={<FireCalculator />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </HashRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
+
+export default App;
