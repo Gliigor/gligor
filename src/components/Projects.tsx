@@ -28,6 +28,15 @@ const projects = [
     githubUrl: "https://github.com",
     liveUrl: "/#/csv-dashboard",
   },
+  {
+    title: "FIRE Calculator",
+    hook: "Find out exactly when you can stop working.",
+    description:
+      "Calculate your Financial Independence number, plot your portfolio growth, and pull levers to see how saving more or retiring later changes your date. Supports Lean, Regular, Fat, Coast and Barista FIRE — with Dutch Box 3 tax built in.",
+    tags: ["React", "TypeScript", "FIRE", "Netherlands"],
+    githubUrl: "https://github.com",
+    liveUrl: "/#/fire-calculator",
+  },
 ];
 
 const Projects = () => {
@@ -55,7 +64,7 @@ const Projects = () => {
             <a
               key={project.title}
               href={project.liveUrl}
-              className={`block${index === 2 ? " md:col-span-2 md:max-w-lg md:mx-auto w-full" : ""}`}
+              className="block"
             >
               <article
                 className="group border border-border/60 rounded-lg p-6 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500 cursor-pointer h-full"
