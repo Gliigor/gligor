@@ -408,10 +408,10 @@ export default function BudgetMaker() {
           style={{ ...amtIS, color: amt > 0 ? "#f87171" : "#475569" }}
           onFocus={fb} onBlur={bb}
         />
-        {/* Delete only for unlocked rows */}
-        {r.locked
-          ? <div style={{ width: 43, flexShrink: 0 }} />
-          : <button onClick={() => removeExpense(r.id)} style={delBtnS}>✕</button>}
+        {/* Delete button only on custom (non-locked) rows */}
+        {r.locked === false
+          ? <button onClick={() => removeExpense(r.id)} style={delBtnS}>✕</button>
+          : <div style={{ width: 43, flexShrink: 0 }} />}
       </AnimRow>
     );
   };
