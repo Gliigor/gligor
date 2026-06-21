@@ -8,6 +8,7 @@ import CsvDashboard from "./pages/CsvDashboard";
 import BudgetMaker from "./pages/BudgetMaker";
 import NetWorthTracker from "./pages/NetWorthTracker";
 import FireCalculator from "./pages/FireCalculator";
+import LeadAutomation from "./pages/LeadAutomation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/budget-maker" element={<BudgetMaker />} />
           <Route path="/net-worth" element={<NetWorthTracker />} />
           <Route path="/fire-calculator" element={<FireCalculator />} />
+          <Route path="/lead-automation" element={<LeadAutomation />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </HashRouter>
