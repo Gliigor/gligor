@@ -11,15 +11,27 @@ import { useEffect, useState } from "react";
  */
 
 const BEHANDELINGEN = ["Knippen + föhnen", "Kleuren", "Föhnen", "Knippen (heren)"];
-const MOMENTEN = ["Ochtend", "Vrijdagmiddag", "Weekend", "Maakt niet uit"];
+const DAGEN = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
+const TIJDEN = ["Ochtend (9–12)", "Middag (12–16)", "Maakt niet uit"];
+const KLANT_TYPES = ["Nieuwe klant", "Bestaande klant"];
 
 export default function LeadAutomation() {
-  const [naam, setNaam] = useState("Sara de Vries");
-  const [tel, setTel] = useState("06 24 81 33 09");
+  const [naam, setNaam] = useState("");
+  const [email, setEmail] = useState("");
+  const [tel, setTel] = useState("");
   const [behandeling, setBehandeling] = useState("Knippen + föhnen");
-  const [moment, setMoment] = useState("Vrijdagmiddag");
+  const [klanttype, setKlanttype] = useState("Nieuwe klant");
+  const [dag, setDag] = useState("");
+  const [tijd, setTijd] = useState("");
+  const [opmerkingen, setOpmerkingen] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [contactSent, setContactSent] = useState(false);
+
+  // Smooth-scroll helper — prevents HashRouter from interpreting #id as a route
+  const scrollTo = (id: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
 
   // Load page-specific webfonts without touching global index.css
   useEffect(() => {
@@ -50,6 +62,31 @@ export default function LeadAutomation() {
 
   const first = (naam.trim().split(" ")[0] || "Klant");
 
+  // Save submitted request to localStorage (demo mock storage)
+  const handleDemoSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const aanvraag = {
+      id: `aanvraag-${Date.now()}`,
+      naam,
+      email,
+      telefoonnummer: tel,
+      behandeling,
+      klanttype,
+      voorkeursdag: dag,
+      voorkeurstijd: tijd,
+      opmerkingen,
+      timestamp: new Date().toISOString(),
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem("la-aanvragen") || "[]");
+      existing.push(aanvraag);
+      localStorage.setItem("la-aanvragen", JSON.stringify(existing));
+    } catch {
+      // localStorage may be unavailable — demo still works visually
+    }
+    setSubmitted(true);
+  };
+
   return (
     <div className="la-root">
       <style>{CSS}</style>
@@ -65,10 +102,10 @@ export default function LeadAutomation() {
               automatisch worden geregistreerd, bevestigd en overzichtelijk opgevolgd.
             </p>
             <div className="hero-actions reveal d3">
-              <a href="#contact" className="btn btn-primary">
+              <a href="#contact" className="btn btn-primary" onClick={scrollTo("contact")}>
                 Vraag een gratis processcan aan <span className="arrow">→</span>
               </a>
-              <a href="#demo" className="btn btn-ghost">Bekijk de demo</a>
+              <a href="#demo" className="btn btn-ghost" onClick={scrollTo("demo")}>Bekijk de demo</a>
             </div>
             <div className="hero-meta reveal d3">
               <div className="stat"><div className="n">1 plek</div><div className="l">Alle aanvragen, overzichtelijk</div></div>
@@ -82,14 +119,14 @@ export default function LeadAutomation() {
               <div className="note-top">
                 <div className="note-avatar">S</div>
                 <div>
-                  <div className="note-app">nieuwe-aanvraag · mk kapsalon</div>
+                  <div className="note-app">nieuwe-aanvraag · demo kapsalon</div>
                   <div className="note-name">Sara de Vries</div>
                 </div>
                 <span className="ai-tag">AI</span>
               </div>
               <div className="note-body">
                 <div className="row"><span className="k">Behandeling</span><span className="v">Knippen + föhnen</span></div>
-                <div className="row"><span className="k">Voorkeur</span><span className="v">Vrijdagmiddag</span></div>
+                <div className="row"><span className="k">Voorkeur</span><span className="v">Vrijdag · Ochtend</span></div>
                 <div className="row"><span className="k">Status</span><span className="v">Nieuwe klant</span></div>
               </div>
               <div className="note-foot"><span className="pulse" /> Actie: terugbellen of WhatsApp sturen</div>
@@ -148,8 +185,8 @@ export default function LeadAutomation() {
           <div className="feat-aside reveal">
             <span className="eyebrow">Wat ik bouw</span>
             <p className="quote">
-              “Niet om persoonlijk contact te vervangen — om aanvragen sneller, overzichtelijker en
-              consistenter op te volgen.”
+              "Niet om persoonlijk contact te vervangen — om aanvragen sneller, overzichtelijker en
+              consistenter op te volgen."
             </p>
             <div className="guarantee">
               <div className="gt">
@@ -195,23 +232,42 @@ export default function LeadAutomation() {
                 <span className="dots">
                   <i style={{ background: "#E5A5A0" }} /><i style={{ background: "#E9C98A" }} /><i style={{ background: "#A9CDA0" }} />
                 </span>
-                <span className="fc-url">mkkapsalon.nl/afspraak</span>
+                <span className="fc-url">demo · afspraak aanvragen</span>
               </div>
               <div className="fc-body">
                 <h3>Afspraak aanvragen</h3>
                 <p className="fc-sub">Laat je gegevens achter — we bevestigen zo snel mogelijk.</p>
-                <form
-                  onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }}
-                >
+                <form onSubmit={handleDemoSubmit}>
                   <div className="two">
                     <div className="field">
                       <label>Naam</label>
-                      <input type="text" value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Sara de Vries" />
+                      <input
+                        type="text"
+                        value={naam}
+                        onChange={(e) => setNaam(e.target.value)}
+                        placeholder="Sara de Vries"
+                        required
+                      />
                     </div>
                     <div className="field">
                       <label>Telefoonnummer</label>
-                      <input type="tel" value={tel} onChange={(e) => setTel(e.target.value)} placeholder="06 12 34 56 78" />
+                      <input
+                        type="tel"
+                        value={tel}
+                        onChange={(e) => setTel(e.target.value)}
+                        placeholder="06 12 34 56 78"
+                      />
                     </div>
+                  </div>
+                  <div className="field">
+                    <label>E-mailadres</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="sara@example.com"
+                      required
+                    />
                   </div>
                   <div className="field">
                     <label>Gewenste behandeling</label>
@@ -222,14 +278,43 @@ export default function LeadAutomation() {
                     </div>
                   </div>
                   <div className="field">
-                    <label>Voorkeursmoment</label>
+                    <label>Nieuwe of bestaande klant?</label>
                     <div className="chips">
-                      {MOMENTEN.map((m) => (
-                        <button type="button" key={m} className={`chip${moment === m ? " on" : ""}`} onClick={() => setMoment(m)}>{m}</button>
+                      {KLANT_TYPES.map((k) => (
+                        <button type="button" key={k} className={`chip${klanttype === k ? " on" : ""}`} onClick={() => setKlanttype(k)}>{k}</button>
                       ))}
                     </div>
                   </div>
-                  <button type="submit" className="btn btn-primary fc-submit">Aanvraag versturen <span className="arrow">→</span></button>
+                  <div className="two">
+                    <div className="field">
+                      <label>Voorkeursdag</label>
+                      <div className="chips chips-sm">
+                        {DAGEN.map((d) => (
+                          <button type="button" key={d} className={`chip chip-sm${dag === d ? " on" : ""}`} onClick={() => setDag(d)}>{d}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Voorkeurstijd</label>
+                      <div className="chips chips-sm">
+                        {TIJDEN.map((t) => (
+                          <button type="button" key={t} className={`chip chip-sm${tijd === t ? " on" : ""}`} onClick={() => setTijd(t)}>{t}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Opmerkingen <span className="opt">(optioneel)</span></label>
+                    <textarea
+                      rows={2}
+                      value={opmerkingen}
+                      onChange={(e) => setOpmerkingen(e.target.value)}
+                      placeholder="Bv. allergie voor bepaald product, voorkeur voor kapper…"
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary fc-submit">
+                    Aanvraag versturen <span className="arrow">→</span>
+                  </button>
                 </form>
               </div>
             </div>
@@ -250,29 +335,44 @@ export default function LeadAutomation() {
                   <div className="rc-body">
                     Bedankt <strong>{first}</strong>! We hebben je aanvraag voor <strong>{behandeling.toLowerCase()}</strong> ontvangen
                     en nemen snel contact op om je afspraak te bevestigen.
+                    {email && <><br /><span style={{ color: "var(--la-muted)", fontSize: 13 }}>Bevestiging gestuurd naar {email}</span></>}
                   </div>
                 </div>
 
                 <div className={`result-card r2${submitted ? " show" : ""}`}>
                   <div className="rc-head">
                     <div className="rc-ic dark"><BellIcon /></div>
-                    <div><div className="rc-title">Nieuwe lead geregistreerd</div><div className="rc-meta">overzicht · mk kapsalon</div></div>
+                    <div><div className="rc-title">Nieuwe lead geregistreerd</div><div className="rc-meta">overzicht · demo kapsalon</div></div>
                   </div>
-                  <div className="rc-body">Aanvraag opgeslagen in je overzicht. Niets raakt kwijt — terug te vinden wanneer je wilt.</div>
+                  <div className="rc-body">
+                    Aanvraag opgeslagen in je overzicht. Niets raakt kwijt — terug te vinden wanneer je wilt.
+                    <div className="storage-note">
+                      <span className="storage-icon"><DocIcon /></span>
+                      In productie: aanvraag gaat direct naar Google Sheets of Airtable, en je krijgt een WhatsApp-notificatie.
+                    </div>
+                  </div>
                 </div>
 
                 <div className={`result-card r3${submitted ? " show" : ""}`}>
                   <div className="rc-head">
                     <div className="rc-ic green"><SparkIcon /></div>
-                    <div><div className="rc-title">AI-samenvatting</div><div className="rc-meta">voor de kapper</div></div>
+                    <div><div className="rc-title">AI-samenvatting</div><div className="rc-meta">voor de ondernemer</div></div>
                     <span className="ai-tag" style={{ marginLeft: "auto" }}>AI</span>
                   </div>
                   <div className="rc-body ai-summary">
-                    <div className="row"><span className="k">Aanvraag van</span><span className="v">{naam}</span></div>
+                    <div className="row"><span className="k">Aanvraag van</span><span className="v">{naam || "—"}</span></div>
+                    {email && <div className="row"><span className="k">E-mail</span><span className="v">{email}</span></div>}
+                    {tel && <div className="row"><span className="k">Telefoon</span><span className="v">{tel}</span></div>}
                     <div className="row"><span className="k">Behandeling</span><span className="v">{behandeling}</span></div>
-                    <div className="row"><span className="k">Voorkeur</span><span className="v">{moment}</span></div>
-                    <div className="row"><span className="k">Status</span><span className="v">Nieuwe klant</span></div>
-                    <div className="ai-action"><span className="pulse" /> Actie: terugbellen of WhatsApp sturen</div>
+                    <div className="row"><span className="k">Status</span><span className="v">{klanttype}</span></div>
+                    {dag && <div className="row"><span className="k">Voorkeursdag</span><span className="v">{dag}</span></div>}
+                    {tijd && <div className="row"><span className="k">Voorkeurstijd</span><span className="v">{tijd}</span></div>}
+                    {opmerkingen && <div className="row"><span className="k">Opmerking</span><span className="v">{opmerkingen}</span></div>}
+                    <div className="ai-action">
+                      <span className="pulse" />
+                      Actie: {klanttype === "Bestaande klant" ? "herkenning bevestigen via " : "kennismaken · contact via "}
+                      {tel ? "WhatsApp of terugbellen" : "e-mail"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -347,7 +447,9 @@ export default function LeadAutomation() {
           <h2 className="reveal d1">Laat geen enkele klant meer tussen je appjes verdwijnen.</h2>
           <p className="reveal d2">Eén rustige flow die aanvragen registreert, bevestigt en samenvat — zodat jij je op je vak kunt richten.</p>
           <div className="reveal d2" style={{ display: "flex", justifyContent: "center" }}>
-            <a href="#contact" className="btn btn-primary">Vraag een gratis processcan aan <span className="arrow">→</span></a>
+            <a href="#contact" className="btn btn-primary" onClick={scrollTo("contact")}>
+              Vraag een gratis processcan aan <span className="arrow">→</span>
+            </a>
           </div>
         </div>
       </section>
@@ -358,9 +460,9 @@ export default function LeadAutomation() {
           <span className="fl">© {new Date().getFullYear()} gligor.xyz — Lead Automation</span>
           <div className="foot-links">
             <a href="/#/">Terug naar gligor.xyz</a>
-            <a href="#werkwijze">Werkwijze</a>
-            <a href="#demo">Demo</a>
-            <a href="#contact">Contact</a>
+            <a href="#werkwijze" onClick={scrollTo("werkwijze")}>Werkwijze</a>
+            <a href="#demo" onClick={scrollTo("demo")}>Demo</a>
+            <a href="#contact" onClick={scrollTo("contact")}>Contact</a>
           </div>
         </div>
       </footer>
@@ -484,6 +586,7 @@ const CSS = `
 .la-root .fc-sub{font-size:13.5px;color:var(--la-muted);margin-bottom:22px;}
 .la-root .field{margin-bottom:15px;}
 .la-root .field label{display:block;font-size:12.5px;font-weight:600;color:var(--la-ink-soft);margin-bottom:7px;}
+.la-root .field .opt{font-weight:400;color:var(--la-faint);}
 .la-root .field input,.la-root .field select,.la-root .field textarea{width:100%;font-family:inherit;font-size:14.5px;color:var(--la-ink);background:var(--la-paper);border:1px solid var(--la-line-strong);border-radius:var(--la-radius);padding:11px 13px;transition:border-color .2s,box-shadow .2s;}
 .la-root .field input::placeholder,.la-root .field textarea::placeholder{color:var(--la-faint);}
 .la-root .field input:focus,.la-root .field select:focus,.la-root .field textarea:focus{outline:none;border-color:var(--la-accent);box-shadow:0 0 0 3px var(--la-accent-soft);}
@@ -492,7 +595,10 @@ const CSS = `
 .la-root .chip{font-size:13px;padding:8px 13px;border-radius:100px;cursor:pointer;border:1px solid var(--la-line-strong);background:var(--la-paper);color:var(--la-ink-soft);transition:all .18s;font-family:inherit;}
 .la-root .chip:hover{border-color:var(--la-accent);color:var(--la-accent);}
 .la-root .chip.on{background:var(--la-accent);border-color:var(--la-accent);color:#fff;}
+.la-root .chip-sm{font-size:12px;padding:6px 11px;}
 .la-root .fc-submit{width:100%;justify-content:center;margin-top:8px;padding:13px;}
+.la-root .storage-note{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--la-line-strong);font-size:12.5px;color:var(--la-muted);line-height:1.5;}
+.la-root .storage-icon{flex:none;color:var(--la-accent);margin-top:1px;opacity:.7;}
 .la-root .result-stack{display:flex;flex-direction:column;gap:18px;}
 .la-root .result-card{background:var(--la-card);border:1px solid var(--la-line);border-radius:12px;padding:20px 22px;opacity:0;transform:translateY(14px);transition:opacity .55s ease,transform .55s cubic-bezier(.2,.7,.3,1);box-shadow:0 18px 44px -34px rgba(26,25,22,.3);}
 .la-root .result-card.show{opacity:1;transform:none;}
@@ -507,7 +613,7 @@ const CSS = `
 .la-root .rc-meta{font-size:11.5px;color:var(--la-faint);font-family:'JetBrains Mono',monospace;}
 .la-root .rc-body{font-size:14px;color:var(--la-ink-soft);line-height:1.6;}
 .la-root .ai-summary .row{display:flex;gap:8px;padding:2px 0;font-size:14px;}
-.la-root .ai-summary .k{color:var(--la-muted);min-width:104px;}
+.la-root .ai-summary .k{color:var(--la-muted);min-width:112px;}
 .la-root .ai-summary .v{color:var(--la-ink);font-weight:500;}
 .la-root .ai-action{margin-top:12px;padding-top:11px;border-top:1px dashed var(--la-line-strong);font-size:13.5px;color:var(--la-accent);font-weight:600;display:flex;align-items:center;gap:8px;}
 .la-root .demo-placeholder{border:1px dashed var(--la-line-strong);border-radius:12px;padding:40px 28px;text-align:center;color:var(--la-faint);font-size:14px;background:rgba(255,255,255,.4);}
