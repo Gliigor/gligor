@@ -1,9 +1,11 @@
 import { Github, Mail } from "lucide-react";
+
 const XIcon = ({ size = 20 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
   </svg>
 );
+
 const Header = () => {
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -36,6 +38,13 @@ const Header = () => {
           >
             Contact
           </button>
+          {/* NEW: Lead Automation — subtly emphasized, consistent with the nav */}
+          <a
+            href="/#/lead-automation"
+            className="text-primary border border-primary/40 rounded-md px-3 py-1.5 hover:bg-primary/10 hover:border-primary/70 transition-all text-xs tracking-[0.15em] uppercase"
+          >
+            Lead Automation
+          </a>
         </nav>
         <div className="flex items-center gap-4">
           <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
@@ -52,4 +61,5 @@ const Header = () => {
     </header>
   );
 };
+
 export default Header;
