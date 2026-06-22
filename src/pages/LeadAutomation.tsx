@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 /**
  * Lead Automation — standalone landing page for gligor.xyz
@@ -10,22 +10,38 @@ import { useEffect, useState } from "react";
  * / JetBrains Mono) without altering the global index.css.
  */
 
-const BEHANDELINGEN = ["Knippen + föhnen", "Kleuren", "Föhnen", "Knippen (heren)"];
-const DAGEN = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
-const TIJDEN = ["Ochtend (9–12)", "Middag (12–16)", "Maakt niet uit"];
-const KLANT_TYPES = ["Nieuwe klant", "Bestaande klant"];
+const BEHANDELINGEN_MAP: Record<string, number> = {
+  "Knippen": 25,
+  "Knippen + föhnen": 35,
+  "Kleuren": 65,
+  "Föhnen": 20,
+  "Knippen (heren)": 18,
+};
+const BEHANDELINGEN = Object.keys(BEHANDELINGEN_MAP);
+
+const MOCK_SLOTS = ["09:00", "09:30", "10:30", "11:00", "14:00", "15:30"];
 
 export default function LeadAutomation() {
-  const [naam, setNaam] = useState("");
+  // Form fields
+  const [voornaam, setVoornaam] = useState("");
+  const [achternaam, setAchternaam] = useState("");
   const [email, setEmail] = useState("");
-  const [tel, setTel] = useState("");
-  const [behandeling, setBehandeling] = useState("Knippen + föhnen");
-  const [klanttype, setKlanttype] = useState("Nieuwe klant");
-  const [dag, setDag] = useState("");
-  const [tijd, setTijd] = useState("");
+  const [telefoon, setTelefoon] = useState("");
+  const [behandeling, setBehandeling] = useState("Knippen");
+  const [datum, setDatum] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState("");
   const [opmerkingen, setOpmerkingen] = useState("");
+
+  // UI state
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [contactSent, setContactSent] = useState(false);
+
+  // Availability state
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState("");
+  const [slotsLoaded, setSlotsLoaded] = useState(false);
 
   // Smooth-scroll helper — prevents HashRouter from interpreting #id as a route
   const scrollTo = (id: string) => (e: React.MouseEvent) => {
@@ -60,30 +76,99 @@ export default function LeadAutomation() {
     return () => io.disconnect();
   }, []);
 
-  const first = (naam.trim().split(" ")[0] || "Klant");
-
-  // Save submitted request to localStorage (demo mock storage)
-  const handleDemoSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const aanvraag = {
-      id: `aanvraag-${Date.now()}`,
-      naam,
-      email,
-      telefoonnummer: tel,
-      behandeling,
-      klanttype,
-      voorkeursdag: dag,
-      voorkeurstijd: tijd,
-      opmerkingen,
-      timestamp: new Date().toISOString(),
-    };
-    try {
-      const existing = JSON.parse(localStorage.getItem("la-aanvragen") || "[]");
-      existing.push(aanvraag);
-      localStorage.setItem("la-aanvragen", JSON.stringify(existing));
-    } catch {
-      // localStorage may be unavailable — demo still works visually
+  // Fetch availability whenever datum or behandeling changes
+  useEffect(() => {
+    if (!datum) {
+      setAvailableSlots([]);
+      setSelectedSlot("");
+      setSlotsLoaded(false);
+      setSlotsError("");
+      return;
     }
+
+    setSlotsLoaded(false);
+    setAvailableSlots([]);
+    setSelectedSlot("");
+    setSlotsError("");
+    setSlotsLoading(true);
+
+    const availabilityUrl = import.meta.env.VITE_MAKE_AVAILABILITY_WEBHOOK_URL as string | undefined;
+
+    if (!availabilityUrl) {
+      // Mock mode
+      setTimeout(() => {
+        setAvailableSlots(MOCK_SLOTS);
+        setSlotsLoading(false);
+        setSlotsLoaded(true);
+      }, 700);
+      return;
+    }
+
+    fetch(availabilityUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: datum,
+        client_id: "mk-kapsalon",
+        treatment_name: behandeling,
+        treatment_price: BEHANDELINGEN_MAP[behandeling] ?? 25,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data: { available_slots?: string[] }) => {
+        setAvailableSlots(data.available_slots ?? []);
+        setSlotsLoaded(true);
+      })
+      .catch(() => {
+        setSlotsError("Kon beschikbare tijden niet ophalen. Probeer een andere datum.");
+      })
+      .finally(() => setSlotsLoading(false));
+  }, [datum, behandeling]);
+
+  const handleDemoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSlot) return;
+
+    setSubmitting(true);
+
+    const bookingUrl = import.meta.env.VITE_MAKE_BOOKING_WEBHOOK_URL as string | undefined;
+
+    const payload = {
+      first_name: voornaam,
+      last_name: achternaam,
+      phone: telefoon,
+      email,
+      treatment_name: behandeling,
+      treatment_price: BEHANDELINGEN_MAP[behandeling] ?? 25,
+      date: datum,
+      time: selectedSlot,
+      notes: opmerkingen,
+      source: "gligor-lead-automation-demo",
+      client_id: "mk-kapsalon",
+    };
+
+    if (bookingUrl) {
+      try {
+        await fetch(bookingUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        // fail silently in demo
+      }
+    } else {
+      // Mock: save to localStorage
+      try {
+        const existing = JSON.parse(localStorage.getItem("la-aanvragen") || "[]");
+        existing.push({ ...payload, id: `aanvraag-${Date.now()}`, timestamp: new Date().toISOString() });
+        localStorage.setItem("la-aanvragen", JSON.stringify(existing));
+      } catch {
+        // localStorage may be unavailable
+      }
+    }
+
+    setSubmitting(false);
     setSubmitted(true);
   };
 
@@ -126,10 +211,10 @@ export default function LeadAutomation() {
               </div>
               <div className="note-body">
                 <div className="row"><span className="k">Behandeling</span><span className="v">Knippen + föhnen</span></div>
-                <div className="row"><span className="k">Voorkeur</span><span className="v">Vrijdag · Ochtend</span></div>
-                <div className="row"><span className="k">Status</span><span className="v">Nieuwe klant</span></div>
+                <div className="row"><span className="k">Datum</span><span className="v">Vrijdag 4 juli · 10:30</span></div>
+                <div className="row"><span className="k">Status</span><span className="v">Bevestigd</span></div>
               </div>
-              <div className="note-foot"><span className="pulse" /> Actie: terugbellen of WhatsApp sturen</div>
+              <div className="note-foot"><span className="pulse" /> Actie: afspraak staat in agenda</div>
             </div>
           </div>
         </div>
@@ -220,8 +305,8 @@ export default function LeadAutomation() {
             <span className="case-tag"><span className="badge" /> Demo-case · MK Kapsalon</span>
             <h2 className="sec-title" style={{ marginTop: 22 }}>Van losse appjes naar één afspraakflow.</h2>
             <p className="lead">
-              Klanten maken nu vooral afspraken via telefoon of WhatsApp. Vul de aanvraag hieronder in en
-              zie precies wat er daarna automatisch gebeurt.
+              Klanten kiezen een datum, zien direct beschikbare tijden en boeken in één stap.
+              Vul het formulier in en zie wat er daarna automatisch gebeurt.
             </p>
           </div>
 
@@ -232,42 +317,55 @@ export default function LeadAutomation() {
                 <span className="dots">
                   <i style={{ background: "#E5A5A0" }} /><i style={{ background: "#E9C98A" }} /><i style={{ background: "#A9CDA0" }} />
                 </span>
-                <span className="fc-url">demo · afspraak aanvragen</span>
+                <span className="fc-url">demo · afspraak boeken</span>
               </div>
               <div className="fc-body">
-                <h3>Afspraak aanvragen</h3>
-                <p className="fc-sub">Laat je gegevens achter — we bevestigen zo snel mogelijk.</p>
+                <h3>Afspraak boeken</h3>
+                <p className="fc-sub">Kies je behandeling, datum en tijdslot — we bevestigen automatisch.</p>
                 <form onSubmit={handleDemoSubmit}>
                   <div className="two">
                     <div className="field">
-                      <label>Naam</label>
+                      <label>Voornaam</label>
                       <input
                         type="text"
-                        value={naam}
-                        onChange={(e) => setNaam(e.target.value)}
-                        placeholder="Sara de Vries"
+                        value={voornaam}
+                        onChange={(e) => setVoornaam(e.target.value)}
+                        placeholder="Sara"
                         required
                       />
                     </div>
                     <div className="field">
-                      <label>Telefoonnummer</label>
+                      <label>Achternaam</label>
                       <input
-                        type="tel"
-                        value={tel}
-                        onChange={(e) => setTel(e.target.value)}
-                        placeholder="06 12 34 56 78"
+                        type="text"
+                        value={achternaam}
+                        onChange={(e) => setAchternaam(e.target.value)}
+                        placeholder="de Vries"
+                        required
                       />
                     </div>
                   </div>
-                  <div className="field">
-                    <label>E-mailadres</label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="sara@example.com"
-                      required
-                    />
+                  <div className="two">
+                    <div className="field">
+                      <label>Telefoonnummer</label>
+                      <input
+                        type="tel"
+                        value={telefoon}
+                        onChange={(e) => setTelefoon(e.target.value)}
+                        placeholder="06 12 34 56 78"
+                        required
+                      />
+                    </div>
+                    <div className="field">
+                      <label>E-mailadres</label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="sara@example.com"
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="field">
                     <label>Gewenste behandeling</label>
@@ -278,31 +376,51 @@ export default function LeadAutomation() {
                     </div>
                   </div>
                   <div className="field">
-                    <label>Nieuwe of bestaande klant?</label>
-                    <div className="chips">
-                      {KLANT_TYPES.map((k) => (
-                        <button type="button" key={k} className={`chip${klanttype === k ? " on" : ""}`} onClick={() => setKlanttype(k)}>{k}</button>
-                      ))}
-                    </div>
+                    <label>Datum</label>
+                    <input
+                      type="date"
+                      value={datum}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setDatum(e.target.value)}
+                      required
+                    />
                   </div>
-                  <div className="two">
-                    <div className="field">
-                      <label>Voorkeursdag</label>
-                      <div className="chips chips-sm">
-                        {DAGEN.map((d) => (
-                          <button type="button" key={d} className={`chip chip-sm${dag === d ? " on" : ""}`} onClick={() => setDag(d)}>{d}</button>
-                        ))}
-                      </div>
+
+                  {/* ===== TIJDSLOT SECTIE ===== */}
+                  {datum && (
+                    <div className="field slot-section">
+                      <label>Beschikbare tijden</label>
+                      {slotsLoading && (
+                        <div className="slot-loading">
+                          <span className="slot-spinner" />
+                          Beschikbare tijden laden…
+                        </div>
+                      )}
+                      {!slotsLoading && slotsError && (
+                        <div className="slot-error">{slotsError}</div>
+                      )}
+                      {!slotsLoading && slotsLoaded && availableSlots.length === 0 && (
+                        <div className="slot-empty">
+                          Geen beschikbare tijden op deze datum. Kies een andere dag.
+                        </div>
+                      )}
+                      {!slotsLoading && slotsLoaded && availableSlots.length > 0 && (
+                        <div className="slots">
+                          {availableSlots.map((slot) => (
+                            <button
+                              type="button"
+                              key={slot}
+                              className={`slot-btn${selectedSlot === slot ? " selected" : ""}`}
+                              onClick={() => setSelectedSlot(slot)}
+                            >
+                              {slot}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="field">
-                      <label>Voorkeurstijd</label>
-                      <div className="chips chips-sm">
-                        {TIJDEN.map((t) => (
-                          <button type="button" key={t} className={`chip chip-sm${tijd === t ? " on" : ""}`} onClick={() => setTijd(t)}>{t}</button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  )}
+
                   <div className="field">
                     <label>Opmerkingen <span className="opt">(optioneel)</span></label>
                     <textarea
@@ -312,9 +430,17 @@ export default function LeadAutomation() {
                       placeholder="Bv. allergie voor bepaald product, voorkeur voor kapper…"
                     />
                   </div>
-                  <button type="submit" className="btn btn-primary fc-submit">
-                    Aanvraag versturen <span className="arrow">→</span>
+                  <button
+                    type="submit"
+                    className="btn btn-primary fc-submit"
+                    disabled={!datum || !selectedSlot || submitting}
+                    style={{ opacity: (!datum || !selectedSlot) ? 0.5 : 1, cursor: (!datum || !selectedSlot) ? "not-allowed" : "pointer" }}
+                  >
+                    {submitting ? "Bezig met boeken…" : <>Afspraak bevestigen <span className="arrow">→</span></>}
                   </button>
+                  {datum && !selectedSlot && slotsLoaded && availableSlots.length > 0 && (
+                    <p className="slot-hint">Kies een tijdslot om te boeken.</p>
+                  )}
                 </form>
               </div>
             </div>
@@ -324,7 +450,7 @@ export default function LeadAutomation() {
               <div className="case-tag" style={{ marginBottom: 18 }}><span className="badge" /> Wat er automatisch gebeurt</div>
               <div className="result-stack">
                 {!submitted && (
-                  <div className="demo-placeholder">Verstuur de aanvraag links om de automatische flow te zien →</div>
+                  <div className="demo-placeholder">Boek een afspraak links om de automatische flow te zien →</div>
                 )}
 
                 <div className={`result-card r1${submitted ? " show" : ""}`}>
@@ -333,8 +459,7 @@ export default function LeadAutomation() {
                     <div><div className="rc-title">Klant krijgt bevestiging</div><div className="rc-meta">automatisch · &lt; 1 sec</div></div>
                   </div>
                   <div className="rc-body">
-                    Bedankt <strong>{first}</strong>! We hebben je aanvraag voor <strong>{behandeling.toLowerCase()}</strong> ontvangen
-                    en nemen snel contact op om je afspraak te bevestigen.
+                    Bedankt <strong>{voornaam || "Klant"}</strong>! Je afspraak voor <strong>{behandeling.toLowerCase()}</strong> op <strong>{datum}</strong> om <strong>{selectedSlot}</strong> is bevestigd.
                     {email && <><br /><span style={{ color: "var(--la-muted)", fontSize: 13 }}>Bevestiging gestuurd naar {email}</span></>}
                   </div>
                 </div>
@@ -342,13 +467,13 @@ export default function LeadAutomation() {
                 <div className={`result-card r2${submitted ? " show" : ""}`}>
                   <div className="rc-head">
                     <div className="rc-ic dark"><BellIcon /></div>
-                    <div><div className="rc-title">Nieuwe lead geregistreerd</div><div className="rc-meta">overzicht · demo kapsalon</div></div>
+                    <div><div className="rc-title">Afspraak in agenda gezet</div><div className="rc-meta">Google Calendar · demo kapsalon</div></div>
                   </div>
                   <div className="rc-body">
-                    Aanvraag opgeslagen in je overzicht. Niets raakt kwijt — terug te vinden wanneer je wilt.
+                    Het evenement staat automatisch in de agenda van de kapsalon. Geen handmatig plannen meer.
                     <div className="storage-note">
                       <span className="storage-icon"><DocIcon /></span>
-                      In productie: aanvraag gaat direct naar Google Sheets of Airtable, en je krijgt een WhatsApp-notificatie.
+                      In productie: afspraak gaat direct naar Google Calendar + je krijgt een melding.
                     </div>
                   </div>
                 </div>
@@ -360,18 +485,15 @@ export default function LeadAutomation() {
                     <span className="ai-tag" style={{ marginLeft: "auto" }}>AI</span>
                   </div>
                   <div className="rc-body ai-summary">
-                    <div className="row"><span className="k">Aanvraag van</span><span className="v">{naam || "—"}</span></div>
+                    <div className="row"><span className="k">Klant</span><span className="v">{voornaam} {achternaam}</span></div>
                     {email && <div className="row"><span className="k">E-mail</span><span className="v">{email}</span></div>}
-                    {tel && <div className="row"><span className="k">Telefoon</span><span className="v">{tel}</span></div>}
+                    {telefoon && <div className="row"><span className="k">Telefoon</span><span className="v">{telefoon}</span></div>}
                     <div className="row"><span className="k">Behandeling</span><span className="v">{behandeling}</span></div>
-                    <div className="row"><span className="k">Status</span><span className="v">{klanttype}</span></div>
-                    {dag && <div className="row"><span className="k">Voorkeursdag</span><span className="v">{dag}</span></div>}
-                    {tijd && <div className="row"><span className="k">Voorkeurstijd</span><span className="v">{tijd}</span></div>}
+                    <div className="row"><span className="k">Datum & tijd</span><span className="v">{datum} · {selectedSlot}</span></div>
                     {opmerkingen && <div className="row"><span className="k">Opmerking</span><span className="v">{opmerkingen}</span></div>}
                     <div className="ai-action">
                       <span className="pulse" />
-                      Actie: {klanttype === "Bestaande klant" ? "herkenning bevestigen via " : "kennismaken · contact via "}
-                      {tel ? "WhatsApp of terugbellen" : "e-mail"}
+                      Actie: afspraak bevestigd · klant ontvangt mail
                     </div>
                   </div>
                 </div>
@@ -517,7 +639,7 @@ const CSS = `
 .la-root .eyebrow.center::before{display:none;}
 .la-root .btn{font-family:'Hanken Grotesk',sans-serif;font-size:13.5px;font-weight:500;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:9px;transition:transform .25s cubic-bezier(.2,.7,.3,1),background .25s ease,box-shadow .25s ease,color .2s ease;}
 .la-root .btn-primary{background:var(--la-ink);color:#fff;padding:12px 22px;border-radius:var(--la-radius);}
-.la-root .btn-primary:hover{background:var(--la-accent);transform:translateY(-1px);box-shadow:0 10px 26px -12px rgba(14,82,73,.55);}
+.la-root .btn-primary:hover:not(:disabled){background:var(--la-accent);transform:translateY(-1px);box-shadow:0 10px 26px -12px rgba(14,82,73,.55);}
 .la-root .btn-ghost{background:transparent;color:var(--la-ink);padding:12px 22px;border-radius:var(--la-radius);border:1px solid var(--la-line-strong);}
 .la-root .btn-ghost:hover{border-color:var(--la-ink);transform:translateY(-1px);}
 .la-root .arrow{display:inline-block;transition:transform .25s ease;}
@@ -588,6 +710,7 @@ const CSS = `
 .la-root .field label{display:block;font-size:12.5px;font-weight:600;color:var(--la-ink-soft);margin-bottom:7px;}
 .la-root .field .opt{font-weight:400;color:var(--la-faint);}
 .la-root .field input,.la-root .field select,.la-root .field textarea{width:100%;font-family:inherit;font-size:14.5px;color:var(--la-ink);background:var(--la-paper);border:1px solid var(--la-line-strong);border-radius:var(--la-radius);padding:11px 13px;transition:border-color .2s,box-shadow .2s;}
+.la-root .field input[type="date"]{color:var(--la-ink);}
 .la-root .field input::placeholder,.la-root .field textarea::placeholder{color:var(--la-faint);}
 .la-root .field input:focus,.la-root .field select:focus,.la-root .field textarea:focus{outline:none;border-color:var(--la-accent);box-shadow:0 0 0 3px var(--la-accent-soft);}
 .la-root .two{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
@@ -595,8 +718,19 @@ const CSS = `
 .la-root .chip{font-size:13px;padding:8px 13px;border-radius:100px;cursor:pointer;border:1px solid var(--la-line-strong);background:var(--la-paper);color:var(--la-ink-soft);transition:all .18s;font-family:inherit;}
 .la-root .chip:hover{border-color:var(--la-accent);color:var(--la-accent);}
 .la-root .chip.on{background:var(--la-accent);border-color:var(--la-accent);color:#fff;}
-.la-root .chip-sm{font-size:12px;padding:6px 11px;}
 .la-root .fc-submit{width:100%;justify-content:center;margin-top:8px;padding:13px;}
+/* Slot picker */
+.la-root .slot-section{margin-top:2px;}
+.la-root .slot-loading{font-size:13.5px;color:var(--la-muted);padding:10px 0;display:flex;align-items:center;gap:9px;}
+.la-root .slot-spinner{width:14px;height:14px;border:2px solid var(--la-line-strong);border-top-color:var(--la-accent);border-radius:50%;animation:la-spin .8s linear infinite;flex:none;}
+@keyframes la-spin{to{transform:rotate(360deg)}}
+.la-root .slot-empty{font-size:13.5px;color:var(--la-muted);padding:10px 0;font-style:italic;}
+.la-root .slot-error{font-size:13.5px;color:#B94040;padding:10px 0;}
+.la-root .slots{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0;}
+.la-root .slot-btn{font-size:13.5px;padding:9px 18px;border-radius:100px;cursor:pointer;border:1px solid var(--la-line-strong);background:var(--la-paper);color:var(--la-ink-soft);transition:all .18s;font-family:inherit;font-weight:500;letter-spacing:.01em;}
+.la-root .slot-btn:hover{border-color:var(--la-accent);color:var(--la-accent);background:var(--la-accent-soft);}
+.la-root .slot-btn.selected{background:var(--la-accent);border-color:var(--la-accent);color:#fff;box-shadow:0 4px 14px -6px rgba(14,82,73,.5);}
+.la-root .slot-hint{font-size:12px;color:var(--la-faint);margin-top:8px;text-align:center;}
 .la-root .storage-note{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--la-line-strong);font-size:12.5px;color:var(--la-muted);line-height:1.5;}
 .la-root .storage-icon{flex:none;color:var(--la-accent);margin-top:1px;opacity:.7;}
 .la-root .result-stack{display:flex;flex-direction:column;gap:18px;}
