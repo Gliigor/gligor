@@ -10,6 +10,7 @@ import NetWorthTracker from "./pages/NetWorthTracker";
 import FireCalculator from "./pages/FireCalculator";
 import LeadAutomation from "./pages/LeadAutomation";
 import NotFound from "./pages/NotFound";
+import OfferteGenerator from "./pages/OfferteGenerator";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/net-worth" element={<NetWorthTracker />} />
           <Route path="/fire-calculator" element={<FireCalculator />} />
           <Route path="/lead-automation" element={<LeadAutomation />} />
+          <Route path="/offerte-generator" element={<OfferteGenerator />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </HashRouter>
