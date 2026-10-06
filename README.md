@@ -1,3 +1,11 @@
+# gligor.xyz
+
+Personal site and tools, plus **Vee**, a friendly AI helper in progress.
+See [docs/vee/README.md](docs/vee/README.md) for how Vee is built, how to
+deploy it on Vercel, and the per-phase test checklists.
+
+---
+
 # Welcome to your Lovable project
 
 ## Project info
