@@ -1,7 +1,7 @@
 /**
  * POST /api/chat
  *
- * Body: { messages: [{ role, content }], mode?: "auto" | "fast" | "smart" }
+ * Body: { messages: [{ role, content }], mode?: "auto" | "fast" | "smart", profile?: VeeProfile }
  * Reply: a Server-Sent-Events stream with events:
  *   meta  { tier, model }
  *   text  { text }
@@ -13,6 +13,7 @@
 import { streamModel, type ChatMessage } from "./_lib/model";
 import { chooseTier, type RoutingMode } from "./_lib/router";
 import { VEE_SYSTEM_PROMPT } from "./_lib/prompts";
+import { parseProfile, profilePrompt, type VeeProfile } from "./_lib/profile";
 import { checkAccess, json, sseEvent, SSE_HEADERS } from "./_lib/http";
 
 // Vercel reads this to allow longer streaming replies (seconds).
@@ -24,9 +25,10 @@ const MAX_MESSAGE_CHARS = 8000;
 interface ChatBody {
   messages?: unknown;
   mode?: unknown;
+  profile?: unknown;
 }
 
-function parseBody(body: ChatBody): { messages: ChatMessage[]; mode: RoutingMode } | string {
+function parseBody(body: ChatBody): { messages: ChatMessage[]; mode: RoutingMode; profile: VeeProfile | null } | string {
   if (!Array.isArray(body.messages) || body.messages.length === 0) return "messages must be a non-empty array";
   if (body.messages.length > MAX_MESSAGES) return `at most ${MAX_MESSAGES} messages per request`;
 
@@ -43,7 +45,7 @@ function parseBody(body: ChatBody): { messages: ChatMessage[]; mode: RoutingMode
   if (messages[messages.length - 1].role !== "user") return "the last message must be from the user";
 
   const mode: RoutingMode = body.mode === "fast" || body.mode === "smart" ? body.mode : "auto";
-  return { messages, mode };
+  return { messages, mode, profile: parseProfile(body.profile) };
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -59,7 +61,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const parsed = parseBody(body);
   if (typeof parsed === "string") return json({ error: "bad_request", message: parsed }, 400);
-  const { messages, mode } = parsed;
+  const { messages, mode, profile } = parsed;
 
   // Step 1: pick the model tier (cheap classifier call, or the user's choice).
   const tier = await chooseTier(messages, mode);
@@ -72,6 +74,7 @@ export async function POST(req: Request): Promise<Response> {
           task: tier === "smart" ? "agent" : "chat",
           tier,
           system: VEE_SYSTEM_PROMPT,
+          systemExtra: profile ? profilePrompt(profile) : undefined,
           messages,
           signal: req.signal,
         })) {

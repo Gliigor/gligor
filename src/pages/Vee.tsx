@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowUp, RotateCcw, Square } from "lucide-react";
+import { ArrowUp, LogOut, RotateCcw, SlidersHorizontal, Square } from "lucide-react";
 import VeeAvatar, { type AvatarState } from "@/vee/VeeAvatar";
-import {
-  AccessCodeRequired,
-  fetchHealth,
-  getAccessCode,
-  setAccessCode,
-  streamChat,
-  type Message,
-  type RoutingMode,
-} from "@/vee/api";
+import VeeLogin from "@/vee/VeeLogin";
+import VeeCustomize from "@/vee/VeeCustomize";
+import { AccessCodeRequired, fetchHealth, setAccessCode, streamChat, type Message, type RoutingMode } from "@/vee/api";
+import { DEFAULT_PROFILE, isLoggedIn, loadProfile, saveProfile, setLoggedIn, type VeeProfile } from "@/vee/profile";
 import "@/vee/vee.css";
 
 const TIER_LABEL = { fast: "quick brain", smart: "deep brain" } as const;
@@ -23,32 +18,107 @@ const SUGGESTIONS = [
 let idCounter = 0;
 const nextId = () => `m${Date.now()}-${idCounter++}`;
 
+type Stage = "loading" | "login" | "customize" | "chat";
+
 /**
- * Phase 1 chat screen: one input box, streaming replies, and a small toggle
- * to force the quick or deep model so routing can be tested by hand.
+ * The /vee route: log in, customize your Vee, then chat. Settings live in
+ * this browser (see src/vee/profile.ts) until real accounts arrive.
  */
 export default function Vee() {
+  const [stage, setStage] = useState<Stage>("loading");
+  const [profile, setProfile] = useState<VeeProfile | null>(() => loadProfile());
+  const [codeRequired, setCodeRequired] = useState(false);
+  const [mock, setMock] = useState(false);
+
+  useEffect(() => {
+    document.title = "Vee";
+    fetchHealth().then((h) => {
+      setMock(Boolean(h?.mock));
+      setCodeRequired(Boolean(h?.accessCodeRequired));
+      if (!isLoggedIn()) setStage("login");
+      else setStage(loadProfile() ? "chat" : "customize");
+    });
+  }, []);
+
+  function logOut() {
+    setLoggedIn(false);
+    setAccessCode("");
+    setStage("login");
+  }
+
+  const color = profile?.color ?? DEFAULT_PROFILE.color;
+
+  if (stage === "loading") {
+    return (
+      <div className="vee min-h-screen flex items-center justify-center">
+        <VeeAvatar state="thinking" size={80} color={color} />
+      </div>
+    );
+  }
+
+  if (stage === "login") {
+    return (
+      <VeeLogin
+        codeRequired={codeRequired}
+        initialName={profile?.userName ?? ""}
+        color={color}
+        onLoggedIn={(userName) => {
+          setLoggedIn(true);
+          // Returning visitors keep their Vee; new ones go to customize first.
+          if (profile) {
+            const updated = { ...profile, userName };
+            saveProfile(updated);
+            setProfile(updated);
+            setStage("chat");
+          } else {
+            setProfile({ ...DEFAULT_PROFILE, userName });
+            setStage("customize");
+          }
+        }}
+      />
+    );
+  }
+
+  if (stage === "customize" || !profile) {
+    const firstTime = !loadProfile();
+    return (
+      <VeeCustomize
+        profile={profile ?? DEFAULT_PROFILE}
+        firstTime={firstTime}
+        onSave={(p) => {
+          saveProfile(p);
+          setProfile(p);
+          setStage("chat");
+        }}
+        onCancel={firstTime ? undefined : () => setStage("chat")}
+      />
+    );
+  }
+
+  return <VeeChat profile={profile} mock={mock} onCustomize={() => setStage("customize")} onLogOut={logOut} />;
+}
+
+interface ChatProps {
+  profile: VeeProfile;
+  mock: boolean;
+  onCustomize: () => void;
+  onLogOut: () => void;
+}
+
+/**
+ * Chat screen: one input box, streaming replies, and a small toggle to force
+ * the quick or deep model so routing can be tested by hand.
+ */
+function VeeChat({ profile, mock, onCustomize, onLogOut }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<RoutingMode>("auto");
   const [busy, setBusy] = useState(false);
   const [avatar, setAvatar] = useState<AvatarState>("idle");
-  const [needsCode, setNeedsCode] = useState(false);
-  const [codeInput, setCodeInput] = useState("");
-  const [mock, setMock] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    document.title = "Vee";
-    fetchHealth().then((h) => {
-      if (!h) return;
-      setMock(h.mock);
-      if (h.accessCodeRequired && !getAccessCode()) setNeedsCode(true);
-    });
-  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -85,13 +155,13 @@ export default function Vee() {
           },
         },
         controller.signal,
+        profile,
       );
     } catch (err) {
       if (err instanceof AccessCodeRequired) {
-        setNeedsCode(true);
-        // Put the question back so it can be re-sent after entering the code.
-        setMessages(messages);
-        setInput(trimmed);
+        // The code changed on the server: log in again.
+        onLogOut();
+        return;
       } else if ((err as Error).name === "AbortError") {
         patchReply({ error: "Stopped." });
       } else {
@@ -120,13 +190,6 @@ export default function Vee() {
     inputRef.current?.focus();
   }
 
-  function saveCode(e: FormEvent) {
-    e.preventDefault();
-    setAccessCode(codeInput.trim());
-    setNeedsCode(false);
-    setCodeInput("");
-  }
-
   const empty = messages.length === 0;
 
   return (
@@ -149,7 +212,21 @@ export default function Vee() {
               className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold text-[#2c2c2a]/60 hover:bg-[#2c2c2a]/5"
               title="Start over"
             >
-              <RotateCcw size={14} /> New chat
+              <RotateCcw size={14} /> <span className="hidden sm:inline">New chat</span>
+            </button>
+            <button
+              onClick={onCustomize}
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold text-[#2c2c2a]/60 hover:bg-[#2c2c2a]/5"
+              title={`Customize ${profile.veeName}`}
+            >
+              <SlidersHorizontal size={14} /> <span className="hidden sm:inline">Customize</span>
+            </button>
+            <button
+              onClick={onLogOut}
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold text-[#2c2c2a]/60 hover:bg-[#2c2c2a]/5"
+              title="Log out"
+            >
+              <LogOut size={14} />
             </button>
           </div>
         </div>
@@ -158,10 +235,12 @@ export default function Vee() {
       {/* Conversation */}
       <main className="flex-1 mx-auto w-full max-w-2xl px-4 pt-6 pb-40">
         <div className="flex flex-col items-center text-center mb-8">
-          <VeeAvatar state={avatar} size={empty ? 128 : 80} />
+          <VeeAvatar state={avatar} size={empty ? 128 : 80} color={profile.color} />
           {empty ? (
             <>
-              <h1 className="mt-4 text-2xl font-extrabold">Hi, I'm Vee.</h1>
+              <h1 className="mt-4 text-2xl font-extrabold">
+                Hi{profile.userName ? ` ${profile.userName}` : ""}, I'm {profile.veeName}.
+              </h1>
               <p className="mt-1 text-[#2c2c2a]/60 max-w-sm">
                 Ask me anything. I'm a friendly helper that will soon be able to sort your email, keep your notes and
                 plan your day.
@@ -180,7 +259,11 @@ export default function Vee() {
             </>
           ) : (
             <p className="mt-2 text-xs font-semibold text-[#2c2c2a]/50">
-              {avatar === "thinking" ? "Vee is thinking…" : avatar === "talking" ? "Vee is answering…" : "Vee"}
+              {avatar === "thinking"
+                ? `${profile.veeName} is thinking…`
+                : avatar === "talking"
+                  ? `${profile.veeName} is answering…`
+                  : profile.veeName}
             </p>
           )}
         </div>
@@ -224,7 +307,7 @@ export default function Vee() {
                 }
               }}
               rows={1}
-              placeholder="Ask Vee anything…"
+              placeholder={`Ask ${profile.veeName} anything…`}
               className="w-full resize-none bg-transparent px-4 pt-3 pb-1 outline-none placeholder:text-[#2c2c2a]/40"
               autoFocus
             />
@@ -257,29 +340,6 @@ export default function Vee() {
         </form>
       </div>
 
-      {/* Access code dialog */}
-      {needsCode && (
-        <div className="fixed inset-0 z-20 bg-[#2c2c2a]/40 flex items-center justify-center p-4">
-          <form onSubmit={saveCode} className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-extrabold">Access code</h2>
-            <p className="mt-1 text-sm text-[#2c2c2a]/60">This tryout is invite-only for now. Enter the code you were given.</p>
-            <input
-              value={codeInput}
-              onChange={(e) => setCodeInput(e.target.value)}
-              className="mt-4 w-full rounded-xl border border-[#2c2c2a]/20 px-3 py-2 outline-none focus:border-[#F0997B]"
-              placeholder="Code"
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={!codeInput.trim()}
-              className="mt-4 w-full rounded-xl bg-[#F0997B] py-2.5 font-bold text-white disabled:opacity-40"
-            >
-              Continue
-            </button>
-          </form>
-        </div>
-      )}
     </div>
   );
 }

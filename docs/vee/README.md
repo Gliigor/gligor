@@ -4,6 +4,7 @@ Vee lives inside the gligor.xyz codebase at the route `/#/vee`. This folder
 holds the plain-language notes for each build phase.
 
 - [Phase 1: Skeleton](./phase-1-skeleton.md) (done)
+- Login and "Customize Vee" screens (done, simple version: name + access code, settings saved in the browser)
 - Phase 2: Character (next)
 - Phase 3: Onboarding
 - Phase 4: First tools (Notion notes, Gmail triage, daily summary)
@@ -35,7 +36,11 @@ Folder map:
 | `api/_lib/router.ts` | Decides quick vs deep model per message. |
 | `api/_lib/prompts.ts` | Vee's personality (system prompt). |
 | `api/_lib/plans.ts` | Free/paid limits in one place (not enforced yet). |
-| `src/pages/Vee.tsx` | The chat screen. |
+| `src/pages/Vee.tsx` | The flow: login, then customize, then chat. |
+| `src/vee/VeeLogin.tsx` | Login screen (your name + access code, checked by `api/login.ts`). |
+| `src/vee/VeeCustomize.tsx` | Customize screen: Vee's name, color, personality, language. |
+| `src/vee/profile.ts` | The saved settings (browser storage). |
+| `api/_lib/profile.ts` | Validates those settings and turns them into instructions for Vee. |
 | `src/vee/api.ts` | Browser code that calls the backend and reads the stream. |
 | `src/vee/VeeAvatar.tsx` | Placeholder character (Phase 2 replaces it). |
 

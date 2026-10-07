@@ -19,6 +19,8 @@ export interface Message {
   error?: string;
 }
 
+import type { VeeProfile } from "./profile";
+
 const API_BASE = (import.meta.env.VITE_VEE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "";
 const ACCESS_KEY = "vee.accessCode";
 
@@ -60,11 +62,16 @@ export async function streamChat(
   mode: RoutingMode,
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
+  profile?: VeeProfile | null,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-vee-access": getAccessCode() },
-    body: JSON.stringify({ messages: messages.map(({ role, content }) => ({ role, content })), mode }),
+    body: JSON.stringify({
+      messages: messages.map(({ role, content }) => ({ role, content })),
+      mode,
+      profile: profile ? { userName: profile.userName, veeName: profile.veeName, personality: profile.personality, language: profile.language } : undefined,
+    }),
     signal,
   });
 
@@ -137,4 +144,16 @@ export async function fetchHealth(): Promise<{ ok: boolean; mock: boolean; acces
   } catch {
     return null;
   }
+}
+
+/**
+ * Checks an access code with the server. Resolves true when the code is
+ * accepted (or none is required), false when it is wrong. Network errors
+ * throw so the login screen can say "couldn't reach Vee".
+ */
+export async function checkLogin(code: string): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/api/login`, { method: "POST", headers: { "x-vee-access": code } });
+  if (res.status === 401) return false;
+  if (!res.ok) throw new Error(`Login failed (${res.status})`);
+  return true;
 }
