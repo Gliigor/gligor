@@ -7,7 +7,7 @@
  *
  * Reply: { ok: true } or 401 { error: "access_code_required" }.
  */
-import { checkAccess, json } from "./_lib/http";
+import { checkAccess, json } from "./_lib/http.js";
 
 export function POST(req: Request): Response {
   const denied = checkAccess(req);
