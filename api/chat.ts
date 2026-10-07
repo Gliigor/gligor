@@ -10,11 +10,11 @@
  *
  * The Anthropic API key never leaves this server.
  */
-import { streamModel, type ChatMessage } from "./_lib/model";
-import { chooseTier, type RoutingMode } from "./_lib/router";
-import { VEE_SYSTEM_PROMPT } from "./_lib/prompts";
-import { parseProfile, profilePrompt, type VeeProfile } from "./_lib/profile";
-import { checkAccess, json, sseEvent, SSE_HEADERS } from "./_lib/http";
+import { streamModel, type ChatMessage } from "./_lib/model.js";
+import { chooseTier, type RoutingMode } from "./_lib/router.js";
+import { VEE_SYSTEM_PROMPT } from "./_lib/prompts.js";
+import { parseProfile, profilePrompt, type VeeProfile } from "./_lib/profile.js";
+import { checkAccess, json, sseEvent, SSE_HEADERS } from "./_lib/http.js";
 
 // Vercel reads this to allow longer streaming replies (seconds).
 export const maxDuration = 60;

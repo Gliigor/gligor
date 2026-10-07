@@ -7,7 +7,7 @@
  * this file only.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { MAX_TOKENS, MODEL_IDS, TIER_FOR_TASK, type ModelTier, type TaskKind } from "./models";
+import { MAX_TOKENS, MODEL_IDS, TIER_FOR_TASK, type ModelTier, type TaskKind } from "./models.js";
 
 /** A plain chat message as the rest of the app sees it. */
 export interface ChatMessage {
