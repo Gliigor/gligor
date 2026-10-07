@@ -10,7 +10,7 @@
  *
  * The Anthropic API key never leaves this server.
  */
-import { streamModel, type ChatMessage } from "./_lib/model.js";
+import { isUnavailable, streamModel, type ChatMessage } from "./_lib/model.js";
 import { chooseTier, type RoutingMode } from "./_lib/router.js";
 import { VEE_SYSTEM_PROMPT } from "./_lib/prompts.js";
 import { parseProfile, profilePrompt, type VeeProfile } from "./_lib/profile.js";
@@ -51,6 +51,10 @@ function parseBody(body: ChatBody): { messages: ChatMessage[]; mode: RoutingMode
 export async function POST(req: Request): Promise<Response> {
   const denied = checkAccess(req);
   if (denied) return denied;
+
+  if (isUnavailable()) {
+    return json({ error: "unavailable", message: "Vee is taking a little break right now. Please try again later." }, 503);
+  }
 
   let body: ChatBody;
   try {

@@ -136,7 +136,12 @@ export async function streamChat(
   }
 }
 
-export async function fetchHealth(): Promise<{ ok: boolean; mock: boolean; accessCodeRequired: boolean } | null> {
+export async function fetchHealth(): Promise<{
+  ok: boolean;
+  mock: boolean;
+  unavailable?: boolean;
+  accessCodeRequired: boolean;
+} | null> {
   try {
     const res = await fetch(`${API_BASE}/api/health`);
     if (!res.ok) return null;
