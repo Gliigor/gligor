@@ -10,10 +10,11 @@ export type AvatarState = "idle" | "thinking" | "talking";
 interface Props {
   state: AvatarState;
   size?: number;
+  /** Body color, picked on the "Customize Vee" screen. */
+  color?: string;
 }
 
-export default function VeeAvatar({ state, size = 96 }: Props) {
-  const coral = "#F0997B";
+export default function VeeAvatar({ state, size = 96, color = "#F0997B" }: Props) {
   const ink = "#2C2C2A";
   const cheek = "#ED93B1";
 
@@ -28,7 +29,7 @@ export default function VeeAvatar({ state, size = 96 }: Props) {
         {/* body: a soft drop shape */}
         <path
           d="M50 8 C62 22, 86 36, 86 60 C86 80, 70 94, 50 94 C30 94, 14 80, 14 60 C14 36, 38 22, 50 8 Z"
-          fill={coral}
+          fill={color}
         />
         {/* cheeks */}
         <circle cx="30" cy="66" r="6" fill={cheek} opacity="0.7" />

@@ -22,6 +22,8 @@ export interface CallModelOptions {
   messages: ChatMessage[];
   /** Optional system prompt. Keep it stable so prompt caching can kick in. */
   system?: string;
+  /** Per-person instructions appended after `system`, outside the cached prefix. */
+  systemExtra?: string;
   /** Tool definitions in Claude's tool-use format. Unused until Phase 4. */
   tools?: Anthropic.Tool[];
   /** Override the tier chosen for the task (e.g. the user forced "smart"). */
@@ -76,6 +78,7 @@ function buildRequest(opts: CallModelOptions, tier: ModelTier): Anthropic.Messag
   if (opts.system) {
     // Mark the system prompt cacheable: identical prefixes get ~90% cheaper.
     params.system = [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }];
+    if (opts.systemExtra) params.system.push({ type: "text", text: opts.systemExtra });
   }
   if (opts.tools && opts.tools.length > 0) {
     params.tools = opts.tools;
