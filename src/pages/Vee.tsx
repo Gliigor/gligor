@@ -29,11 +29,13 @@ export default function Vee() {
   const [profile, setProfile] = useState<VeeProfile | null>(() => loadProfile());
   const [codeRequired, setCodeRequired] = useState(false);
   const [mock, setMock] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     document.title = "Vee";
     fetchHealth().then((h) => {
       setMock(Boolean(h?.mock));
+      setUnavailable(Boolean(h?.unavailable));
       setCodeRequired(Boolean(h?.accessCodeRequired));
       if (!isLoggedIn()) setStage("login");
       else setStage(loadProfile() ? "chat" : "customize");
@@ -51,7 +53,7 @@ export default function Vee() {
   if (stage === "loading") {
     return (
       <div className="vee min-h-screen flex items-center justify-center">
-        <VeeAvatar state="thinking" size={80} color={color} />
+        <VeeAvatar state="thinking" size={80} color={color} interactive={false} />
       </div>
     );
   }
@@ -95,12 +97,18 @@ export default function Vee() {
     );
   }
 
-  return <VeeChat profile={profile} mock={mock} onCustomize={() => setStage("customize")} onLogOut={logOut} />;
+  return <VeeChat
+      profile={profile}
+      mock={mock}
+      unavailable={unavailable}
+      onCustomize={() => setStage("customize")} onLogOut={logOut} />;
 }
 
 interface ChatProps {
   profile: VeeProfile;
   mock: boolean;
+  /** Live site without an API key: show a friendly "taking a break" note. */
+  unavailable: boolean;
   onCustomize: () => void;
   onLogOut: () => void;
 }
@@ -109,7 +117,7 @@ interface ChatProps {
  * Chat screen: one input box, streaming replies, and a small toggle to force
  * the quick or deep model so routing can be tested by hand.
  */
-function VeeChat({ profile, mock, onCustomize, onLogOut }: ChatProps) {
+function VeeChat({ profile, mock, unavailable, onCustomize, onLogOut }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<RoutingMode>("auto");
@@ -126,7 +134,7 @@ function VeeChat({ profile, mock, onCustomize, onLogOut }: ChatProps) {
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || busy || unavailable) return;
 
     const userMsg: Message = { id: nextId(), role: "user", content: trimmed };
     const replyId = nextId();
@@ -245,6 +253,7 @@ function VeeChat({ profile, mock, onCustomize, onLogOut }: ChatProps) {
                 Ask me anything. I'm a friendly helper that will soon be able to sort your email, keep your notes and
                 plan your day.
               </p>
+              <p className="mt-2 text-xs font-semibold text-[#2c2c2a]/40">Psst, you can poke me.</p>
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {SUGGESTIONS.map((s) => (
                   <button
@@ -295,6 +304,11 @@ function VeeChat({ profile, mock, onCustomize, onLogOut }: ChatProps) {
       {/* Input */}
       <div className="fixed bottom-0 inset-x-0 bg-gradient-to-t from-[#fff8f3] via-[#fff8f3] to-transparent pt-6 pb-4">
         <form onSubmit={onSubmit} className="mx-auto max-w-2xl px-4">
+          {unavailable && (
+            <p className="mb-2 rounded-2xl bg-white border border-[#EF9F27]/40 px-4 py-2.5 text-center text-sm text-[#7a4d05]">
+              {profile.veeName} is taking a little break right now. Please come back a bit later.
+            </p>
+          )}
           <div className="rounded-3xl bg-white border border-[#2c2c2a]/15 shadow-sm focus-within:border-[#F0997B] transition-colors">
             <textarea
               ref={inputRef}
@@ -325,7 +339,7 @@ function VeeChat({ profile, mock, onCustomize, onLogOut }: ChatProps) {
               ) : (
                 <button
                   type="submit"
-                  disabled={!input.trim()}
+                  disabled={!input.trim() || unavailable}
                   className="h-9 w-9 rounded-full bg-[#F0997B] text-white inline-flex items-center justify-center disabled:opacity-40"
                   title="Send"
                 >

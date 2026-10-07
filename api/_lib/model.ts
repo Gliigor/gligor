@@ -41,9 +41,26 @@ export type ModelEvent =
   | { type: "done"; stopReason: string | null; inputTokens: number; outputTokens: number }
   | { type: "error"; message: string };
 
-/** True when there is no API key, so the app answers with canned text. */
+/** True on the live (production) Vercel deployment. */
+function isProduction(): boolean {
+  return process.env.VERCEL_ENV === "production";
+}
+
+/**
+ * True when the app answers with canned text instead of calling Claude:
+ * forced with VEE_MOCK=1, or no API key outside production (your own
+ * computer and preview links), so screens can be tested for free.
+ */
 export function isMockMode(): boolean {
-  return process.env.VEE_MOCK === "1" || !process.env.ANTHROPIC_API_KEY;
+  return process.env.VEE_MOCK === "1" || (!process.env.ANTHROPIC_API_KEY && !isProduction());
+}
+
+/**
+ * True when the live site has no API key. Real visitors then get a friendly
+ * "taking a break" message instead of canned mock replies.
+ */
+export function isUnavailable(): boolean {
+  return !isMockMode() && !process.env.ANTHROPIC_API_KEY;
 }
 
 let client: Anthropic | null = null;
