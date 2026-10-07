@@ -8,8 +8,8 @@
  *    keeps simple chat cheap.
  * 3. If the classifier fails for any reason, fall back to a keyword check.
  */
-import { callModel, type ChatMessage } from "./model";
-import type { ModelTier } from "./models";
+import { callModel, type ChatMessage } from "./model.js";
+import type { ModelTier } from "./models.js";
 
 export type RoutingMode = "auto" | ModelTier;
 
