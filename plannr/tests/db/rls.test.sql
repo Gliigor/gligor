@@ -203,6 +203,22 @@ begin
   assert (select count(*) from public.assets) = 0, 'admin cannot read asset rows';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Existing account without a firm accepts an invitation at login.
+-- ---------------------------------------------------------------------------
+reset role;
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-0000000000a3', 'later@a.nl', '{"name":"Later"}');
+insert into public.invitations (firm_id, email, invited_by)
+select firm_id, 'later@a.nl', id from public.users where email = 'eigenaar@a.nl';
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000a3');
+select public.record_login();
+do $$
+begin
+  assert public.current_firm_id() is not null, 'invitation accepted at login';
+  assert (select role from public.users where id = auth.uid()) = 'planner', 'joined as planner';
+end $$;
+
 reset role;
 \o
 \echo 'ALL RLS TESTS PASSED'

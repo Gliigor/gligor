@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { cn } from "@/components/ui/cn";
-import { Check } from "@/components/ui/icons";
+import { AlertTriangle, Check } from "@/components/ui/icons";
 import type { StepStatus } from "@/lib/plan/status";
 
 /**
@@ -49,7 +49,10 @@ export function ProgressBar({ baseHref, steps }: { baseHref: string; steps: Step
                   {step.state === "complete" ? (
                     <Check className="h-4 w-4" aria-hidden="true" />
                   ) : step.state === "missing" ? (
-                    <span aria-hidden="true">{step.missingCount}</span>
+                    <span aria-hidden="true" className="inline-flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {step.missingCount}
+                    </span>
                   ) : (
                     <span aria-hidden="true">{i + 1}</span>
                   )}

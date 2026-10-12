@@ -30,7 +30,7 @@ export default async function HouseStylePage() {
           blijven ongewijzigd.
         </p>
       </div>
-      <HouseStyleEditor firmId={member.firm.id} initial={style} logoUrl={logoUrl} website={member.firm.website_url ?? ""} />
+      <HouseStyleEditor firmId={member.firm.id} firmName={member.firm.name} initial={style} logoUrl={logoUrl} website={member.firm.website_url ?? ""} />
     </div>
   );
 }

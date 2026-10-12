@@ -78,6 +78,13 @@ export async function setPassword(_prev: AuthState, formData: FormData): Promise
   redirect("/clienten");
 }
 
+/** "Opnieuw controleren" on /geen-kantoor: accepts an invitation that arrived after login. */
+export async function recheckMembership() {
+  const supabase = await createClient();
+  await supabase.rpc("record_login");
+  redirect("/clienten");
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Select } from "@/components/ui/form";
 import { Pencil, Trash2 } from "@/components/ui/icons";
 import { deletePlanAction, updatePlanMeta } from "@/lib/actions/plan";
 import { PLAN_STATUS_LABELS, type PlanStatus } from "@/lib/plan/types";
@@ -28,7 +27,7 @@ export function PlanHeader({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex items-center gap-2 sm:gap-3">
       <div className="min-w-0 flex-1">
         {editing ? (
           <input
@@ -53,11 +52,11 @@ export function PlanHeader({
           </button>
         )}
       </div>
-      <Select
+      <select
         value={status}
         disabled={pending}
         onChange={(e) => startTransition(() => void updatePlanMeta(planId, { status: e.target.value as PlanStatus }))}
-        className="w-auto py-1.5 text-sm"
+        className="h-9 rounded-lg border border-ink-200 bg-white px-2.5 text-sm font-medium text-ink-700 shadow-sm focus:border-brand-500 focus:outline-none"
         aria-label="Status van het plan"
       >
         {(Object.keys(PLAN_STATUS_LABELS) as PlanStatus[]).map((s) => (
@@ -65,7 +64,7 @@ export function PlanHeader({
             {PLAN_STATUS_LABELS[s]}
           </option>
         ))}
-      </Select>
+      </select>
       <button
         type="button"
         onClick={() => {

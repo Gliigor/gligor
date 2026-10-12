@@ -35,6 +35,10 @@ export function planExtractionChanges(
   const updates: ExtractionChanges["updates"] = [];
   const inserts: ExtractionChanges["inserts"] = [];
 
+  const claimed = new Set<string>();
+  const isEmptyRow = (a: AssetRow) =>
+    a.value === null && a.label === "" && Object.entries(a.metadata).every(([k, v]) => k === "_fromDocument" || v === null || v === "");
+
   for (const found of data.assets) {
     const def = getAssetType(found.type);
     if (!def || !isAssetTypeRelevant(def, config)) continue;
@@ -47,8 +51,10 @@ export function planExtractionChanges(
     if (!hasValue && visibleMeta.length === 0) continue;
 
     const existing = def.multiple
-      ? assets.find((a) => a.type === def.type && a.label === (found.label ?? ""))
+      ? (assets.find((a) => a.type === def.type && !claimed.has(a.id) && a.label === (found.label ?? "")) ??
+        assets.find((a) => a.type === def.type && !claimed.has(a.id) && isEmptyRow(a)))
       : assets.find((a) => a.type === def.type);
+    if (existing) claimed.add(existing.id);
 
     const metadata: AssetMetadata = { ...(existing?.metadata ?? {}) };
     const fromDoc = new Set(existing?.metadata._fromDocument ?? []);

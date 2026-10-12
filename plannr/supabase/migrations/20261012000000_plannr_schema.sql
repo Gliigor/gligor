@@ -431,15 +431,41 @@ create trigger documents_log after insert on public.documents
 create trigger exports_log after insert on public.exports
   for each row execute function public.log_activity('export_created');
 
--- Called by the app right after a successful login.
+-- Called by the app right after a successful login. Also accepts a pending
+-- invitation for an existing account that is not linked to a firm yet (the
+-- sign-up trigger below only covers brand-new accounts).
 create function public.record_login() returns void
 language plpgsql security definer set search_path = ''
 as $$
 declare
   v_firm uuid;
+  v_email text;
+  v_name text;
+  v_invitation public.invitations%rowtype;
 begin
   update public.users set last_login_at = now() where id = auth.uid()
     returning firm_id into v_firm;
+
+  if v_firm is null and auth.uid() is not null then
+    select lower(email), coalesce(nullif(trim(raw_user_meta_data ->> 'name'), ''), split_part(email, '@', 1))
+      into v_email, v_name
+    from auth.users where id = auth.uid();
+
+    select * into v_invitation
+    from public.invitations
+    where email = v_email and accepted_at is null
+    order by created_at desc
+    limit 1;
+
+    if found then
+      insert into public.users (id, firm_id, name, email, role, last_login_at)
+      values (auth.uid(), v_invitation.firm_id, v_name, v_email, 'planner', now());
+      update public.invitations set accepted_at = now() where id = v_invitation.id;
+      insert into public.activity_log (firm_id, user_id, action) values (v_invitation.firm_id, auth.uid(), 'planner_joined');
+      v_firm := v_invitation.firm_id;
+    end if;
+  end if;
+
   if v_firm is not null then
     insert into public.activity_log (firm_id, user_id, action) values (v_firm, auth.uid(), 'login');
   end if;

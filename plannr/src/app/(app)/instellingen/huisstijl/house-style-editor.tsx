@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/client";
 import { FONT_OPTIONS } from "@/lib/house-style/fonts";
 import { LAYOUT_VARIANTS, type HouseStyle } from "@/lib/house-style/types";
 import type { LayoutVariant } from "@/lib/plan/types";
+import { LayoutThumbnail } from "./layout-thumbnail";
 import { saveHouseStyleAction, setLogoAction, suggestFromWebsiteAction } from "@/lib/actions/settings";
 
 type ColorKey = "primaryColor" | "secondaryColor" | "accentColor";
@@ -35,11 +36,13 @@ const COLOR_FIELDS: { key: ColorKey; label: string; hint: string }[] = [
 
 export function HouseStyleEditor({
   firmId,
+  firmName,
   initial,
   logoUrl,
   website: initialWebsite,
 }: {
   firmId: string;
+  firmName: string;
   initial: HouseStyle;
   logoUrl: string | null;
   website: string;
@@ -258,7 +261,7 @@ export function HouseStyleEditor({
       <Card>
         <CardHeader
           title="5. Lay-out"
-          description="Drie complete voorbeeldrapporten met jouw instellingen en voorbeelddata. Kies de lay-out die het beste past."
+          description="Drie complete voorbeeldrapporten met jouw instellingen en voorbeelddata. Bekijk de volledige PDF en kies de lay-out die het beste past."
         />
         <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-3">
           {LAYOUT_VARIANTS.map((v) => {
@@ -272,12 +275,12 @@ export function HouseStyleEditor({
                   selected ? "border-brand-600" : "border-ink-200",
                 )}
               >
-                <iframe src={`${src}#toolbar=0&view=FitH`} title={`Voorbeeld ${v.label}`} className="h-80 w-full bg-ink-100" loading="lazy" />
+                <LayoutThumbnail variant={v.key} style={style} firmName={firmName} logoUrl={logo} />
                 <div className="space-y-2 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold">{v.label}</span>
                     <a href={src} target="_blank" rel="noopener" className="text-xs font-medium text-brand-600 hover:underline">
-                      Volledig bekijken
+                      Volledig bekijken (PDF)
                     </a>
                   </div>
                   <p className="text-sm text-ink-500">{v.description}</p>

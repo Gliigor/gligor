@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAuthUserId, getMember } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { signOut } from "../actions";
+import { recheckMembership, signOut } from "../actions";
 
 export const metadata = { title: "Geen kantoor" };
 
@@ -15,11 +15,16 @@ export default async function NoFirmPage() {
         Je account is (nog) niet aan een kantoor gekoppeld. Vraag de eigenaar van je kantoor om je uit te nodigen op dit
         e-mailadres.
       </p>
-      <form action={signOut}>
-        <Button variant="secondary" className="w-full">
-          Uitloggen
-        </Button>
-      </form>
+      <div className="space-y-2">
+        <form action={recheckMembership}>
+          <Button className="w-full">Opnieuw controleren</Button>
+        </form>
+        <form action={signOut}>
+          <Button variant="secondary" className="w-full">
+            Uitloggen
+          </Button>
+        </form>
+      </div>
     </>
   );
 }

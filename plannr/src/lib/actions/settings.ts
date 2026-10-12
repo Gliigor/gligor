@@ -58,7 +58,11 @@ export async function invitePlannerAction(_prev: ActionResult, formData: FormDat
     });
     if (!mailError) return { ok: true, message: `Uitnodiging verstuurd naar ${email}.` };
     if (mailError.code === "email_exists") {
-      return { ok: false, error: "Er bestaat al een Plannr-account met dit e-mailadres (bij een ander kantoor)." };
+      return {
+        ok: true,
+        message:
+          "Er bestaat al een Plannr-account met dit e-mailadres. Hoort deze persoon nog niet bij een kantoor, dan wordt hij of zij bij de volgende keer inloggen aan jouw kantoor gekoppeld.",
+      };
     }
   }
   return {
