@@ -1,0 +1,62 @@
+// All assumptions used by the prototype calculation engine, in one place.
+// These are simplified, indicative figures (based on Dutch 2025 rules) for a
+// prototype. They are NOT suitable for real advice.
+
+export const ASSUMPTIONS = {
+  label: "Indicatieve uitgangspunten (gebaseerd op regels 2025), prototype",
+  projectionYears: 30,
+  inflation: 0.02,
+  /** Yearly value growth of the eigen woning. */
+  houseValueGrowth: 0.02,
+
+  scenarios: {
+    pessimistisch: { label: "Pessimistisch", returnRate: 0.015 },
+    neutraal: { label: "Neutraal", returnRate: 0.04 },
+    optimistisch: { label: "Optimistisch", returnRate: 0.06 },
+  },
+
+  box1: {
+    /** Brackets for people below AOW age: upper bound (null = no upper bound) and rate. */
+    brackets: [
+      { upTo: 38_441, rate: 0.3582 },
+      { upTo: 76_817, rate: 0.3748 },
+      { upTo: null, rate: 0.495 },
+    ],
+    /** Simplified rate for income after AOW age (no AOW premium in bracket 1). */
+    pensionerRate: 0.25,
+    eigenwoningforfait: 0.0035,
+    /** Maximum rate against which mortgage interest is deductible. */
+    hypotheekrenteAftrekTarief: 0.3748,
+  },
+
+  box2: {
+    brackets: [
+      { upTo: 67_804, rate: 0.245 },
+      { upTo: null, rate: 0.31 },
+    ],
+  },
+
+  box3: {
+    heffingsvrijVermogen: 57_684,
+    schuldenDrempel: 3_800,
+    forfaitBanktegoeden: 0.0144,
+    forfaitOverigeBezittingen: 0.0588,
+    forfaitSchulden: 0.0262,
+    tarief: 0.36,
+  },
+
+  aow: {
+    /** Gross yearly AOW benefit (indicative). */
+    alleenstaand: 20_400,
+    samenwonend: 14_000,
+    age: 67,
+  },
+
+  bv: {
+    /** The BV's liquid assets earn this fraction of the scenario return (after corporate tax, simplified). */
+    returnOnLiquidAssetsFactor: 0.5,
+  },
+} as const;
+
+export type ScenarioKey = keyof typeof ASSUMPTIONS.scenarios;
+export const SCENARIO_KEYS: ScenarioKey[] = ["pessimistisch", "neutraal", "optimistisch"];
