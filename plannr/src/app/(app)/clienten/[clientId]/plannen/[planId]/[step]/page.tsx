@@ -14,6 +14,7 @@ import { ControlStep } from "@/components/plan/steps/control-step";
 import { ResultsView } from "@/components/plan/steps/results-view";
 import { ReportStep } from "@/components/plan/steps/report-step";
 import { InsightsPanel } from "@/components/plan/insights-panel";
+import { ChoicesPanel } from "@/components/plan/choices-panel";
 import { deriveInsights } from "@/lib/insights";
 
 export async function generateMetadata({ params }: PageProps<"/clienten/[clientId]/plannen/[planId]/[step]">) {
@@ -113,6 +114,7 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
           <ResultsView
             result={result}
             insightsSlot={<InsightsPanel planId={planId} insights={insights} initialHidden={config.hiddenInsights} />}
+            choicesSlot={<ChoicesPanel planId={planId} />}
           />
         </div>
       );

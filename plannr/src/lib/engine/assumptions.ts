@@ -9,6 +9,9 @@ export const ASSUMPTIONS = {
   /** Yearly value growth of the eigen woning. */
   houseValueGrowth: 0.02,
 
+  /** Return on savings accounts (all scenarios). Investments earn the scenario return. */
+  savingsRate: 0.015,
+
   scenarios: {
     pessimistisch: { label: "Pessimistisch", returnRate: 0.015 },
     neutraal: { label: "Neutraal", returnRate: 0.04 },

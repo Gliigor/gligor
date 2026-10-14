@@ -17,30 +17,11 @@ import type {
   TaxLine,
 } from "./types";
 
-type Bracket = { readonly upTo: number | null; readonly rate: number };
+import { marginalRate, progressiveTax } from "./tax-math";
+
 type Role = "client" | "partner";
 
-export function progressiveTax(amount: number, brackets: readonly Bracket[]): number {
-  let remaining = Math.max(0, amount);
-  let lower = 0;
-  let tax = 0;
-  for (const b of brackets) {
-    const width = b.upTo === null ? remaining : Math.max(0, Math.min(remaining, b.upTo - lower));
-    tax += width * b.rate;
-    remaining -= width;
-    if (b.upTo !== null) lower = b.upTo;
-    if (remaining <= 0) break;
-  }
-  return tax;
-}
-
-/** Rate that applies to the next euro of `amount`. */
-export function marginalRate(amount: number, brackets: readonly Bracket[]): number {
-  for (const b of brackets) {
-    if (b.upTo === null || amount < b.upTo) return b.rate;
-  }
-  return brackets[brackets.length - 1]?.rate ?? 0;
-}
+export { marginalRate, progressiveTax };
 
 /**
  * Box 3 under the deemed-return system. `allowances` is the number of people
@@ -304,12 +285,15 @@ export function mockCalculate(input: PlanInput): PlanResult {
   // --- Projection -------------------------------------------------------------------
   const funding = input.strategy?.retirementFunding ?? "box3_first";
   const allowances = fiscal ? 2 : roles.length;
-  const startPrive = box3Assets - b3.debts;
   const bvRest = shareValue - ownLiquid;
   const points: ProjectionPoint[] = [];
+  // Private wealth in two pots: savings (savings rate) and investments (scenario return, net of box 3 debts).
   const state = Object.fromEntries(
-    SCENARIO_KEYS.map((k) => [k, { prive: startPrive, bvLiquid: ownLiquid, house: eigenWoningValue }]),
-  ) as Record<ScenarioKey, { prive: number; bvLiquid: number; house: number }>;
+    SCENARIO_KEYS.map((k) => [
+      k,
+      { savings: b3.savings, invested: b3.investments + b3.otherRealEstate - b3.debts, bvLiquid: ownLiquid, house: eigenWoningValue },
+    ]),
+  ) as Record<ScenarioKey, { savings: number; invested: number; bvLiquid: number; house: number }>;
   const summary = { taxesPaid: 0, giftsGiven: 0, fundedFromBox3: 0, fundedFromBv: 0, depletedYear: null as number | null };
 
   for (let t = 0; t <= a.projectionYears; t++) {
@@ -347,12 +331,14 @@ export function mockCalculate(input: PlanInput): PlanResult {
       const st = state[key];
       if (t > 0) {
         const r = a.scenarios[key].returnRate;
-        const b3tax = box3Tax({ savings: Math.max(0, st.prive) * 0.3, other: Math.max(0, st.prive) * 0.7, debts: 0 }, allowances).tax;
+        const b3tax = box3Tax({ savings: Math.max(0, st.savings), other: Math.max(0, st.invested), debts: 0 }, allowances).tax;
         const giftsNow = giftsTotalIn(year);
         const dividendNominal = regularDividend * priceIndex;
+        const buffer = (expenses / 12) * a.insights.bufferMonths * priceIndex;
         let extraBox2 = 0;
 
-        st.prive = st.prive * (1 + r) - b3tax;
+        st.savings = st.savings * (1 + a.savingsRate) - b3tax;
+        st.invested = st.invested * (1 + r);
         st.bvLiquid = st.bvLiquid * (1 + r * a.bv.returnOnLiquidAssetsFactor) + retainedToday * priceIndex;
 
         /** Takes a net amount from the BV as extra dividend; returns what was received. */
@@ -368,28 +354,34 @@ export function mockCalculate(input: PlanInput): PlanResult {
 
         const flow = (s.inkomen ? (netToday - expenses) * priceIndex : 0) - giftsNow;
         if (flow >= 0) {
-          st.prive += flow;
+          // Surplus tops up the cash buffer first, the rest is invested.
+          const toSavings = Math.min(flow, Math.max(0, buffer - st.savings));
+          st.savings += toSavings;
+          st.invested += flow - toSavings;
         } else {
           let need = -flow;
           const bvShare = funding === "bv_first" ? 1 : funding === "mix" ? 0.5 : 0;
           need -= takeFromBv(need * bvShare);
-          const fromBox3 = Math.min(need, Math.max(0, st.prive));
-          st.prive -= fromBox3;
-          if (key === "neutraal") summary.fundedFromBox3 += fromBox3;
-          need -= fromBox3;
+          // Box 3: spend savings first, then sell investments.
+          const fromSavings = Math.min(need, Math.max(0, st.savings));
+          st.savings -= fromSavings;
+          const fromInvested = Math.min(need - fromSavings, Math.max(0, st.invested));
+          st.invested -= fromInvested;
+          if (key === "neutraal") summary.fundedFromBox3 += fromSavings + fromInvested;
+          need -= fromSavings + fromInvested;
           need -= takeFromBv(need);
-          st.prive -= need; // nothing left: private wealth goes negative
+          st.savings -= need; // nothing left: private wealth goes negative
         }
 
         st.house = st.house * (1 + a.houseValueGrowth);
         if (key === "neutraal") {
           summary.taxesPaid += (box1Today + regularBox2Today) * priceIndex + b3tax + extraBox2;
           summary.giftsGiven += giftsNow;
-          if (summary.depletedYear === null && st.prive < 0 && st.bvLiquid <= 0.5) summary.depletedYear = year;
+          if (summary.depletedYear === null && st.savings + st.invested < 0 && st.bvLiquid <= 0.5) summary.depletedYear = year;
         }
       }
       const houseNet = s.eigenWoning ? st.house - mortgageDebt : 0;
-      totals[key] = round(st.prive + st.bvLiquid + bvRest + houseNet);
+      totals[key] = round(st.savings + st.invested + st.bvLiquid + bvRest + houseNet);
     }
 
     points.push({
@@ -478,6 +470,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
         fundedFromBox3: round(summary.fundedFromBox3),
         fundedFromBv: round(summary.fundedFromBv),
         depletedYear: summary.depletedYear,
+        endBvValue: round(state.neutraal.bvLiquid + bvRest),
       },
     },
     warnings,

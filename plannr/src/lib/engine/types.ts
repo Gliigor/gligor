@@ -200,6 +200,8 @@ export interface PlanResult {
       fundedFromBox3: number;
       fundedFromBv: number;
       depletedYear: number | null;
+      /** Value of the BV shares at the end (neutral): still subject to box 2 when paid out. */
+      endBvValue: number;
     };
   };
 

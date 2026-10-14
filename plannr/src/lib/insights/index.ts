@@ -8,6 +8,7 @@
 import { ASSUMPTIONS } from "@/lib/engine/assumptions";
 import type { PlanInput, PlanResult } from "@/lib/engine/types";
 import { formatEuro, formatPercent } from "@/lib/format";
+import { progressiveTax } from "@/lib/engine/tax-math";
 
 export type InsightTone = "kans" | "aandacht" | "info";
 export type InsightCategory = "belasting" | "vermogen" | "pensioen" | "zakelijk";
@@ -46,7 +47,6 @@ export function deriveInsights(input: PlanInput, result: PlanResult): Insight[] 
   const hasPartner = s.partner && h.partner !== null;
   const fiscal = result.household.fiscalPartners;
   const mortgage = result.wealth.prive.mortgageDebt;
-  const box1 = result.taxes.lines.find((l) => l.box === 1);
   const box3 = result.taxes.lines.find((l) => l.box === 3);
   const box2FirstBracket = ASSUMPTIONS.box2.brackets[0].upTo ?? Infinity;
   const combinedDividendRate = a.vpb.lowRate + (1 - a.vpb.lowRate) * ASSUMPTIONS.box2.brackets[0].rate;
@@ -70,17 +70,27 @@ export function deriveInsights(input: PlanInput, result: PlanResult): Insight[] 
         body: `Het salaris uit de BV (${euro(dgaSalary)}) ligt onder het gebruikelijk loon van ${euro(a.gebruikelijkLoon)}. Een lager loon is alleen toegestaan als aannemelijk is dat het past bij de onderneming, bijvoorbeeld bij verlies of een beperkte omvang.`,
         amount: { value: a.gebruikelijkLoon - dgaSalary, label: "Verschil met gebruikelijk loon" },
       });
-    } else if (dgaSalary > a.gebruikelijkLoon * 1.25 && box1 && box1.marginalRate >= 0.49) {
+    } else if (dgaSalary > a.gebruikelijkLoon) {
+      // Exact comparison for the DGA: box 1 saved on the excess salary versus
+      // corporate tax plus box 2 on the same amount paid out as dividend.
+      const dga = result.household.persons.find((p) => p.dgaSalary > 0);
       const excess = dgaSalary - a.gebruikelijkLoon;
-      const saving = excess * (box1.marginalRate - combinedDividendRate);
-      out.push({
-        id: "dga-salaris-vs-dividend",
-        tone: "kans",
-        category: "belasting",
-        title: "Salaris of dividend?",
-        body: `Het deel van het salaris boven het gebruikelijk loon (${euro(excess)}) wordt belast tegen ${formatPercent(box1.marginalRate)}. Dezelfde winst als dividend uitkeren kost samen ongeveer ${formatPercent(combinedDividendRate)} (vennootschapsbelasting plus box 2). Let op: een lager salaris heeft ook gevolgen voor bijvoorbeeld pensioenopbouw en de hypotheekruimte.`,
-        amount: { value: saving, label: "Indicatief verschil per jaar" },
-      });
+      if (dga) {
+        const gross = dga.grossEmployment + dga.dgaSalary;
+        const box1Saved = progressiveTax(gross, ASSUMPTIONS.box1.brackets) - progressiveTax(gross - excess, ASSUMPTIONS.box1.brackets);
+        const dividendCost = excess * combinedDividendRate;
+        const saving = box1Saved - dividendCost;
+        if (saving > 500) {
+          out.push({
+            id: "dga-salaris-vs-dividend",
+            tone: "kans",
+            category: "belasting",
+            title: "Salaris of dividend?",
+            body: `Het deel van het salaris boven het gebruikelijk loon (${euro(excess)}) kost nu ${euro(box1Saved)} inkomstenbelasting (gemiddeld ${formatPercent(box1Saved / excess)}). Dezelfde winst als dividend uitkeren kost samen ongeveer ${formatPercent(combinedDividendRate)} (vennootschapsbelasting plus box 2). Let op: een lager salaris heeft ook gevolgen voor bijvoorbeeld pensioenopbouw en de hypotheekruimte. Vergelijk dit bij Keuzes vergelijken.`,
+            amount: { value: saving, label: "Indicatief verschil per jaar" },
+          });
+        }
+      }
     }
   }
 

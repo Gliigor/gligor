@@ -27,7 +27,15 @@ const NEGATIVE = "#A8261D";
 const GRID = "#ECE7DC";
 const AXIS = "#98938A";
 
-export function ResultsView({ result, insightsSlot }: { result: PlanResult; insightsSlot?: React.ReactNode }) {
+export function ResultsView({
+  result,
+  insightsSlot,
+  choicesSlot,
+}: {
+  result: PlanResult;
+  insightsSlot?: React.ReactNode;
+  choicesSlot?: React.ReactNode;
+}) {
   const w = result.wealth;
   const tiles = [
     { label: "Totaal vermogen", value: formatEuro(w.total, { whole: true }), hint: "" },
@@ -82,6 +90,8 @@ export function ResultsView({ result, insightsSlot }: { result: PlanResult; insi
       {insightsSlot}
 
       <ProjectionCard result={result} />
+
+      {choicesSlot}
 
       {result.household.persons.length > 1 || result.gifts ? <HouseholdCard result={result} /> : null}
 
