@@ -54,7 +54,7 @@ export default async function SettingsPage() {
             unavailableReason={reader.configured ? undefined : reader.reason}
           />
           <ul className="space-y-1.5 border-t border-ink-100 pt-4 text-sm text-ink-600">
-            <li>Het document wordt gelezen door Claude (Anthropic) via Amazon Bedrock in {regionName} en verlaat de EU niet.</li>
+            <li>Het document wordt gelezen door Claude (Anthropic) via Amazon Bedrock, binnenkomend in {regionName} en verwerkt binnen het EU-profiel van AWS. Het gaat niet naar de VS of naar Anthropic.</li>
             <li>Alleen het bestand wordt verstuurd, zonder naam of andere gegevens uit Plannr. Er wordt niet om een BSN of adres gevraagd.</li>
             <li>Volgens de voorwaarden van Amazon Bedrock wordt de inhoud niet bewaard en niet gebruikt om modellen te trainen.</li>
             <li>De AI neemt alleen bedragen over, met het paginanummer erbij. Alle berekeningen doet Plannr zelf. Controleer de ingevulde waarden altijd.</li>

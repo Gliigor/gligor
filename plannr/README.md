@@ -268,9 +268,14 @@ holding structures (several BVs) fit the same model.
 `src/lib/extraction/ai/` reads an uploaded IB-aangifte or jaarrekening with
 Claude through Amazon Bedrock.
 
-- **EU only.** `config.ts` refuses any region outside an explicit EU list
-  (`eu-west-2` is London and `eu-central-2` is Zürich, so a plain `eu-` prefix
-  is not enough). The default is `eu-central-1`, Frankfurt.
+- **EU only.** Requests enter AWS in an EU region (`eu.ts` holds an explicit
+  list; `eu-west-2` is London and `eu-central-2` is Zürich, so a plain `eu-`
+  prefix is not enough). The default is `eu-central-1`, Frankfurt. Model IDs
+  must use the `eu.` inference profile (default `eu.anthropic.claude-opus-5-5`)
+  or no profile. `global.`, `us.` and other profiles are refused.
+- **Endpoint.** The reader uses the standard Bedrock runtime (`InvokeModel`).
+  Structured outputs are not offered there, so the model answers through one
+  tool call, and Plannr checks that call against its own schema (zod).
 - **Data minimisation.** Only the file is sent: no client name, plan data or
   user data. The schema (`schema.ts`) asks for amounts, birth years, the
   partner's first name and page numbers. It never asks for a BSN, address or
@@ -281,7 +286,8 @@ Claude through Amazon Bedrock.
 - **Check by the planner.** Every value is marked "uit document" and listed
   with its page under the uploaded document.
 - **Refusals.** If the main model declines, the request is retried once on a
-  fallback model (`PLANNR_BEDROCK_FALLBACK_MODEL`).
+  fallback model (`PLANNR_BEDROCK_FALLBACK_MODEL`, default
+  `eu.anthropic.claude-opus-4-8`).
 - **Two switches.** The environment variables in `.env.example` (server) and
   the owner's switch under Instellingen (per firm, off by default).
 

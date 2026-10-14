@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { ibAangifteSchema, jaarrekeningSchema, type IbAangifteExtraction } from "@/lib/extraction/ai/schema";
 import { mapIbAangifte, mapJaarrekening } from "@/lib/extraction/ai/map";
 import { planExtractionChanges } from "@/lib/extraction/apply";
+import { EU_REGIONS, staysInEu } from "@/lib/extraction/ai/eu";
 import { DEFAULT_PLAN_CONFIG, parsePlanInputs, type PlanConfig } from "@/lib/plan/types";
 
 const a = (value: number | null, page: number | null = 2) => ({ value, page });
@@ -152,4 +153,15 @@ test("applying AI data: partner fields and owners only when the partner section 
   const off = planExtractionChanges(data, withoutPartner, parsePlanInputs({}), []);
   assert.equal(off.inputs?.partner.naam ?? null, null);
   assert.equal(off.inserts.find((i) => i.type === "spaargeld")?.metadata.eigenaar, undefined);
+});
+
+test("AI reader only runs in the EU", () => {
+  assert.equal(staysInEu("eu.anthropic.claude-opus-5-5"), true);
+  assert.equal(staysInEu("anthropic.claude-opus-4-8"), true);
+  for (const id of ["global.anthropic.claude-opus-5-5", "us.anthropic.claude-opus-5-5", "apac.anthropic.claude-opus-5-5", "eu.amazon.nova-pro", ""]) {
+    assert.equal(staysInEu(id), false, id);
+  }
+  assert.ok("eu-central-1" in EU_REGIONS);
+  assert.ok(!("eu-west-2" in EU_REGIONS), "London is not in the EU");
+  assert.ok(!("eu-central-2" in EU_REGIONS), "Zürich is not in the EU");
 });

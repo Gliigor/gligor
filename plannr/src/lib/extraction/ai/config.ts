@@ -1,28 +1,25 @@
 import "server-only";
 
+import { EU_REGIONS, staysInEu } from "./eu";
+
+export { EU_REGIONS };
+
 // Server-side configuration of the AI document reader. Everything comes from
 // environment variables; nothing is configurable from the browser.
 //
 // PLANNR_AI_READER=bedrock            turns the reader on for this deployment
-// PLANNR_AWS_REGION=eu-central-1      must be an EU region (EU_REGIONS, enforced below)
+// PLANNR_AWS_REGION=eu-central-1      region the request enters AWS (EU_REGIONS, enforced)
 // PLANNR_BEDROCK_API_KEY=...          a Bedrock API key, or alternatively:
 // PLANNR_AWS_ACCESS_KEY_ID / PLANNR_AWS_SECRET_ACCESS_KEY
-// PLANNR_BEDROCK_MODEL                optional, default anthropic.claude-opus-5-5
+// PLANNR_BEDROCK_MODEL                optional, default eu.anthropic.claude-opus-5-5
 // PLANNR_BEDROCK_FALLBACK_MODEL       optional, used only if the main model declines;
-//                                     default anthropic.claude-opus-4-8, "none" to disable
+//                                     default eu.anthropic.claude-opus-4-8, "none" to disable
+//
+// Model IDs must use the "eu." inference profile (processing stays inside
+// AWS's EU geography) or no profile prefix (in-region). "global.", "us." and
+// other profiles are refused.
 //
 // The PLANNR_ prefix matters: Vercel reserves AWS_REGION and the AWS_* keys.
-
-// AWS regions inside the EU. Not every "eu-" region qualifies: eu-west-2 is
-// London and eu-central-2 is Zürich.
-export const EU_REGIONS: Record<string, string> = {
-  "eu-central-1": "Frankfurt",
-  "eu-west-1": "Ierland",
-  "eu-west-3": "Parijs",
-  "eu-north-1": "Stockholm",
-  "eu-south-1": "Milaan",
-  "eu-south-2": "Spanje",
-};
 
 export interface AiReaderConfig {
   region: string;
@@ -47,14 +44,11 @@ export function getAiReaderStatus(): AiReaderStatus {
     credentials = { accessKeyId: env.PLANNR_AWS_ACCESS_KEY_ID, secretAccessKey: env.PLANNR_AWS_SECRET_ACCESS_KEY };
   if (!credentials) return { configured: false, reason: "De toegangssleutel voor de AI-lezer ontbreekt op de server." };
 
-  const fallback = (env.PLANNR_BEDROCK_FALLBACK_MODEL ?? "anthropic.claude-opus-4-8").trim();
-  return {
-    configured: true,
-    config: {
-      region,
-      model: (env.PLANNR_BEDROCK_MODEL ?? "anthropic.claude-opus-5-5").trim(),
-      fallbackModel: fallback && fallback !== "none" ? fallback : null,
-      credentials,
-    },
-  };
+  const model = (env.PLANNR_BEDROCK_MODEL || "eu.anthropic.claude-opus-5-5").trim();
+  const fallback = (env.PLANNR_BEDROCK_FALLBACK_MODEL || "eu.anthropic.claude-opus-4-8").trim();
+  const fallbackModel = fallback === "none" ? null : fallback;
+  if (!staysInEu(model) || (fallbackModel && !staysInEu(fallbackModel))) {
+    return { configured: false, reason: "Het ingestelde AI-model valt buiten het EU-profiel." };
+  }
+  return { configured: true, config: { region, model, fallbackModel, credentials } };
 }
