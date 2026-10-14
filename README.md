@@ -4,6 +4,10 @@ Personal site and tools, plus **Vee**, a friendly AI helper in progress.
 See [docs/vee/README.md](docs/vee/README.md) for how Vee is built, how to
 deploy it on Vercel, and the per-phase test checklists.
 
+**Plannr** — a financial planning tool for Dutch planners and DGA's — lives in
+[`plannr/`](plannr/README.md) as a separate Next.js + Supabase app with its own
+setup guide.
+
 ---
 
 # Welcome to your Lovable project
