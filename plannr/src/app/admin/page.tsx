@@ -66,12 +66,12 @@ export default async function AdminDashboard() {
 
   return (
     <>
-      <header className="border-b border-ink-200 bg-white">
+      <header className="bg-night">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
-          <Logo />
-          <span className="rounded bg-ink-800 px-1.5 py-0.5 text-xs font-medium text-white">beheer</span>
+          <Logo tone="light" />
+          <span className="rounded-sm border border-gold-500/60 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-gold-500">beheer</span>
           <form action={adminSignOut} className="ml-auto">
-            <button className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-500 hover:bg-ink-100" aria-label="Uitloggen" title="Uitloggen">
+            <button className="inline-flex h-9 w-9 items-center justify-center rounded-sm text-[#b9bec6] hover:bg-white/10 hover:text-white" aria-label="Uitloggen" title="Uitloggen">
               <LogOut className="h-4 w-4" />
             </button>
           </form>
@@ -79,7 +79,7 @@ export default async function AdminDashboard() {
       </header>
       <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Gebruik</h1>
+          <h1 className="text-[2.4rem] leading-tight">Gebruik</h1>
           <p className="text-sm text-ink-500">
             Alleen aantallen en datums. Plannr is verwerker: persoonsgegevens en financiële gegevens van cliënten zijn hier
             nooit zichtbaar.
@@ -88,9 +88,9 @@ export default async function AdminDashboard() {
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {tiles.map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-ink-200 bg-white px-4 py-3 shadow-sm">
+            <div key={label} className="rounded-sm border border-ink-200 bg-white px-4 py-3">
               <div className="text-xs text-ink-500">{label}</div>
-              <div className="text-2xl font-semibold">{formatNumber(value ?? 0)}</div>
+              <div className="font-display text-[1.9rem] font-semibold leading-tight">{formatNumber(value ?? 0)}</div>
             </div>
           ))}
         </div>

@@ -17,12 +17,12 @@ export default async function LoginPage({ searchParams }: PageProps<"/inloggen">
   const next = typeof params.next === "string" ? params.next : undefined;
   return (
     <>
-      <h1 className="mb-1 text-xl font-semibold">Inloggen</h1>
+      <h1 className="mb-2 text-[2.2rem] leading-tight">Inloggen</h1>
       <p className="mb-6 text-sm text-ink-500">Welkom terug bij Plannr.</p>
       <LoginForm next={next} notice={melding} />
       <p className="mt-6 text-center text-sm text-ink-500">
         Nog geen account?{" "}
-        <Link href="/registreren" className="font-medium text-brand-600 hover:underline">
+        <Link href="/registreren" className="font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2">
           Kantoor registreren
         </Link>
       </p>

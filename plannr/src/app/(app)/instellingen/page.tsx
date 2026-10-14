@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ChevronRight } from "@/components/ui/icons";
 import { formatDateTime } from "@/lib/format";
@@ -18,8 +19,8 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Instellingen</h1>
+    <div className="space-y-7">
+      <PageHeader eyebrow={member.firm.name} title="Instellingen" />
 
       <Link href="/instellingen/huisstijl" className="block">
         <Card className="flex items-center gap-4 px-5 py-4 hover:bg-ink-50">

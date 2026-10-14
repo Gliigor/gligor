@@ -1,35 +1,60 @@
 @import "tailwindcss";
 
-/* Plannr app palette (the firm's house style only applies to client reports). */
+/*
+ * Plannr app design: "Private banking".
+ * Dark ink navigation, warm ivory canvas, classic serif for titles and
+ * amounts, a restrained brass accent, sharp corners and hairlines.
+ * (The firm's own house style only applies to client reports.)
+ */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "EB Garamond", "Iowan Old Style", Georgia, serif;
 
-  --color-ink-50: #f5f7fa;
-  --color-ink-100: #e9edf3;
-  --color-ink-200: #d3dae5;
-  --color-ink-300: #aab6c8;
-  --color-ink-400: #7a89a1;
-  --color-ink-500: #56657e;
-  --color-ink-600: #3f4d65;
-  --color-ink-700: #2f3b50;
-  --color-ink-800: #1f2838;
-  --color-ink-900: #131a26;
+  /* Warm neutrals: ink-50 is the canvas, ink-900 the darkest text. */
+  --color-ink-50: #f5f2eb;
+  --color-ink-100: #ece7dc;
+  --color-ink-200: #e2dbcc;
+  --color-ink-300: #c8c0b0;
+  --color-ink-400: #98938a;
+  --color-ink-500: #696d74;
+  --color-ink-600: #4a4e55;
+  --color-ink-700: #33363c;
+  --color-ink-800: #1f2227;
+  --color-ink-900: #14171c;
 
-  --color-brand-50: #eef4fb;
-  --color-brand-100: #d6e4f4;
-  --color-brand-500: #2d5d94;
-  --color-brand-600: #244c7a;
-  --color-brand-700: #1c3c61;
+  /* "brand" = the primary action colour (near-black) plus ivory tints. */
+  --color-brand-50: #efe9dc;
+  --color-brand-100: #e4dac6;
+  --color-brand-500: #8a6a36;
+  --color-brand-600: #14171c;
+  --color-brand-700: #000000;
 
-  --color-ok-50: #ecf8f1;
-  --color-ok-600: #1f7a4d;
-  --color-warn-50: #fdf6e7;
-  --color-warn-100: #fbecc8;
-  --color-warn-600: #a76508;
-  --color-doc-50: #f1eefc;
-  --color-doc-600: #5b45b0;
-  --color-danger-50: #fdeeee;
-  --color-danger-600: #b42323;
+  /* Brass accent. */
+  --color-gold-300: #d9c39a;
+  --color-gold-500: #a8834b;
+  --color-gold-700: #7d5f2e;
+
+  /* Navigation surface. */
+  --color-night: #101418;
+
+  --color-ok-50: #eaf4ee;
+  --color-ok-600: #22704a;
+  --color-warn-50: #fbf3e2;
+  --color-warn-100: #f5e3bd;
+  --color-warn-600: #9a5f08;
+  --color-doc-50: #eeebf8;
+  --color-doc-600: #57469f;
+  --color-danger-50: #fbecea;
+  --color-danger-600: #a8261d;
+
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-2xl: 6px;
+
+  --shadow-sm: 0 1px 0 rgb(20 23 28 / 0.03);
+  --shadow-md: 0 6px 24px -12px rgb(20 23 28 / 0.25);
 }
 
 :root {
@@ -47,12 +72,29 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Number inputs: tabular figures so amounts line up. */
+@layer base {
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+}
+
+/* Amounts: tabular figures so they line up. */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
+/* Small uppercase label above titles and figures. */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-500);
+}
+
 :focus-visible {
-  outline: 2px solid var(--color-brand-500);
+  outline: 2px solid var(--color-gold-500);
   outline-offset: 2px;
 }

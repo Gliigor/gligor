@@ -154,7 +154,7 @@ function DropZone({
               <FileUp className="h-7 w-7 text-ink-400" />
               <p className="text-sm text-ink-700">
                 <span className="hidden sm:inline">Sleep een bestand hierheen of </span>
-                <button type="button" className="font-medium text-brand-600 hover:underline" onClick={() => inputRef.current?.click()}>
+                <button type="button" className="font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2" onClick={() => inputRef.current?.click()}>
                   kies een bestand
                 </button>
               </p>

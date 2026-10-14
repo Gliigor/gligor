@@ -24,9 +24,9 @@ export default async function PlanLayout({ children, params }: LayoutProps<"/cli
   const baseHref = `/clienten/${clientId}/plannen/${planId}`;
 
   return (
-    <div className="space-y-5">
-      <Link href={`/clienten/${clientId}`} className="inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-800">
-        <ArrowLeft className="h-4 w-4" /> {fullName(bundle.client)}
+    <div className="space-y-6">
+      <Link href={`/clienten/${clientId}`} className="eyebrow inline-flex items-center gap-1.5 hover:text-ink-900">
+        <ArrowLeft className="h-3.5 w-3.5" /> {fullName(bundle.client)}
         {bundle.client.company_name ? <span className="hidden sm:inline"> · {bundle.client.company_name}</span> : null}
       </Link>
       <PlanHeader planId={planId} clientId={clientId} title={bundle.plan.title} status={bundle.plan.status} />

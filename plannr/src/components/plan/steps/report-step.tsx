@@ -129,7 +129,7 @@ export function ReportStep({
           title="Voorbeeld"
           description="In de huisstijl van je kantoor"
           action={
-            <a href={previewUrl} target="_blank" rel="noopener" className="text-sm font-medium text-brand-600 hover:underline">
+            <a href={previewUrl} target="_blank" rel="noopener" className="text-sm font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2">
               Open in nieuw tabblad
             </a>
           }

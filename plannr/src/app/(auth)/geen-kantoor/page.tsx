@@ -10,7 +10,7 @@ export default async function NoFirmPage() {
   if (await getMember()) redirect("/clienten");
   return (
     <>
-      <h1 className="mb-2 text-xl font-semibold">Nog geen kantoor gekoppeld</h1>
+      <h1 className="mb-3 text-[2rem] leading-tight">Nog geen kantoor gekoppeld</h1>
       <p className="mb-6 text-sm text-ink-600">
         Je account is (nog) niet aan een kantoor gekoppeld. Vraag de eigenaar van je kantoor om je uit te nodigen op dit
         e-mailadres.

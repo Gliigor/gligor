@@ -7,7 +7,7 @@ export default async function RegisterPage({ searchParams }: PageProps<"/registr
   const invitedEmail = typeof params.uitnodiging === "string" ? params.uitnodiging.toLowerCase() : undefined;
   return (
     <>
-      <h1 className="mb-1 text-xl font-semibold">{invitedEmail ? "Uitnodiging accepteren" : "Kantoor registreren"}</h1>
+      <h1 className="mb-2 text-[2.2rem] leading-tight">{invitedEmail ? "Uitnodiging accepteren" : "Kantoor registreren"}</h1>
       <p className="mb-6 text-sm text-ink-500">
         {invitedEmail
           ? "Maak je account aan. Je wordt automatisch aan het kantoor gekoppeld dat je heeft uitgenodigd."

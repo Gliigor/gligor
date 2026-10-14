@@ -27,7 +27,7 @@ export function PlanHeader({
   }
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
+    <div className="flex items-end gap-2 sm:gap-3">
       <div className="min-w-0 flex-1">
         {editing ? (
           <input
@@ -42,12 +42,12 @@ export function PlanHeader({
                 setEditing(false);
               }
             }}
-            className="w-full rounded-lg border border-brand-500 px-2 py-1 text-2xl font-semibold tracking-tight focus:outline-none"
+            className="w-full rounded-sm border border-ink-900 bg-white px-2 py-1 font-display text-[2rem] font-semibold leading-[1.1] focus:outline-none sm:text-[2.6rem]"
             aria-label="Titel van het plan"
           />
         ) : (
           <button type="button" onClick={() => setEditing(true)} className="group flex max-w-full items-center gap-2 text-left">
-            <h1 className="truncate text-2xl font-semibold tracking-tight">{draft}</h1>
+            <h1 className="truncate text-[2rem] leading-[1.1] text-ink-900 sm:text-[2.6rem]">{draft}</h1>
             <Pencil className="h-4 w-4 shrink-0 text-ink-400 opacity-60 group-hover:opacity-100" aria-label="Titel wijzigen" />
           </button>
         )}
@@ -56,7 +56,7 @@ export function PlanHeader({
         value={status}
         disabled={pending}
         onChange={(e) => startTransition(() => void updatePlanMeta(planId, { status: e.target.value as PlanStatus }))}
-        className="h-9 rounded-lg border border-ink-200 bg-white px-2.5 text-sm font-medium text-ink-700 shadow-sm focus:border-brand-500 focus:outline-none"
+        className="h-10 rounded-sm border border-ink-300 bg-white px-3 text-[13px] font-semibold text-ink-800 focus:border-ink-900 focus:outline-none"
         aria-label="Status van het plan"
       >
         {(Object.keys(PLAN_STATUS_LABELS) as PlanStatus[]).map((s) => (

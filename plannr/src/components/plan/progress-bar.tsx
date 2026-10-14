@@ -17,7 +17,7 @@ export function ProgressBar({ baseHref, steps }: { baseHref: string; steps: Step
 
   return (
     <nav aria-label="Stappen van het plan">
-      <ol className="flex items-start gap-1.5 sm:gap-2">
+      <ol className="flex items-start gap-1.5 sm:gap-3">
         {steps.map((step, i) => {
           const isActive = step.key === active;
           const title =
@@ -34,64 +34,50 @@ export function ProgressBar({ baseHref, steps }: { baseHref: string; steps: Step
                 href={`${baseHref}/${step.key}`}
                 title={title}
                 aria-current={isActive ? "step" : undefined}
-                className="group flex flex-col items-center gap-1.5"
+                className="group block pt-0.5"
               >
                 <span
                   className={cn(
-                    "flex h-9 w-full items-center justify-center rounded-md border text-sm font-semibold transition-colors sm:h-10",
-                    step.state === "complete" && "border-brand-600 bg-brand-600 text-white",
-                    step.state === "missing" && "border-warn-600 bg-warn-100 text-warn-600",
-                    step.state === "open" && "border-ink-300 bg-white text-ink-500 group-hover:border-ink-400",
-                    step.state === "not_applicable" && "border-dashed border-ink-300 bg-ink-50 text-ink-400",
-                    isActive && "ring-2 ring-brand-500 ring-offset-2",
+                    "block h-[5px] w-full transition-colors",
+                    step.state === "complete" && "bg-ink-900",
+                    step.state === "missing" && "bg-warn-600",
+                    step.state === "open" && "bg-ink-200 group-hover:bg-ink-300",
+                    step.state === "not_applicable" &&
+                      "bg-[repeating-linear-gradient(90deg,var(--color-ink-200)_0_6px,transparent_6px_10px)]",
+                    isActive && "bg-gold-500",
                   )}
-                >
-                  {step.state === "complete" ? (
-                    <Check className="h-4 w-4" aria-hidden="true" />
-                  ) : step.state === "missing" ? (
-                    <span aria-hidden="true" className="inline-flex items-center gap-1">
-                      <AlertTriangle className="h-3.5 w-3.5" />
+                />
+                <span className="mt-2 flex items-center gap-1.5">
+                  <span className="font-display text-[13px] font-semibold text-gold-700">{String(i + 1).padStart(2, "0")}</span>
+                  <span
+                    className={cn(
+                      "hidden truncate text-[12.5px] sm:inline",
+                      isActive ? "font-semibold text-ink-900" : step.state === "open" || step.state === "not_applicable" ? "text-ink-500" : "text-ink-800",
+                    )}
+                  >
+                    {step.label}
+                  </span>
+                  {step.state === "complete" ? <Check className="hidden h-3.5 w-3.5 shrink-0 text-ink-500 md:block" aria-hidden="true" /> : null}
+                  {step.state === "missing" ? (
+                    <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-warn-600" aria-hidden="true">
+                      <AlertTriangle className="h-3 w-3" />
                       {step.missingCount}
                     </span>
-                  ) : (
-                    <span aria-hidden="true">{i + 1}</span>
-                  )}
-                  <span className="sr-only">{title}</span>
+                  ) : null}
                 </span>
-                <span
-                  className={cn(
-                    "hidden w-full truncate text-center text-xs sm:block",
-                    isActive ? "font-semibold text-ink-900" : "text-ink-500",
-                  )}
-                >
-                  {step.label}
-                </span>
+                <span className="sr-only">{title}</span>
               </Link>
             </li>
           );
         })}
       </ol>
-      <p className="mt-2 text-sm font-medium text-ink-800 sm:hidden">
+      <p className="mt-3 text-sm font-medium text-ink-800 sm:hidden">
         Stap {activeIndex + 1} van {steps.length}: {activeStep?.label}
         {activeStep?.state === "missing" ? (
           <span className="ml-1 font-normal text-warn-600">· {activeStep.missingCount} ontbrekend</span>
         ) : null}
       </p>
-      <div className="mt-2 hidden flex-wrap gap-x-4 gap-y-1 text-xs text-ink-500 sm:flex">
-        <Legend className="border-brand-600 bg-brand-600" label="Gereed" />
-        <Legend className="border-warn-600 bg-warn-100" label="Velden ontbreken" />
-        <Legend className="border-ink-300 bg-white" label="Nog open" />
-        <Legend className="border-dashed border-ink-300 bg-ink-50" label="N.v.t." />
-      </div>
-    </nav>
-  );
-}
 
-function Legend({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("h-3 w-3 rounded-sm border", className)} />
-      {label}
-    </span>
+    </nav>
   );
 }
