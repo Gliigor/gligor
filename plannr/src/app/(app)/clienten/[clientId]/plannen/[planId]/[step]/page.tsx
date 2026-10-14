@@ -13,6 +13,8 @@ import { DocumentsStep } from "@/components/plan/steps/documents-step";
 import { ControlStep } from "@/components/plan/steps/control-step";
 import { ResultsView } from "@/components/plan/steps/results-view";
 import { ReportStep } from "@/components/plan/steps/report-step";
+import { InsightsPanel } from "@/components/plan/insights-panel";
+import { deriveInsights } from "@/lib/insights";
 
 export async function generateMetadata({ params }: PageProps<"/clienten/[clientId]/plannen/[planId]/[step]">) {
   const { step } = await params;
@@ -78,7 +80,9 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
       );
       break;
     case "resultaten": {
-      const result = await calculatePlan(toEngineInput({ config, inputs, assets, referenceYear: new Date().getFullYear() }));
+      const engineInput = toEngineInput({ config, inputs, assets, referenceYear: new Date().getFullYear() });
+      const result = await calculatePlan(engineInput);
+      const insights = deriveInsights(engineInput, result);
       const missing = findMissingFields(config, inputs, assets);
       body = (
         <div className="space-y-4">
@@ -100,7 +104,10 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
               .
             </p>
           ) : null}
-          <ResultsView result={result} />
+          <ResultsView
+            result={result}
+            insightsSlot={<InsightsPanel planId={planId} insights={insights} initialHidden={config.hiddenInsights} />}
+          />
         </div>
       );
       break;

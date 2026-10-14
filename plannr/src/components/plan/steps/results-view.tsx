@@ -26,7 +26,7 @@ const NEGATIVE = "#e34948";
 const GRID = "#e9edf3";
 const AXIS = "#7a89a1";
 
-export function ResultsView({ result }: { result: PlanResult }) {
+export function ResultsView({ result, insightsSlot }: { result: PlanResult; insightsSlot?: React.ReactNode }) {
   const w = result.wealth;
   const tiles = [
     { label: "Totaal vermogen", value: formatEuro(w.total, { whole: true }) },
@@ -69,6 +69,8 @@ export function ResultsView({ result }: { result: PlanResult }) {
           </div>
         ))}
       </div>
+
+      {insightsSlot}
 
       <ProjectionCard result={result} />
 

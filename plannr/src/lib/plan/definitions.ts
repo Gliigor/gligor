@@ -63,6 +63,7 @@ export const REPORT_SECTION_KEYS = [
   "belastingdruk",
   "rendementsscenarios",
   "zakelijk_overzicht",
+  "aandachtspunten",
   "toelichting",
 ] as const;
 export type ReportSectionKey = (typeof REPORT_SECTION_KEYS)[number];
@@ -74,6 +75,7 @@ export const REPORT_SECTIONS: { key: ReportSectionKey; label: string; descriptio
   { key: "belastingdruk", label: "Belastingdruk per box", description: "Indicatie box 1, 2 en 3" },
   { key: "rendementsscenarios", label: "Rendementsscenario's", description: "Verwachte vermogensontwikkeling in drie scenario's" },
   { key: "zakelijk_overzicht", label: "Zakelijk overzicht", description: "BV, balans, resultaat en dividend" },
+  { key: "aandachtspunten", label: "Aandachtspunten", description: "Kansen en risico's om te bespreken" },
   { key: "toelichting", label: "Toelichting & uitgangspunten", description: "Aannames en disclaimer" },
 ];
 

@@ -52,6 +52,20 @@ export const ASSUMPTIONS = {
     age: 67,
   },
 
+  /** Thresholds used by the "Aandachtspunten" rules (src/lib/insights). */
+  insights: {
+    /** Minimum salary the tax authority expects a DGA to receive (gebruikelijk loon, 2025). */
+    gebruikelijkLoon: 56_000,
+    /** Corporate income tax (Vpb, 2025). */
+    vpb: { lowRate: 0.19, lowUpTo: 200_000, highRate: 0.258 },
+    /** Recommended emergency buffer in months of household expenses. */
+    bufferMonths: 6,
+    /** BV cash above this amount without a stated purpose is flagged. */
+    bvExcessCash: 250_000,
+    /** Mortgage interest deduction lasts at most this many years. */
+    hypotheekrenteaftrekJaren: 30,
+  },
+
   bv: {
     /** The BV's liquid assets earn this fraction of the scenario return (after corporate tax, simplified). */
     returnOnLiquidAssetsFactor: 0.5,

@@ -1,6 +1,7 @@
 // Sample data used for house-style previews (no real client data).
 
 import { calculatePlan } from "@/lib/engine";
+import { deriveInsights } from "@/lib/insights";
 import type { PlanInput } from "@/lib/engine/types";
 import { REPORT_SECTION_KEYS } from "@/lib/plan/definitions";
 import type { ReportData } from "./report";
@@ -44,6 +45,7 @@ export const SAMPLE_INPUT: PlanInput = {
 };
 
 export async function sampleReportData(firmName: string): Promise<ReportData> {
+  const result = await calculatePlan(SAMPLE_INPUT);
   return {
     firmName,
     clientName: "Familie Voorbeeld",
@@ -51,7 +53,8 @@ export async function sampleReportData(firmName: string): Promise<ReportData> {
     planTitle: "Voorbeeldrapport",
     plannerName: null,
     generatedAt: new Date(),
-    result: await calculatePlan(SAMPLE_INPUT),
+    result,
     sections: [...REPORT_SECTION_KEYS],
+    insights: deriveInsights(SAMPLE_INPUT, result),
   };
 }

@@ -141,6 +141,7 @@ async function main() {
     sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: true, dividend: true },
     reportSections: [...REPORT_SECTION_KEYS],
     visitedSteps: [...STEP_KEYS],
+    hiddenInsights: [],
   };
   const { data: plan, error: planError } = await db
     .from("plans")

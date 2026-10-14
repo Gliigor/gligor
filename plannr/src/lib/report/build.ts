@@ -4,6 +4,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculatePlan } from "@/lib/engine";
+import { deriveInsights } from "@/lib/insights";
 import { toHouseStyle, type HouseStyle } from "@/lib/house-style/types";
 import type { ReportSectionKey } from "@/lib/plan/definitions";
 import { toEngineInput } from "@/lib/plan/to-engine-input";
@@ -43,14 +44,15 @@ export async function buildReport(
 
   const config = parsePlanConfig(plan.config);
   const now = opts.now ?? new Date();
-  const result = await calculatePlan(
-    toEngineInput({
-      config,
-      inputs: parsePlanInputs(plan.inputs),
-      assets: (assets ?? []).map((a) => normalizeAsset(a)),
-      referenceYear: now.getFullYear(),
-    }),
-  );
+  const engineInput = toEngineInput({
+    config,
+    inputs: parsePlanInputs(plan.inputs),
+    assets: (assets ?? []).map((a) => normalizeAsset(a)),
+    referenceYear: now.getFullYear(),
+  });
+  const result = await calculatePlan(engineInput);
+  const hidden = new Set(config.hiddenInsights);
+  const insights = deriveInsights(engineInput, result).filter((i) => !hidden.has(i.id));
   const style = toHouseStyle(hs);
 
   return {
@@ -66,6 +68,7 @@ export async function buildReport(
       generatedAt: now,
       result,
       sections: opts.sections ?? config.reportSections,
+      insights,
     },
   };
 }

@@ -50,6 +50,10 @@ export interface TaxLine {
   label: string;
   base: number;
   tax: number;
+  /** Rate on the next euro in this box (box 3: rate on the deemed return). */
+  marginalRate: number;
+  /** tax / base (0 when there is no base). */
+  effectiveRate: number;
 }
 
 export interface ProjectionPoint {

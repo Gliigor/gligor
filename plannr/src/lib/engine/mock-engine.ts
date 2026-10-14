@@ -20,6 +20,14 @@ export function progressiveTax(amount: number, brackets: readonly Bracket[]): nu
   return tax;
 }
 
+/** Rate that applies to the next euro of `amount`. */
+export function marginalRate(amount: number, brackets: readonly Bracket[]): number {
+  for (const b of brackets) {
+    if (b.upTo === null || amount < b.upTo) return b.rate;
+  }
+  return brackets[brackets.length - 1]?.rate ?? 0;
+}
+
 export function box3Tax(assets: { savings: number; other: number; debts: number }) {
   const a = ASSUMPTIONS.box3;
   const debtsAboveThreshold = Math.max(0, assets.debts - a.schuldenDrempel);
@@ -78,10 +86,32 @@ export function mockCalculate(input: PlanInput): PlanResult {
 
   const box3 = box3Tax({ savings: b3.savings, other: b3.investments + b3.otherRealEstate, debts: b3.debts });
 
+  const eff = (tax: number, base: number) => (base > 0 ? tax / base : 0);
   const lines: TaxLine[] = [
-    { box: 1, label: "Box 1 — werk en woning", base: round(box1Base), tax: round(box1Tax) },
-    { box: 2, label: "Box 2 — aanmerkelijk belang", base: round(dividendReceived), tax: round(box2Tax) },
-    { box: 3, label: "Box 3 — sparen en beleggen", base: round(box3.taxableBase), tax: round(box3.tax) },
+    {
+      box: 1,
+      label: "Box 1 — werk en woning",
+      base: round(box1Base),
+      tax: round(box1Tax),
+      marginalRate: box1Base > 0 ? marginalRate(grossEmployment + dgaSalary + forfait, ASSUMPTIONS.box1.brackets) : 0,
+      effectiveRate: eff(box1Tax, box1Base),
+    },
+    {
+      box: 2,
+      label: "Box 2 — aanmerkelijk belang",
+      base: round(dividendReceived),
+      tax: round(box2Tax),
+      marginalRate: dividendReceived > 0 ? marginalRate(dividendReceived, ASSUMPTIONS.box2.brackets) : 0,
+      effectiveRate: eff(box2Tax, dividendReceived),
+    },
+    {
+      box: 3,
+      label: "Box 3 — sparen en beleggen",
+      base: round(box3.taxableBase),
+      tax: round(box3.tax),
+      marginalRate: box3.taxableBase > 0 ? ASSUMPTIONS.box3.tarief : 0,
+      effectiveRate: eff(box3.tax, box3.base),
+    },
   ];
   const taxTotal = box1Tax + box2Tax + box3.tax;
   const grossTotal = grossEmployment + dgaSalary + dividendReceived;

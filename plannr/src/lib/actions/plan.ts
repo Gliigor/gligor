@@ -101,8 +101,8 @@ export async function updatePlanConfig(planId: string, raw: unknown) {
   if (!plan) return { ok: false };
   const current = parsePlanConfig(plan.config);
   const incoming = parsePlanConfig(raw);
-  // visitedSteps is owned by the server.
-  const config: PlanConfig = { ...incoming, visitedSteps: current.visitedSteps };
+  // visitedSteps and hiddenInsights are changed by their own actions.
+  const config: PlanConfig = { ...incoming, visitedSteps: current.visitedSteps, hiddenInsights: current.hiddenInsights };
   const { error } = await supabase.from("plans").update({ config }).eq("id", planId);
   if (error) return { ok: false };
   await ensureRequiredRows(supabase, member.firm.id, planId, config);
@@ -118,6 +118,17 @@ export async function updateReportSections(planId: string, sections: unknown) {
   if (!plan) return { ok: false };
   const config = parsePlanConfig(plan.config);
   config.reportSections = sanitizeKeyList(sections, [...REPORT_SECTION_KEYS]) as PlanConfig["reportSections"];
+  const { error } = await supabase.from("plans").update({ config }).eq("id", planId);
+  revalidatePlan();
+  return { ok: !error };
+}
+
+export async function updateHiddenInsights(planId: string, hidden: unknown) {
+  await requireMember();
+  const supabase = await createClient();
+  const { data: plan } = await supabase.from("plans").select("config").eq("id", planId).single();
+  if (!plan) return { ok: false };
+  const config = parsePlanConfig({ ...(plan.config as object), hiddenInsights: hidden });
   const { error } = await supabase.from("plans").update({ config }).eq("id", planId);
   revalidatePlan();
   return { ok: !error };

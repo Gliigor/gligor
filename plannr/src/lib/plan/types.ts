@@ -138,6 +138,8 @@ export interface PlanConfig {
   sections: Record<SectionKey, boolean>;
   reportSections: ReportSectionKey[];
   visitedSteps: StepKey[];
+  /** Insight ids the planner chose not to show in the report. */
+  hiddenInsights: string[];
 }
 
 export interface PriveInputs {
@@ -167,8 +169,9 @@ export const DEFAULT_PLAN_CONFIG: PlanConfig = {
     pensioen_eigen_beheer: false,
     dividend: false,
   },
-  reportSections: ["samenvatting", "vermogensoverzicht", "inkomsten_uitgaven", "belastingdruk", "rendementsscenarios", "toelichting"],
+  reportSections: ["samenvatting", "vermogensoverzicht", "inkomsten_uitgaven", "belastingdruk", "rendementsscenarios", "aandachtspunten", "toelichting"],
   visitedSteps: [],
+  hiddenInsights: [],
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -189,7 +192,10 @@ export function parsePlanConfig(raw: unknown): PlanConfig {
   const visitedSteps = Array.isArray(obj.visitedSteps)
     ? (obj.visitedSteps as unknown[]).filter((s): s is StepKey => typeof s === "string" && isStepKey(s))
     : [];
-  return { sections, reportSections, visitedSteps };
+  const hiddenInsights = Array.isArray(obj.hiddenInsights)
+    ? (obj.hiddenInsights as unknown[]).filter((s): s is string => typeof s === "string" && /^[a-z0-9-]{1,64}$/.test(s))
+    : [];
+  return { sections, reportSections, visitedSteps, hiddenInsights };
 }
 
 const NUMERIC_PRIVE_KEYS = ["geboortejaar", "pensioenleeftijd", "bruto_inkomen", "jaarlijkse_uitgaven", "pensioen_per_jaar"] as const;
