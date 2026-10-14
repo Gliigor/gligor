@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { ASSET_TYPES, getAssetType, isStepKey, PRIVE_INPUT_FIELDS, REPORT_SECTION_KEYS } from "@/lib/plan/definitions";
+import { ASSET_TYPES, getAssetType, isStepKey, REPORT_SECTION_KEYS } from "@/lib/plan/definitions";
 import { isAssetTypeRelevant } from "@/lib/plan/status";
-import { sanitizeAssetPatch, sanitizeKeyList, sanitizePriveInputs } from "@/lib/plan/sanitize";
+import { sanitizeAssetPatch, sanitizeKeyList, sanitizePlanInputs } from "@/lib/plan/sanitize";
 import {
   DEFAULT_PLAN_CONFIG,
   normalizeAsset,
@@ -61,7 +61,7 @@ export async function createPlanAction(clientId: string, _prev: { error?: string
       client_id: clientId,
       title,
       config: DEFAULT_PLAN_CONFIG,
-      inputs: { prive: {}, fromDocument: [] },
+      inputs: { prive: {}, partner: {}, kinderen: [], schenkingen: [], fromDocument: [] },
       created_by: member.userId,
     })
     .select("id")
@@ -147,13 +147,10 @@ export async function markStepVisited(planId: string, step: string) {
   revalidatePlan();
 }
 
-export async function updatePriveInputs(planId: string, prive: unknown, fromDocument: unknown) {
+export async function updatePlanInputs(planId: string, raw: unknown) {
   await requireMember();
   const supabase = await createClient();
-  const inputs = {
-    prive: sanitizePriveInputs(prive),
-    fromDocument: sanitizeKeyList(fromDocument, PRIVE_INPUT_FIELDS.map((f) => f.key)),
-  };
+  const inputs = sanitizePlanInputs(raw);
   const { error } = await supabase.from("plans").update({ inputs }).eq("id", planId);
   if (error) return { ok: false };
   await markInProgress(supabase, planId);

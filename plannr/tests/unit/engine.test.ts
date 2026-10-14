@@ -11,7 +11,7 @@ function asset(type: string, value: number | null, metadata: Record<string, unkn
 
 const dgaConfig: PlanConfig = {
   ...DEFAULT_PLAN_CONFIG,
-  sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: true, dividend: true },
+  sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, partner: false, kinderen: false, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: true, dividend: true },
 };
 
 const dgaAssets = [
@@ -25,7 +25,7 @@ const dgaAssets = [
 const dgaInput = () =>
   toEngineInput({
     config: dgaConfig,
-    inputs: { prive: { geboortejaar: 1972, pensioenleeftijd: 67, bruto_inkomen: 0, jaarlijkse_uitgaven: 70_000, pensioen_per_jaar: 20_000, aow_situatie: "samenwonend" }, fromDocument: [] },
+    inputs: { prive: { geboortejaar: 1972, pensioenleeftijd: 67, bruto_inkomen: 0, jaarlijkse_uitgaven: 70_000, pensioen_per_jaar: 20_000 }, partner: {}, kinderen: [], schenkingen: [], fromDocument: [] },
     assets: dgaAssets,
     referenceYear: 2026,
   });
@@ -62,4 +62,36 @@ test("out-of-scope sections are ignored", async () => {
   const r = await calculatePlan(input);
   assert.equal(r.wealth.zakelijk.total, 0);
   assert.equal(r.income.dividendReceived, 0);
+});
+
+test("fiscal partners split box 2 and get two box 3 allowances", async () => {
+  const { SAMPLE_INPUT } = await import("@/lib/pdf/sample");
+  const married = await calculatePlan(SAMPLE_INPUT);
+  const cohabiting = await calculatePlan({ ...SAMPLE_INPUT, household: { ...SAMPLE_INPUT.household, relation: "samenwonend" } });
+  assert.equal(married.household.fiscalPartners, true);
+  assert.equal(cohabiting.household.fiscalPartners, false);
+  assert.equal(married.household.persons.length, 2);
+  assert.equal(married.taxes.box3.exemption, 2 * 57_684);
+  // Dividend owned by one partner: splitting it can only lower box 2.
+  assert.ok(married.taxes.lines[1].tax <= cohabiting.taxes.lines[1].tax);
+});
+
+test("gifts above the exemption create gift tax for the child", async () => {
+  const { SAMPLE_INPUT } = await import("@/lib/pdf/sample");
+  const year = SAMPLE_INPUT.referenceYear;
+  const input = structuredClone(SAMPLE_INPUT);
+  input.household.gifts = [{ childName: "Sophie", childBirthYear: 2002, kind: "jaarlijks", amount: 20_000, startYear: year, years: 1 }];
+  const r = await calculatePlan(input);
+  const sophie = r.gifts!.perChild.find((c) => c.name === "Sophie")!;
+  assert.equal(sophie.taxable, 20_000 - 6_633);
+  assert.ok(Math.abs(sophie.giftTax - (20_000 - 6_633) * 0.1) < 0.01);
+  assert.equal(r.projection.summary.giftsGiven, 0, "the reference-year gift falls before the projection starts");
+});
+
+test("retirement funding strategy changes where shortfalls come from", async () => {
+  const { SAMPLE_INPUT } = await import("@/lib/pdf/sample");
+  const box3First = await calculatePlan({ ...SAMPLE_INPUT, strategy: { retirementFunding: "box3_first" } });
+  const bvFirst = await calculatePlan({ ...SAMPLE_INPUT, strategy: { retirementFunding: "bv_first" } });
+  assert.ok(bvFirst.projection.summary.fundedFromBv > box3First.projection.summary.fundedFromBv);
+  assert.ok(box3First.projection.summary.fundedFromBox3 > bvFirst.projection.summary.fundedFromBox3);
 });

@@ -5,11 +5,40 @@
 
 import type { ScenarioKey } from "./assumptions";
 
+export type Owner = "client" | "partner" | "joint";
+export type Relation = "gehuwd" | "samenwonend_fiscaal" | "samenwonend";
+export type Box3Category = "savings" | "investments" | "otherRealEstate" | "debts";
+export type RetirementFunding = "box3_first" | "bv_first" | "mix";
+
+export interface PersonInput {
+  name: string;
+  birthYear: number | null;
+  retirementAge: number | null;
+  /** Salary from employment, excluding salary from an own BV. */
+  grossEmploymentIncome: number;
+  /** Pension from retirement age, excluding AOW (gross per year). */
+  pensionPerYear: number;
+}
+
+export interface GiftInput {
+  childName: string;
+  childBirthYear: number | null;
+  /** jaarlijks: regular yearly gift; eenmalig_verhoogd: the one-off higher exemption (age 18–40). */
+  kind: "jaarlijks" | "eenmalig_verhoogd";
+  /** Amount per year (for eenmalig_verhoogd: the one-off amount). */
+  amount: number;
+  startYear: number;
+  years: number;
+}
+
 export interface PlanInput {
   referenceYear: number;
-  person: {
-    birthYear: number | null;
-    retirementAge: number | null;
+  household: {
+    client: PersonInput;
+    partner: PersonInput | null;
+    relation: Relation | null;
+    children: { name: string; birthYear: number | null }[];
+    gifts: GiftInput[];
   };
   /** Which parts of the plan are in scope. Out-of-scope parts are ignored. */
   scope: {
@@ -17,6 +46,8 @@ export interface PlanInput {
     inkomen: boolean;
     box3: boolean;
     pensioen: boolean;
+    partner: boolean;
+    kinderen: boolean;
     bv: boolean;
     balans: boolean;
     resultaat: boolean;
@@ -24,16 +55,15 @@ export interface PlanInput {
     dividend: boolean;
   };
   prive: {
-    grossEmploymentIncome: number;
+    /** Household expenses per year (shared by client and partner). */
     yearlyExpenses: number;
-    pensionPerYear: number;
-    aowSituation: "alleenstaand" | "samenwonend" | null;
-    eigenWoning: { wozValue: number; mortgages: { amount: number; interestRate: number }[] } | null;
-    box3: { savings: number; investments: number; otherRealEstate: number; debts: number };
+    eigenWoning: { wozValue: number; mortgages: { amount: number; interestRate: number }[]; owner: Owner } | null;
+    box3: { category: Box3Category; value: number; owner: Owner }[];
   };
   zakelijk: {
     companies: {
       name: string;
+      owner: "client" | "partner";
       sharePercentage: number;
       equity: number;
       liquidAssets: number;
@@ -42,6 +72,11 @@ export interface PlanInput {
       dgaSalary: number;
       dividend: number;
     }[];
+  };
+  /** Choices that change how the future is modelled (used by the comparisons). */
+  strategy?: {
+    /** After retirement: which source covers a shortfall first. Default "box3_first". */
+    retirementFunding?: RetirementFunding;
   };
 }
 
@@ -64,6 +99,33 @@ export interface ProjectionPoint {
   optimistisch: number;
   /** Neutral scenario in today's money (corrected for inflation). */
   neutraalReeel: number;
+}
+
+export interface PersonResult {
+  role: "client" | "partner";
+  name: string;
+  birthYear: number | null;
+  retirementYear: number | null;
+  aowYear: number | null;
+  grossEmployment: number;
+  dgaSalary: number;
+  dividendReceived: number;
+  box1Base: number;
+  box1Tax: number;
+  box2Tax: number;
+  box3Tax: number;
+  net: number;
+}
+
+export interface GiftSummary {
+  year: number;
+  /** Gifts in the reference year. */
+  totalThisYear: number;
+  perChild: { name: string; age: number | null; amount: number; exemption: number; taxable: number; giftTax: number }[];
+  /** All planned gifts over the projection. */
+  totalPlanned: number;
+  /** Schenkbelasting is paid by the child, not by the parents. */
+  giftTaxThisYear: number;
 }
 
 export interface PlanResult {
@@ -112,14 +174,33 @@ export interface PlanResult {
   };
 
   retirement: {
+    /** Retirement year of the client. */
     retirementYear: number | null;
+    /** Household totals (gross per year, once everyone receives them). */
     aowPerYear: number;
     pensionPerYear: number;
   };
 
+  household: {
+    /** Married, registered or cohabiting as fiscal partners: box 2 and box 3 can be divided freely. */
+    fiscalPartners: boolean;
+    persons: PersonResult[];
+  };
+
+  gifts: GiftSummary | null;
+
   projection: {
     scenarios: Record<ScenarioKey, { label: string; returnRate: number }>;
     points: ProjectionPoint[];
+    /** Totals over the whole projection, neutral scenario (nominal). */
+    summary: {
+      taxesPaid: number;
+      giftsGiven: number;
+      /** Shortfalls after retirement covered from box 3 resp. from the BV (gross dividend). */
+      fundedFromBox3: number;
+      fundedFromBv: number;
+      depletedYear: number | null;
+    };
   };
 
   warnings: string[];

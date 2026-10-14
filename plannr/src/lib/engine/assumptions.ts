@@ -52,6 +52,20 @@ export const ASSUMPTIONS = {
     age: 67,
   },
 
+  schenking: {
+    /** Yearly tax-free gift from a parent to a child (2025). */
+    vrijstellingKind: 6_633,
+    /** One-off higher exemption for a child aged 18–40 (2025), instead of the yearly one in that year. */
+    eenmaligVerhoogd: 31_813,
+    eenmaligMinAge: 18,
+    eenmaligMaxAge: 40,
+    /** Gift tax for children (paid by the child). */
+    brackets: [
+      { upTo: 152_368, rate: 0.1 },
+      { upTo: null, rate: 0.2 },
+    ],
+  },
+
   /** Thresholds used by the "Aandachtspunten" rules (src/lib/insights). */
   insights: {
     /** Minimum salary the tax authority expects a DGA to receive (gebruikelijk loon, 2025). */
@@ -67,8 +81,8 @@ export const ASSUMPTIONS = {
   },
 
   bv: {
-    /** The BV's liquid assets earn this fraction of the scenario return (after corporate tax, simplified). */
-    returnOnLiquidAssetsFactor: 0.5,
+    /** The BV's liquid assets earn the scenario return after corporate tax (1 − 19% Vpb). */
+    returnOnLiquidAssetsFactor: 0.81,
   },
 } as const;
 

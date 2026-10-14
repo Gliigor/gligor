@@ -26,9 +26,10 @@ export function planExtractionChanges(
   for (const field of PRIVE_INPUT_FIELDS) {
     const v = data.prive[field.key as keyof typeof data.prive];
     if (v === undefined || !isFieldVisible(field, config)) continue;
-    nextInputs ??= { prive: { ...inputs.prive }, fromDocument: [...inputs.fromDocument] };
-    (nextInputs.prive as Record<string, unknown>)[field.key] = v;
-    if (!nextInputs.fromDocument.includes(field.key)) nextInputs.fromDocument.push(field.key);
+    const next: PlanInputs = nextInputs ?? { ...inputs, prive: { ...inputs.prive }, fromDocument: [...inputs.fromDocument] };
+    (next.prive as Record<string, unknown>)[field.key] = v;
+    if (!next.fromDocument.includes(field.key)) next.fromDocument.push(field.key);
+    nextInputs = next;
     appliedCount++;
   }
 

@@ -1,5 +1,6 @@
 import {
   ASSET_TYPES,
+  PARTNER_FIELDS,
   PRIVE_INPUT_FIELDS,
   SECTIONS,
   STEPS,
@@ -41,6 +42,28 @@ export function findMissingFields(config: PlanConfig, inputs: PlanInputs, assets
     if (!field.required || !isFieldVisible(field, config)) continue;
     if (isEmpty(inputs.prive[field.key as keyof typeof inputs.prive])) {
       missing.push({ side: "prive", id: `input.${field.key}`, label: field.label });
+    }
+  }
+
+  if (config.sections.partner) {
+    for (const field of PARTNER_FIELDS) {
+      if (!field.required) continue;
+      if (isEmpty(inputs.partner[field.key as keyof typeof inputs.partner])) {
+        missing.push({ side: "prive", id: `partner.${field.key}`, label: `Partner: ${field.label}` });
+      }
+    }
+  }
+
+  if (config.sections.kinderen) {
+    for (const k of inputs.kinderen) {
+      if (!k.naam.trim()) missing.push({ side: "prive", id: `kind.${k.id}.naam`, label: "Kind: naam" });
+      if (isEmpty(k.geboortejaar)) missing.push({ side: "prive", id: `kind.${k.id}.geboortejaar`, label: `${k.naam || "Kind"}: geboortejaar` });
+    }
+    for (const g of inputs.schenkingen) {
+      const child = inputs.kinderen.find((k) => k.id === g.kindId)?.naam || "Kind";
+      if (isEmpty(g.bedrag)) missing.push({ side: "prive", id: `gift.${g.id}.bedrag`, label: `Schenking ${child}: bedrag` });
+      if (isEmpty(g.startjaar)) missing.push({ side: "prive", id: `gift.${g.id}.startjaar`, label: `Schenking ${child}: startjaar` });
+      if (g.soort === "jaarlijks" && isEmpty(g.jaren)) missing.push({ side: "prive", id: `gift.${g.id}.jaren`, label: `Schenking ${child}: aantal jaren` });
     }
   }
 

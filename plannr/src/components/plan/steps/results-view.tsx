@@ -83,6 +83,8 @@ export function ResultsView({ result, insightsSlot }: { result: PlanResult; insi
 
       <ProjectionCard result={result} />
 
+      {result.household.persons.length > 1 || result.gifts ? <HouseholdCard result={result} /> : null}
+
       <div className="grid gap-5 lg:grid-cols-2">
         <BarCard title="Vermogen privé vs. zakelijk" description="Netto waarden vandaag" data={wealthBars} />
         <BarCard title="Inkomsten vs. uitgaven" description="Per jaar, na belasting" data={incomeBars} />
@@ -273,5 +275,87 @@ function ProjectionCard({ result }: { result: PlanResult }) {
         </div>
       )}
     </Card>
+  );
+}
+
+function HouseholdCard({ result }: { result: PlanResult }) {
+  const persons = result.household.persons;
+  const gifts = result.gifts;
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <Card>
+        <CardHeader
+          title="Per persoon"
+          description={
+            persons.length > 1
+              ? result.household.fiscalPartners
+                ? "Fiscaal partners: box 2 en box 3 zijn zo gunstig mogelijk verdeeld."
+                : "Geen fiscaal partners: verdeling volgens eigendom."
+              : "Eén persoon"
+          }
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm tabular">
+            <thead className="text-left text-xs text-ink-500">
+              <tr className="border-b border-ink-100">
+                <th className="px-5 py-2 font-medium">Naam</th>
+                <th className="px-3 py-2 text-right font-medium">Bruto</th>
+                <th className="px-3 py-2 text-right font-medium">Belasting</th>
+                <th className="px-5 py-2 text-right font-medium">Netto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {persons.map((p) => (
+                <tr key={p.role}>
+                  <td className="px-5 py-2.5">
+                    <div className="font-medium">{p.name}</div>
+                    <div className="text-xs text-ink-500">
+                      {p.retirementYear ? `stopt ${p.retirementYear}` : "stopmoment onbekend"} · AOW {p.aowYear ?? "—"}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-right">{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived, { whole: true })}</td>
+                  <td className="px-3 py-2.5 text-right">{formatEuro(p.box1Tax + p.box2Tax + p.box3Tax, { whole: true })}</td>
+                  <td className="px-5 py-2.5 text-right font-semibold">{formatEuro(p.net, { whole: true })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      {gifts ? (
+        <Card>
+          <CardHeader title={`Schenkingen in ${gifts.year}`} description={`Totaal gepland: ${formatEuro(gifts.totalPlanned, { whole: true })}`} />
+          {gifts.perChild.length === 0 ? (
+            <p className="px-5 py-5 text-sm text-ink-500">Dit jaar geen schenkingen gepland.</p>
+          ) : (
+            <table className="w-full text-sm tabular">
+              <thead className="text-left text-xs text-ink-500">
+                <tr className="border-b border-ink-100">
+                  <th className="px-5 py-2 font-medium">Kind</th>
+                  <th className="px-3 py-2 text-right font-medium">Schenking</th>
+                  <th className="px-3 py-2 text-right font-medium">Vrijgesteld</th>
+                  <th className="px-5 py-2 text-right font-medium">Schenkbelasting</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-100">
+                {gifts.perChild.map((c) => (
+                  <tr key={c.name}>
+                    <td className="px-5 py-2.5">
+                      {c.name}
+                      {c.age !== null ? <span className="text-ink-500"> · {c.age} jaar</span> : null}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">{formatEuro(c.amount, { whole: true })}</td>
+                    <td className="px-3 py-2.5 text-right">{formatEuro(Math.min(c.amount, c.exemption), { whole: true })}</td>
+                    <td className={`px-5 py-2.5 text-right ${c.giftTax > 0 ? "font-semibold text-warn-600" : ""}`}>
+                      {formatEuro(c.giftTax, { whole: true })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      ) : null}
+    </div>
   );
 }

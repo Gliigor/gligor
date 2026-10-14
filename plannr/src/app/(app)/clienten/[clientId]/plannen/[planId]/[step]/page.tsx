@@ -80,7 +80,13 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
       );
       break;
     case "resultaten": {
-      const engineInput = toEngineInput({ config, inputs, assets, referenceYear: new Date().getFullYear() });
+      const engineInput = toEngineInput({
+        config,
+        inputs,
+        assets,
+        referenceYear: new Date().getFullYear(),
+        clientName: bundle.client.first_name,
+      });
       const result = await calculatePlan(engineInput);
       const insights = deriveInsights(engineInput, result);
       const missing = findMissingFields(config, inputs, assets);

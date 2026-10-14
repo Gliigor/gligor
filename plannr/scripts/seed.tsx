@@ -138,7 +138,7 @@ async function main() {
   // 5. The complete DGA plan.
   console.log("• Volledig DGA-plan aanmaken…");
   const fullConfig: PlanConfig = {
-    sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: true, dividend: true },
+    sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, partner: true, kinderen: true, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: true, dividend: true },
     reportSections: [...REPORT_SECTION_KEYS],
     visitedSteps: [...STEP_KEYS],
     hiddenInsights: [],
@@ -153,7 +153,16 @@ async function main() {
       current_step: "rapport",
       config: fullConfig,
       inputs: {
-        prive: { geboortejaar: 1968, pensioenleeftijd: 65, bruto_inkomen: 0, jaarlijkse_uitgaven: 84_000, pensioen_per_jaar: 12_000, aow_situatie: "samenwonend" },
+        prive: { geboortejaar: 1968, pensioenleeftijd: 65, bruto_inkomen: 0, jaarlijkse_uitgaven: 96_000, pensioen_per_jaar: 12_000 },
+        partner: { naam: "Marieke", relatie: "gehuwd", geboortejaar: 1970, pensioenleeftijd: 67, bruto_inkomen: 52_000, pensioen_per_jaar: 16_000 },
+        kinderen: [
+          { id: "kind-1", naam: "Sophie", geboortejaar: 1999 },
+          { id: "kind-2", naam: "Thomas", geboortejaar: 2002 },
+        ],
+        schenkingen: [
+          { id: "gift-1", kindId: "kind-1", soort: "jaarlijks", bedrag: 6_633, startjaar: new Date().getFullYear(), jaren: 8 },
+          { id: "gift-2", kindId: "kind-2", soort: "eenmalig_verhoogd", bedrag: 31_813, startjaar: new Date().getFullYear(), jaren: 1 },
+        ],
         fromDocument: [],
       },
       created_by: ownerId,
@@ -178,9 +187,11 @@ async function main() {
     asset("prive", "eigen_woning", 1, "Herengracht 12, Haarlem", 1_150_000),
     asset("prive", "hypotheek", 1, "Leningdeel 1", 360_000, { rente: 3.4, aflosvorm: "annuitair" }, 1),
     asset("prive", "hypotheek", 1, "Leningdeel 2", 140_000, { rente: 4.1, aflosvorm: "aflossingsvrij" }, 2),
-    asset("prive", "spaargeld", 3, "ING Spaarrekening", 95_000),
-    asset("prive", "beleggingen", 3, "Beleggingsportefeuille", 410_000),
+    asset("prive", "spaargeld", 3, "ING Spaarrekening", 95_000, { eigenaar: "joint" }),
+    asset("prive", "spaargeld", 3, "Spaarrekening Marieke", 40_000, { eigenaar: "partner" }, 1),
+    asset("prive", "beleggingen", 3, "Beleggingsportefeuille", 410_000, { eigenaar: "joint" }),
     asset("zakelijk", "bv_aandelen", 2, "", 1_640_000, {
+      eigenaar: "client",
       bv_naam: "De Vries Holding B.V.",
       aandelen_percentage: 100,
       eigen_vermogen: 1_640_000,
@@ -198,7 +209,7 @@ async function main() {
     title: "Wat-als: stoppen op 60",
     status: "concept",
     config: { ...fullConfig, visitedSteps: ["configuratie"] },
-    inputs: { prive: { geboortejaar: 1968, pensioenleeftijd: 60 }, fromDocument: [] },
+    inputs: { prive: { geboortejaar: 1968, pensioenleeftijd: 60 }, partner: {}, kinderen: [], schenkingen: [], fromDocument: [] },
     created_by: ownerId,
   });
 
@@ -207,8 +218,8 @@ async function main() {
     client_id: ids["Bakker"],
     title: "Plan 2026",
     status: "in_bewerking",
-    config: { ...fullConfig, sections: { ...fullConfig.sections, bv: false, balans: false, resultaat: false, pensioen_eigen_beheer: false, dividend: false }, visitedSteps: ["configuratie", "documenten"] },
-    inputs: { prive: { geboortejaar: 1985, pensioenleeftijd: 67, bruto_inkomen: 68_000 }, fromDocument: [] },
+    config: { ...fullConfig, sections: { ...fullConfig.sections, partner: false, kinderen: false, bv: false, balans: false, resultaat: false, pensioen_eigen_beheer: false, dividend: false }, visitedSteps: ["configuratie", "documenten"] },
+    inputs: { prive: { geboortejaar: 1985, pensioenleeftijd: 67, bruto_inkomen: 68_000 }, partner: {}, kinderen: [], schenkingen: [], fromDocument: [] },
     created_by: plannerId,
   });
 

@@ -505,12 +505,80 @@ function TaxSection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) 
   );
 }
 
+function FamilySection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) {
+  const persons = r.household.persons;
+  const year = r.referenceYear;
+  return (
+    <View>
+      <Text style={s.h3}>Huishouden</Text>
+      <View style={[s.row, { borderBottomColor: TEXT }]}>
+        <Text style={[s.cellLabel, s.bold]}>Naam</Text>
+        <Text style={[s.cellValue, s.bold]}>Leeftijd</Text>
+        <Text style={[s.cellValue, s.bold]}>Stopt met werken</Text>
+        <Text style={[s.cellValue, s.bold]}>AOW vanaf</Text>
+      </View>
+      {persons.map((p) => (
+        <View key={p.role} style={s.row} wrap={false}>
+          <Text style={s.cellLabel}>{p.name}</Text>
+          <Text style={s.cellValue}>{p.birthYear ? `${year - p.birthYear} jaar` : "—"}</Text>
+          <Text style={s.cellValue}>{p.retirementYear ?? "—"}</Text>
+          <Text style={s.cellValue}>{p.aowYear ?? "—"}</Text>
+        </View>
+      ))}
+      {persons.length > 1 ? (
+        <Text style={{ color: MUTED, marginTop: 6 }}>
+          {r.household.fiscalPartners
+            ? "U bent fiscaal partners: dividend uit de BV en vermogen in box 3 zijn in deze berekening zo gunstig mogelijk tussen u beiden verdeeld."
+            : "U bent geen fiscaal partners: inkomen en vermogen zijn toegerekend aan degene die eigenaar is."}
+        </Text>
+      ) : null}
+
+      {r.gifts ? (
+        <View style={{ marginTop: 18 }}>
+          <Text style={s.h3}>Schenkingen aan kinderen in {r.gifts.year}</Text>
+          {r.gifts.perChild.length === 0 ? (
+            <Text style={s.lead}>Er zijn dit jaar geen schenkingen gepland.</Text>
+          ) : (
+            <View>
+              <View style={[s.row, { borderBottomColor: TEXT }]}>
+                <Text style={[s.cellLabel, s.bold]}>Kind</Text>
+                <Text style={[s.cellValue, s.bold]}>Schenking</Text>
+                <Text style={[s.cellValue, s.bold]}>Vrijstelling</Text>
+                <Text style={[s.cellValue, s.bold]}>Schenkbelasting</Text>
+              </View>
+              {r.gifts.perChild.map((c) => (
+                <View key={c.name} style={s.row} wrap={false}>
+                  <Text style={s.cellLabel}>
+                    {c.name}
+                    {c.age !== null ? ` (${c.age} jaar)` : ""}
+                  </Text>
+                  <Text style={s.cellValue}>{formatEuro(c.amount, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(c.exemption, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(c.giftTax, { whole: true })}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          <View style={{ marginTop: 10, backgroundColor: PAPER, padding: 12, borderLeftWidth: 2, borderLeftColor: hs.accentColor }} wrap={false}>
+            <Text>
+              In totaal staat {formatEuro(r.gifts.totalPlanned, { whole: true })} aan schenkingen gepland. Schenkingen verlagen uw
+              vermogen in box 3 en daarmee de box 3-heffing, en verkleinen later de nalatenschap. Schenkbelasting wordt betaald door
+              het kind dat de schenking ontvangt.
+            </Text>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const SECTION_INTRO: Partial<Record<ReportSectionKey, string>> = {
   vermogensoverzicht: "Een overzicht van wat u bezit en wat u verschuldigd bent, privé en via uw onderneming.",
   inkomsten_uitgaven: "Wat er jaarlijks binnenkomt, wat er na belastingen overblijft en hoe dat zich verhoudt tot uw uitgaven.",
   belastingdruk: "In Nederland wordt inkomen in drie boxen belast, elk met eigen regels. Hieronder ziet u per box wat er wordt belast, hoeveel en waarom.",
   rendementsscenarios: "Hoe uw vermogen zich de komende jaren kan ontwikkelen bij drie verschillende rendementen.",
   zakelijk_overzicht: "De kerncijfers van uw onderneming en hoe die doorwerken in uw privévermogen.",
+  schenkingen: "Uw huishouden, de momenten van stoppen met werken en AOW, en de schenkingen aan uw kinderen.",
   aandachtspunten: "Op basis van uw situatie zien wij de volgende kansen en aandachtspunten. Bedragen zijn indicatief en bedoeld als vertrekpunt voor het gesprek.",
   toelichting: "De uitgangspunten achter de berekeningen in dit rapport.",
 };
@@ -596,7 +664,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
           <Table
             s={s}
             rows={[
-              ["Bruto inkomen uit arbeid", r.income.grossEmployment],
+              [r.household.persons.length > 1 ? "Bruto inkomen uit arbeid (samen)" : "Bruto inkomen uit arbeid", r.income.grossEmployment],
               ["Salaris uit eigen BV", r.income.dgaSalary],
               ["Ontvangen dividend", r.income.dividendReceived],
               ["Belastingen (box 1, 2 en 3)", -r.income.taxTotal],
@@ -605,6 +673,25 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
             ]}
             total={["Saldo per jaar", r.income.balance]}
           />
+          {r.household.persons.length > 1 ? (
+            <View style={{ marginTop: 16 }} wrap={false}>
+              <Text style={s.h3}>Per persoon</Text>
+              <View style={[s.row, { borderBottomColor: TEXT }]}>
+                <Text style={[s.cellLabel, s.bold]}>Naam</Text>
+                <Text style={[s.cellValue, s.bold]}>Bruto inkomen</Text>
+                <Text style={[s.cellValue, s.bold]}>Belasting</Text>
+                <Text style={[s.cellValue, s.bold]}>Netto</Text>
+              </View>
+              {r.household.persons.map((p) => (
+                <View key={p.role} style={s.row}>
+                  <Text style={s.cellLabel}>{p.name}</Text>
+                  <Text style={s.cellValue}>{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(p.box1Tax + p.box2Tax + p.box3Tax, { whole: true })}</Text>
+                  <Text style={[s.cellValue, s.bold]}>{formatEuro(p.net, { whole: true })}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           <Bars
             color={hs.secondaryColor}
             data={[
@@ -670,6 +757,8 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
           ))}
         </View>
       );
+    case "schenkingen":
+      return <FamilySection r={r} s={s} hs={hs} />;
     case "aandachtspunten":
       return data.insights.length === 0 ? (
         <Text style={s.lead}>Op basis van de ingevulde gegevens zijn er geen bijzondere aandachtspunten.</Text>

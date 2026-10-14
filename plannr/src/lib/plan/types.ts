@@ -148,12 +148,41 @@ export interface PriveInputs {
   bruto_inkomen?: number | null;
   jaarlijkse_uitgaven?: number | null;
   pensioen_per_jaar?: number | null;
-  aow_situatie?: "alleenstaand" | "samenwonend" | null;
+}
+
+export type Relatie = "gehuwd" | "samenwonend_fiscaal" | "samenwonend";
+
+export interface PartnerInputs {
+  naam?: string | null;
+  relatie?: Relatie | null;
+  geboortejaar?: number | null;
+  pensioenleeftijd?: number | null;
+  bruto_inkomen?: number | null;
+  pensioen_per_jaar?: number | null;
+}
+
+export interface ChildInput {
+  id: string;
+  naam: string;
+  geboortejaar: number | null;
+}
+
+export interface GiftPlanInput {
+  id: string;
+  kindId: string;
+  soort: "jaarlijks" | "eenmalig_verhoogd";
+  bedrag: number | null;
+  startjaar: number | null;
+  /** Number of years for a yearly gift. */
+  jaren: number | null;
 }
 
 export interface PlanInputs {
   prive: PriveInputs;
-  /** Keys of prive inputs whose current value came from a document. */
+  partner: PartnerInputs;
+  kinderen: ChildInput[];
+  schenkingen: GiftPlanInput[];
+  /** Keys of prive inputs whose current value came from a document ("partner.x" for partner fields). */
   fromDocument: string[];
 }
 
@@ -163,13 +192,15 @@ export const DEFAULT_PLAN_CONFIG: PlanConfig = {
     inkomen: true,
     box3: true,
     pensioen: true,
+    partner: false,
+    kinderen: false,
     bv: false,
     balans: false,
     resultaat: false,
     pensioen_eigen_beheer: false,
     dividend: false,
   },
-  reportSections: ["samenvatting", "vermogensoverzicht", "inkomsten_uitgaven", "belastingdruk", "rendementsscenarios", "aandachtspunten", "toelichting"],
+  reportSections: ["samenvatting", "vermogensoverzicht", "inkomsten_uitgaven", "belastingdruk", "rendementsscenarios", "schenkingen", "aandachtspunten", "toelichting"],
   visitedSteps: [],
   hiddenInsights: [],
 };
@@ -199,21 +230,48 @@ export function parsePlanConfig(raw: unknown): PlanConfig {
 }
 
 const NUMERIC_PRIVE_KEYS = ["geboortejaar", "pensioenleeftijd", "bruto_inkomen", "jaarlijkse_uitgaven", "pensioen_per_jaar"] as const;
+const NUMERIC_PARTNER_KEYS = ["geboortejaar", "pensioenleeftijd", "bruto_inkomen", "pensioen_per_jaar"] as const;
+
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const str = (v: unknown, max = 200) => (typeof v === "string" ? v.slice(0, max) : "");
+const id = (v: unknown) => (typeof v === "string" && /^[a-zA-Z0-9-]{1,64}$/.test(v) ? v : null);
 
 export function parsePlanInputs(raw: unknown): PlanInputs {
   const obj = isRecord(raw) ? raw : {};
   const rawPrive = isRecord(obj.prive) ? obj.prive : {};
   const prive: PriveInputs = {};
-  for (const key of NUMERIC_PRIVE_KEYS) {
-    const v = rawPrive[key];
-    prive[key] = typeof v === "number" && Number.isFinite(v) ? v : null;
-  }
-  const aow = rawPrive.aow_situatie;
-  prive.aow_situatie = aow === "alleenstaand" || aow === "samenwonend" ? aow : null;
+  for (const key of NUMERIC_PRIVE_KEYS) prive[key] = num(rawPrive[key]);
+
+  const rawPartner = isRecord(obj.partner) ? obj.partner : {};
+  const partner: PartnerInputs = {};
+  for (const key of NUMERIC_PARTNER_KEYS) partner[key] = num(rawPartner[key]);
+  partner.naam = str(rawPartner.naam, 100) || null;
+  const rel = rawPartner.relatie;
+  partner.relatie = rel === "gehuwd" || rel === "samenwonend_fiscaal" || rel === "samenwonend" ? rel : null;
+
+  const kinderen: ChildInput[] = (Array.isArray(obj.kinderen) ? obj.kinderen : [])
+    .filter(isRecord)
+    .map((k) => ({ id: id(k.id) ?? "", naam: str(k.naam, 100), geboortejaar: num(k.geboortejaar) }))
+    .filter((k) => k.id)
+    .slice(0, 20);
+  const childIds = new Set(kinderen.map((k) => k.id));
+  const schenkingen: GiftPlanInput[] = (Array.isArray(obj.schenkingen) ? obj.schenkingen : [])
+    .filter(isRecord)
+    .map((g) => ({
+      id: id(g.id) ?? "",
+      kindId: id(g.kindId) ?? "",
+      soort: (g.soort === "eenmalig_verhoogd" ? "eenmalig_verhoogd" : "jaarlijks") as GiftPlanInput["soort"],
+      bedrag: num(g.bedrag),
+      startjaar: num(g.startjaar),
+      jaren: num(g.jaren),
+    }))
+    .filter((g) => g.id && childIds.has(g.kindId))
+    .slice(0, 60);
+
   const fromDocument = Array.isArray(obj.fromDocument)
     ? (obj.fromDocument as unknown[]).filter((k): k is string => typeof k === "string")
     : [];
-  return { prive, fromDocument };
+  return { prive, partner, kinderen, schenkingen, fromDocument };
 }
 
 export function parseReportSections(raw: unknown): ReportSectionKey[] {

@@ -41,7 +41,10 @@ export function deriveInsights(input: PlanInput, result: PlanResult): Insight[] 
   const dgaSalary = result.income.dgaSalary;
   const dividend = result.income.dividendReceived;
   const expenses = result.income.expenses;
-  const savings = s.box3 ? input.prive.box3.savings : 0;
+  const savings = s.box3 ? input.prive.box3.filter((i) => i.category === "savings").reduce((x, i) => x + i.value, 0) : 0;
+  const h = input.household;
+  const hasPartner = s.partner && h.partner !== null;
+  const fiscal = result.household.fiscalPartners;
   const mortgage = result.wealth.prive.mortgageDebt;
   const box1 = result.taxes.lines.find((l) => l.box === 1);
   const box3 = result.taxes.lines.find((l) => l.box === 3);
@@ -81,17 +84,78 @@ export function deriveInsights(input: PlanInput, result: PlanResult): Insight[] 
     }
   }
 
-  if (s.dividend && dividend > box2FirstBracket) {
-    const above = dividend - box2FirstBracket;
+  const box2Threshold = box2FirstBracket * (fiscal ? 2 : 1);
+  if (s.dividend && dividend > box2Threshold) {
+    const above = dividend - box2Threshold;
     const extra = above * ((ASSUMPTIONS.box2.brackets[1]?.rate ?? 0) - ASSUMPTIONS.box2.brackets[0].rate);
     out.push({
       id: "box2-hoog-tarief",
       tone: "kans",
       category: "belasting",
       title: "Dividend valt deels in het hoge box 2-tarief",
-      body: `Van het dividend valt ${euro(above)} boven de grens van ${euro(box2FirstBracket)} en wordt belast tegen het hoge tarief. Door de uitkering over meerdere jaren te spreiden, of te verdelen met een fiscaal partner, blijft meer in het lage tarief.`,
+      body: fiscal
+        ? `Ook verdeeld over u beiden valt ${euro(above)} van het dividend boven de grens van ${euro(box2FirstBracket)} per persoon en wordt belast tegen het hoge tarief. Door de uitkering over meerdere jaren te spreiden, blijft meer in het lage tarief.`
+        : `Van het dividend valt ${euro(above)} boven de grens van ${euro(box2FirstBracket)} en wordt belast tegen het hoge tarief. Door de uitkering over meerdere jaren te spreiden${hasPartner ? "" : ", of te verdelen met een fiscaal partner"}, blijft meer in het lage tarief.`,
       amount: { value: extra, label: "Extra belasting door hoog tarief" },
     });
+  }
+
+  // --- Gezin -------------------------------------------------------------------
+  if (hasPartner && h.relation === "samenwonend") {
+    out.push({
+      id: "geen-fiscaal-partner",
+      tone: "aandacht",
+      category: "belasting",
+      title: "Samenwonend zonder fiscaal partnerschap",
+      body: "Zonder fiscaal partnerschap kunnen inkomen uit de BV en box 3-vermogen niet vrij tussen u beiden worden verdeeld, en geldt bij overlijden het hoge erfbelastingtarief. Met een notarieel samenlevingscontract (met een wederzijdse pensioenverevening) wordt u fiscaal partner.",
+    });
+  }
+
+  if (result.gifts) {
+    for (const child of result.gifts.perChild) {
+      if (child.giftTax > 0) {
+        out.push({
+          id: `schenking-belast-${child.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30)}`,
+          tone: "aandacht",
+          category: "vermogen",
+          title: `Schenking aan ${child.name} boven de vrijstelling`,
+          body: `In ${result.gifts.year} wordt ${euro(child.amount)} aan ${child.name} geschonken; de vrijstelling is ${euro(child.exemption)}. Over ${euro(child.taxable)} betaalt ${child.name} schenkbelasting. Spreiden over meerdere jaren kan dit voorkomen.`,
+          amount: { value: child.giftTax, label: `Schenkbelasting (betaald door ${child.name})` },
+        });
+      }
+    }
+  }
+
+  if (s.kinderen && h.children.length > 0 && box3 && box3.tax > 0 && (result.gifts?.totalThisYear ?? 0) === 0) {
+    const yearly = h.children.length * ASSUMPTIONS.schenking.vrijstellingKind;
+    out.push({
+      id: "schenken-kans",
+      tone: "kans",
+      category: "vermogen",
+      title: "Belastingvrij schenken aan uw kinderen",
+      body: `U kunt elk kind jaarlijks ${euro(ASSUMPTIONS.schenking.vrijstellingKind)} belastingvrij schenken. Dat verlaagt uw box 3-vermogen en daarmee de box 3-heffing, en verkleint later de erfenis waarover erfbelasting wordt geheven.`,
+      amount: { value: yearly, label: "Belastingvrij per jaar (alle kinderen)" },
+    });
+  }
+
+  if (s.kinderen) {
+    const year = result.referenceYear;
+    const eligible = h.children.filter(
+      (c) =>
+        c.birthYear !== null &&
+        year - c.birthYear >= ASSUMPTIONS.schenking.eenmaligMinAge &&
+        year - c.birthYear <= ASSUMPTIONS.schenking.eenmaligMaxAge &&
+        !h.gifts.some((g) => g.childName === c.name && g.kind === "eenmalig_verhoogd"),
+    );
+    if (eligible.length > 0) {
+      out.push({
+        id: "eenmalig-verhoogd",
+        tone: "info",
+        category: "vermogen",
+        title: "Eenmalig verhoogde vrijstelling",
+        body: `${eligible.map((c) => c.name).join(" en ")} ${eligible.length === 1 ? "valt" : "vallen"} in de leeftijd van 18 tot 40 jaar. Eenmalig kan dan ${euro(ASSUMPTIONS.schenking.eenmaligVerhoogd)} belastingvrij worden geschonken (in plaats van de jaarlijkse vrijstelling in dat jaar).`,
+      });
+    }
   }
 
   if (s.balans && result.wealth.zakelijk.liquidAssets > a.bvExcessCash) {
@@ -174,17 +238,19 @@ export function deriveInsights(input: PlanInput, result: PlanResult): Insight[] 
   }
 
   // --- Pensioen --------------------------------------------------------------
-  const { birthYear, retirementAge } = input.person;
-  if (s.pensioen && retirementAge && retirementAge < ASSUMPTIONS.aow.age && input.prive.aowSituation) {
-    const years = ASSUMPTIONS.aow.age - retirementAge;
-    const aow = ASSUMPTIONS.aow[input.prive.aowSituation];
+  const birthYear = h.client.birthYear;
+  const aowPerPerson = hasPartner ? ASSUMPTIONS.aow.samenwonend : ASSUMPTIONS.aow.alleenstaand;
+  const persons = [{ p: h.client, self: true }, ...(hasPartner && h.partner ? [{ p: h.partner, self: false }] : [])];
+  for (const { p, self } of persons) {
+    if (!s.pensioen || !p.retirementAge || p.retirementAge >= ASSUMPTIONS.aow.age) continue;
+    const years = ASSUMPTIONS.aow.age - p.retirementAge;
     out.push({
-      id: "aow-gat",
+      id: self ? "aow-gat" : "aow-gat-partner",
       tone: "aandacht",
       category: "pensioen",
-      title: "Periode zonder AOW",
-      body: `U wilt stoppen op ${retirementAge}-jarige leeftijd, maar de AOW start pas rond ${ASSUMPTIONS.aow.age}. Gedurende ${years} jaar moet u dit inkomen zelf overbruggen, bijvoorbeeld uit box 3-vermogen of de BV.`,
-      amount: { value: years * aow, label: "Te overbruggen AOW (bruto)" },
+      title: self ? "Periode zonder AOW" : `Periode zonder AOW voor ${p.name}`,
+      body: `${self ? (hasPartner ? `${p.name} wil` : "U wilt") : `${p.name} wil`} stoppen op ${p.retirementAge}-jarige leeftijd, maar de AOW start pas rond ${ASSUMPTIONS.aow.age}. Gedurende ${years} jaar moet dit inkomen zelf worden overbrugd, bijvoorbeeld uit box 3-vermogen of de BV.`,
+      amount: { value: years * aowPerPerson, label: "Te overbruggen AOW (bruto)" },
     });
   }
 
@@ -203,14 +269,15 @@ export function deriveInsights(input: PlanInput, result: PlanResult): Insight[] 
     }
   }
 
-  const depleted = result.projection.points.find((p) => p.neutraal < 0);
-  if (depleted) {
+  const depletedYear = result.projection.summary.depletedYear;
+  if (depletedYear) {
+    const age = birthYear ? depletedYear - birthYear : null;
     out.push({
       id: "vermogen-uitgeput",
       tone: "aandacht",
       category: "vermogen",
-      title: "Vermogen raakt op",
-      body: `In het neutrale scenario is het vermogen rond ${depleted.year}${depleted.age ? ` (leeftijd ${depleted.age})` : ""} op. Overweeg later te stoppen, uitgaven te verlagen of meer op te bouwen.`,
+      title: "Vrij beschikbaar vermogen raakt op",
+      body: `In het neutrale scenario zijn spaargeld, beleggingen en de liquide middelen van de BV rond ${depletedYear}${age ? ` (leeftijd ${age})` : ""} op. Overweeg later te stoppen, uitgaven te verlagen of meer op te bouwen.`,
     });
   }
 

@@ -1,7 +1,7 @@
 // Validation of values coming from the browser before they are stored.
 
-import { getAssetType, PRIVE_INPUT_FIELDS, type FieldDef } from "./definitions";
-import type { AssetMetadata, PriveInputs } from "./types";
+import { getAssetType, PARTNER_FIELDS, PRIVE_INPUT_FIELDS, type FieldDef } from "./definitions";
+import { parsePlanInputs, type AssetMetadata, type PartnerInputs, type PlanInputs, type PriveInputs } from "./types";
 
 const MAX_AMOUNT = 1e12;
 
@@ -31,6 +31,34 @@ export function sanitizePriveInputs(raw: unknown): PriveInputs {
   return out as PriveInputs;
 }
 
+export function sanitizePartnerInputs(raw: unknown): PartnerInputs {
+  const obj = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const field of PARTNER_FIELDS) out[field.key] = sanitizeFieldValue(field, obj[field.key]);
+  return out as PartnerInputs;
+}
+
+const clamp = (v: number | null, min: number, max: number) => (v === null ? null : Math.min(max, Math.max(min, Math.round(v))));
+
+/** Validates everything the privé step can save in plans.inputs. */
+export function sanitizePlanInputs(raw: unknown): PlanInputs {
+  const obj = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+  const parsed = parsePlanInputs(obj);
+  const allowedDocKeys = [...PRIVE_INPUT_FIELDS.map((f) => f.key), ...PARTNER_FIELDS.map((f) => `partner.${f.key}`)];
+  return {
+    prive: sanitizePriveInputs(obj.prive),
+    partner: sanitizePartnerInputs(obj.partner),
+    kinderen: parsed.kinderen.map((k) => ({ ...k, naam: k.naam.trim(), geboortejaar: clamp(k.geboortejaar, 1900, 2100) })),
+    schenkingen: parsed.schenkingen.map((g) => ({
+      ...g,
+      bedrag: g.bedrag === null ? null : Math.min(MAX_AMOUNT, Math.max(0, Math.round(g.bedrag * 100) / 100)),
+      startjaar: clamp(g.startjaar, 1990, 2100),
+      jaren: clamp(g.jaren, 1, 50),
+    })),
+    fromDocument: sanitizeKeyList(obj.fromDocument, allowedDocKeys),
+  };
+}
+
 export function sanitizeKeyList(raw: unknown, allowed: string[]): string[] {
   if (!Array.isArray(raw)) return [];
   return [...new Set(raw.filter((k): k is string => typeof k === "string" && allowed.includes(k)))];
@@ -43,6 +71,8 @@ export function sanitizeAssetPatch(type: string, patch: { label?: unknown; value
   const metadata: AssetMetadata = {};
   for (const field of def.metadataFields) metadata[field.key] = sanitizeFieldValue(field, rawMeta[field.key]);
   metadata._fromDocument = sanitizeKeyList(rawMeta._fromDocument, ["value", ...def.metadataFields.map((f) => f.key)]);
+  const owner = rawMeta.eigenaar;
+  if (owner === "client" || owner === "partner" || owner === "joint") metadata.eigenaar = owner;
 
   const valueField: FieldDef = { key: "value", label: "", kind: "money", section: "algemeen" };
   let value = sanitizeFieldValue(valueField, patch.value) as number | null;
