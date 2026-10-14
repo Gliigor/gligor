@@ -10,8 +10,8 @@ import { PlanHeader } from "@/components/plan/plan-header";
 
 export default async function PlanLayout({ children, params }: LayoutProps<"/clienten/[clientId]/plannen/[planId]">) {
   const { clientId, planId } = await params;
-  await requireMember();
-  const bundle = await loadPlan(planId);
+  // Both start at once; RLS keeps loadPlan empty for anyone not allowed to see it.
+  const [, bundle] = await Promise.all([requireMember(), loadPlan(planId)]);
   if (!bundle || bundle.client.id !== clientId) notFound();
 
   const steps = computeStepStatuses({

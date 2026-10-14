@@ -89,6 +89,9 @@ export async function deletePlanAction(planId: string, clientId: string) {
   const { data: docs } = await supabase.from("documents").select("file_path").eq("plan_id", planId);
   const paths = (docs ?? []).map((d) => d.file_path as string);
   if (paths.length > 0) await supabase.storage.from("documents").remove(paths);
+  const { data: exps } = await supabase.from("exports").select("pdf_path").eq("plan_id", planId);
+  const pdfPaths = (exps ?? []).map((e) => e.pdf_path as string);
+  if (pdfPaths.length > 0) await supabase.storage.from("exports").remove(pdfPaths);
   await supabase.from("plans").delete().eq("id", planId);
   revalidatePath(`/clienten/${clientId}`);
   redirect(`/clienten/${clientId}`);
