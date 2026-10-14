@@ -38,13 +38,13 @@ export function ClientList({ clients }: { clients: Item[] }) {
   return (
     <div className="space-y-3">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
         <Input
           type="search"
           placeholder="Zoek op naam of bedrijf"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="pl-9"
+          className="py-3 pl-10"
           aria-label="Zoek cliënten"
         />
       </div>
@@ -57,10 +57,16 @@ export function ClientList({ clients }: { clients: Item[] }) {
               <li key={c.id}>
                 <Link
                   href={`/clienten/${c.id}`}
-                  className="flex items-center gap-4 px-4 py-3.5 hover:bg-ink-50 focus-visible:bg-ink-50 sm:px-5"
+                  className="group flex items-center gap-4 px-4 py-4 hover:bg-ink-50/70 focus-visible:bg-ink-50 sm:px-6"
                 >
+                  <span
+                    aria-hidden="true"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-200 bg-ink-50 font-display text-[13px] font-semibold text-ink-800"
+                  >
+                    {(c.first_name[0] + c.last_name.split(" ").at(-1)![0]).toUpperCase()}
+                  </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-ink-900">
+                    <div className="truncate text-[15px] font-semibold text-ink-900">
                       {c.first_name} {c.last_name}
                     </div>
                     {c.company_name ? <div className="truncate text-sm text-ink-500">{c.company_name}</div> : null}
@@ -69,7 +75,7 @@ export function ClientList({ clients }: { clients: Item[] }) {
                     <span className="hidden sm:inline">Gewijzigd </span>
                     {formatDateTime(c.updated_at)}
                   </div>
-                  <ArrowRight className="h-5 w-5 shrink-0 text-ink-400" aria-hidden="true" />
+                  <ArrowRight className="h-5 w-5 shrink-0 text-gold-500 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                 </Link>
               </li>
             ))}

@@ -20,21 +20,30 @@ import type { PlanResult } from "@/lib/engine/types";
 import { formatEuro, formatEuroCompact, formatPercent } from "@/lib/format";
 
 // Validated categorical slots (dataviz reference palette, light mode).
-const SERIES = { neutraal: "#2a78d6", pessimistisch: "#eb6834", optimistisch: "#1baf7a" } as const;
-const SINGLE = "#2a78d6";
-const NEGATIVE = "#e34948";
-const GRID = "#e9edf3";
-const AXIS = "#7a89a1";
+// Validated with the dataviz palette checker (colour-blind safe, ≥ 3:1 on white).
+const SERIES = { neutraal: "#2B5FA3", optimistisch: "#C9871A", pessimistisch: "#1D9B7C" } as const;
+const SINGLE = "#2B5FA3";
+const NEGATIVE = "#A8261D";
+const GRID = "#ECE7DC";
+const AXIS = "#98938A";
 
-export function ResultsView({ result }: { result: PlanResult }) {
+export function ResultsView({
+  result,
+  insightsSlot,
+  choicesSlot,
+}: {
+  result: PlanResult;
+  insightsSlot?: React.ReactNode;
+  choicesSlot?: React.ReactNode;
+}) {
   const w = result.wealth;
   const tiles = [
-    { label: "Totaal vermogen", value: formatEuro(w.total, { whole: true }) },
-    { label: "Vermogen privé", value: formatEuro(w.prive.total, { whole: true }) },
-    { label: "Vermogen zakelijk", value: formatEuro(w.zakelijk.total, { whole: true }) },
-    { label: "Netto inkomen per jaar", value: formatEuro(result.income.net, { whole: true }) },
-    { label: "Jaarlijks saldo", value: formatEuro(result.income.balance, { whole: true }) },
-    { label: "Belastingdruk", value: formatPercent(result.taxes.effectiveRate) },
+    { label: "Totaal vermogen", value: formatEuro(w.total, { whole: true }), hint: "" },
+    { label: "Vermogen privé", value: formatEuro(w.prive.total, { whole: true }), hint: "" },
+    { label: "Vermogen zakelijk", value: formatEuro(w.zakelijk.total, { whole: true }), hint: "" },
+    { label: "Netto inkomen", value: formatEuro(result.income.net, { whole: true }), hint: "per jaar, na belasting" },
+    { label: "Saldo", value: formatEuro(result.income.balance, { whole: true }), hint: "per jaar, na uitgaven" },
+    { label: "Belastingdruk", value: formatPercent(result.taxes.effectiveRate), hint: "van het bruto inkomen" },
   ];
 
   const wealthBars = [
@@ -61,16 +70,30 @@ export function ResultsView({ result }: { result: PlanResult }) {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        {tiles.map((t) => (
-          <div key={t.label} className="rounded-xl border border-ink-200 bg-white px-4 py-3 shadow-sm">
-            <div className="text-xs text-ink-500 sm:text-sm">{t.label}</div>
-            <div className="mt-0.5 text-lg font-semibold text-ink-900 sm:text-2xl">{t.value}</div>
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-ink-200 bg-ink-200 lg:grid-cols-[1.35fr_1fr_1fr_1fr]">
+        <div className="col-span-2 bg-night px-5 py-5 text-ink-50 sm:px-6 sm:py-6 lg:col-span-1">
+          <div className="eyebrow !text-gold-500">Totaal netto vermogen</div>
+          <div className="mt-2 font-display text-[2.2rem] font-semibold leading-none tabular sm:text-[2.6rem]">{formatEuro(w.total, { whole: true })}</div>
+          <div className="mt-3 text-[13px] text-white/60">
+            privé {formatEuro(w.prive.total, { whole: true })} · zakelijk {formatEuro(w.zakelijk.total, { whole: true })}
+          </div>
+        </div>
+        {tiles.slice(3).map((t) => (
+          <div key={t.label} className="bg-white px-4 py-4 last:col-span-2 sm:px-6 sm:py-6 lg:last:col-span-1">
+            <div className="eyebrow">{t.label}</div>
+            <div className="mt-2 font-display text-[1.6rem] font-semibold leading-none text-ink-900 tabular sm:text-[2rem]">{t.value}</div>
+            <div className="mt-2 text-[12px] text-ink-500 sm:text-[13px]">{t.hint}</div>
           </div>
         ))}
       </div>
 
+      {insightsSlot}
+
       <ProjectionCard result={result} />
+
+      {choicesSlot}
+
+      {result.household.persons.length > 1 || result.gifts ? <HouseholdCard result={result} /> : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <BarCard title="Vermogen privé vs. zakelijk" description="Netto waarden vandaag" data={wealthBars} />
@@ -124,12 +147,12 @@ function BarCard({ title, description, data }: { title: string; description: str
               width={130}
               tickLine={false}
               axisLine={false}
-              tick={{ fill: "#3f4d65", fontSize: 12 }}
+              tick={{ fill: "#4a4e55", fontSize: 12 }}
             />
             <Tooltip
-              cursor={{ fill: "#f5f7fa" }}
+              cursor={{ fill: "#f5f2eb" }}
               formatter={(v) => [formatEuro(Number(v), { whole: true }), "Bedrag"]}
-              contentStyle={{ borderRadius: 8, borderColor: "#d3dae5", fontSize: 13 }}
+              contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
             />
             <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={22} isAnimationActive={false}>
               {data.map((d) => (
@@ -139,7 +162,7 @@ function BarCard({ title, description, data }: { title: string; description: str
                 dataKey="value"
                 position="right"
                 formatter={(v: unknown) => formatEuroCompact(Number(v))}
-                style={{ fill: "#2f3b50", fontSize: 12 }}
+                style={{ fill: "#33363c", fontSize: 12 }}
               />
             </Bar>
           </BarChart>
@@ -166,7 +189,7 @@ function ProjectionCard({ result }: { result: PlanResult }) {
         title="Verwachte vermogensontwikkeling"
         description={`Totaal netto vermogen, ${points[0]?.year}–${last?.year}, nominaal`}
         action={
-          <button type="button" onClick={() => setShowTable((s) => !s)} className="text-sm font-medium text-brand-600 hover:underline">
+          <button type="button" onClick={() => setShowTable((s) => !s)} className="text-sm font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2">
             {showTable ? "Toon grafiek" : "Toon als tabel"}
           </button>
         }
@@ -230,7 +253,7 @@ function ProjectionCard({ result }: { result: PlanResult }) {
                   const p = points.find((x) => x.year === year);
                   return p?.age ? `${year} · leeftijd ${p.age}` : String(year);
                 }}
-                contentStyle={{ borderRadius: 8, borderColor: "#d3dae5", fontSize: 13 }}
+                contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
               />
               {series.map((s) => (
                 <Line
@@ -249,7 +272,7 @@ function ProjectionCard({ result }: { result: PlanResult }) {
                       const { x, y, index } = props as { x: number; y: number; index: number };
                       if (index !== points.length - 1) return null;
                       return (
-                        <text x={x + 6} y={y} dy={4} fontSize={11} fill="#2f3b50">
+                        <text x={x + 6} y={y} dy={4} fontSize={11} fill="#33363c">
                           {formatEuroCompact(points[index][s.key])}
                         </text>
                       );
@@ -262,5 +285,87 @@ function ProjectionCard({ result }: { result: PlanResult }) {
         </div>
       )}
     </Card>
+  );
+}
+
+function HouseholdCard({ result }: { result: PlanResult }) {
+  const persons = result.household.persons;
+  const gifts = result.gifts;
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <Card>
+        <CardHeader
+          title="Per persoon"
+          description={
+            persons.length > 1
+              ? result.household.fiscalPartners
+                ? "Fiscaal partners: box 2 en box 3 zijn zo gunstig mogelijk verdeeld."
+                : "Geen fiscaal partners: verdeling volgens eigendom."
+              : "Eén persoon"
+          }
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm tabular">
+            <thead className="text-left text-xs text-ink-500">
+              <tr className="border-b border-ink-100">
+                <th className="px-5 py-2 font-medium">Naam</th>
+                <th className="px-3 py-2 text-right font-medium">Bruto</th>
+                <th className="px-3 py-2 text-right font-medium">Belasting</th>
+                <th className="px-5 py-2 text-right font-medium">Netto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {persons.map((p) => (
+                <tr key={p.role}>
+                  <td className="px-5 py-2.5">
+                    <div className="font-medium">{p.name}</div>
+                    <div className="text-xs text-ink-500">
+                      {p.retirementYear ? `stopt ${p.retirementYear}` : "stopmoment onbekend"} · AOW {p.aowYear ?? "—"}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-right">{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived, { whole: true })}</td>
+                  <td className="px-3 py-2.5 text-right">{formatEuro(p.box1Tax + p.box2Tax + p.box3Tax, { whole: true })}</td>
+                  <td className="px-5 py-2.5 text-right font-semibold">{formatEuro(p.net, { whole: true })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      {gifts ? (
+        <Card>
+          <CardHeader title={`Schenkingen in ${gifts.year}`} description={`Totaal gepland: ${formatEuro(gifts.totalPlanned, { whole: true })}`} />
+          {gifts.perChild.length === 0 ? (
+            <p className="px-5 py-5 text-sm text-ink-500">Dit jaar geen schenkingen gepland.</p>
+          ) : (
+            <table className="w-full text-sm tabular">
+              <thead className="text-left text-xs text-ink-500">
+                <tr className="border-b border-ink-100">
+                  <th className="px-5 py-2 font-medium">Kind</th>
+                  <th className="px-3 py-2 text-right font-medium">Schenking</th>
+                  <th className="px-3 py-2 text-right font-medium">Vrijgesteld</th>
+                  <th className="px-5 py-2 text-right font-medium">Schenkbelasting</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-100">
+                {gifts.perChild.map((c) => (
+                  <tr key={c.name}>
+                    <td className="px-5 py-2.5">
+                      {c.name}
+                      {c.age !== null ? <span className="text-ink-500"> · {c.age} jaar</span> : null}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">{formatEuro(c.amount, { whole: true })}</td>
+                    <td className="px-3 py-2.5 text-right">{formatEuro(Math.min(c.amount, c.exemption), { whole: true })}</td>
+                    <td className={`px-5 py-2.5 text-right ${c.giftTax > 0 ? "font-semibold text-warn-600" : ""}`}>
+                      {formatEuro(c.giftTax, { whole: true })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      ) : null}
+    </div>
   );
 }

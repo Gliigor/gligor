@@ -1,6 +1,7 @@
 import { requireMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PlusLink } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { FormSuccess } from "@/components/ui/form";
 import type { ClientRow } from "@/lib/plan/types";
 import { ClientList } from "./client-list";
@@ -25,14 +26,13 @@ export default async function ClientsPage({ searchParams }: PageProps<"/clienten
   const notice = typeof params.melding === "string" ? NOTICES[params.melding] : undefined;
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cliënten</h1>
-          <p className="text-sm text-ink-500">Gesorteerd op laatste wijziging</p>
-        </div>
-        <PlusLink href="/clienten/nieuw" label="Nieuwe cliënt" />
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Overzicht"
+        title="Cliënten"
+        subtitle="Gesorteerd op laatste wijziging"
+        actions={<PlusLink href="/clienten/nieuw" label="Nieuwe cliënt" />}
+      />
       {notice ? <FormSuccess message={notice} /> : null}
       {error ? <p className="text-sm text-danger-600">Cliënten konden niet worden geladen.</p> : <ClientList clients={clients} />}
     </div>

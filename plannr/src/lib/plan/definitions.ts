@@ -13,6 +13,8 @@ export const SECTION_KEYS = [
   "inkomen",
   "box3",
   "pensioen",
+  "partner",
+  "kinderen",
   "bv",
   "balans",
   "resultaat",
@@ -32,7 +34,9 @@ export const SECTIONS: SectionDef[] = [
   { key: "eigen_woning", side: "prive", label: "Eigen woning & hypotheek", description: "Box 1: WOZ-waarde, hypotheek en renteaftrek" },
   { key: "inkomen", side: "prive", label: "Inkomen & uitgaven", description: "Inkomen uit arbeid en uitgaven van het huishouden" },
   { key: "box3", side: "prive", label: "Vermogen box 3", description: "Spaargeld, beleggingen, overig onroerend goed en schulden" },
-  { key: "pensioen", side: "prive", label: "Pensioen & AOW", description: "Opgebouwd pensioen en AOW-situatie" },
+  { key: "pensioen", side: "prive", label: "Pensioen & AOW", description: "Opgebouwd pensioen; AOW wordt automatisch meegenomen" },
+  { key: "partner", side: "prive", label: "Partner", description: "Inkomen, pensioen en fiscaal partnerschap; eigendom per bezitting" },
+  { key: "kinderen", side: "prive", label: "Kinderen & schenkingen", description: "Kinderen en geplande schenkingen met vrijstellingen" },
   { key: "bv", side: "zakelijk", label: "BV / aanmerkelijk belang", description: "Box 2: BV, aandelenbezit en DGA-salaris" },
   { key: "balans", side: "zakelijk", label: "Balans BV", description: "Eigen vermogen en liquide middelen" },
   { key: "resultaat", side: "zakelijk", label: "Resultaat BV", description: "Resultaat na belasting" },
@@ -63,6 +67,8 @@ export const REPORT_SECTION_KEYS = [
   "belastingdruk",
   "rendementsscenarios",
   "zakelijk_overzicht",
+  "schenkingen",
+  "aandachtspunten",
   "toelichting",
 ] as const;
 export type ReportSectionKey = (typeof REPORT_SECTION_KEYS)[number];
@@ -74,6 +80,8 @@ export const REPORT_SECTIONS: { key: ReportSectionKey; label: string; descriptio
   { key: "belastingdruk", label: "Belastingdruk per box", description: "Indicatie box 1, 2 en 3" },
   { key: "rendementsscenarios", label: "Rendementsscenario's", description: "Verwachte vermogensontwikkeling in drie scenario's" },
   { key: "zakelijk_overzicht", label: "Zakelijk overzicht", description: "BV, balans, resultaat en dividend" },
+  { key: "schenkingen", label: "Gezin & schenkingen", description: "Partner, kinderen en geplande schenkingen" },
+  { key: "aandachtspunten", label: "Aandachtspunten", description: "Kansen en risico's om te bespreken" },
   { key: "toelichting", label: "Toelichting & uitgangspunten", description: "Aannames en disclaimer" },
 ];
 
@@ -132,18 +140,54 @@ export const PRIVE_INPUT_FIELDS: FieldDef[] = [
     required: true,
     help: "Verwachte uitkering vanaf pensioenleeftijd, exclusief AOW.",
   },
+];
+
+/** Partner fields, stored in plans.inputs.partner. */
+export const PARTNER_FIELDS: FieldDef[] = [
+  { key: "naam", label: "Voornaam partner", kind: "text", section: "partner", required: true },
   {
-    key: "aow_situatie",
-    label: "AOW-situatie",
+    key: "relatie",
+    label: "Relatie",
     kind: "select",
-    section: "pensioen",
+    section: "partner",
     required: true,
+    help: "Gehuwden, geregistreerd partners en samenwoners met een notarieel samenlevingscontract zijn fiscaal partner.",
     options: [
-      { value: "alleenstaand", label: "Alleenstaand" },
-      { value: "samenwonend", label: "Samenwonend / gehuwd" },
+      { value: "gehuwd", label: "Gehuwd / geregistreerd partner" },
+      { value: "samenwonend_fiscaal", label: "Samenwonend, fiscaal partner" },
+      { value: "samenwonend", label: "Samenwonend, geen fiscaal partner" },
     ],
   },
+  { key: "geboortejaar", label: "Geboortejaar", kind: "integer", section: "partner", required: true },
+  { key: "pensioenleeftijd", label: "Gewenste pensioenleeftijd", kind: "integer", section: "partner", required: true },
+  {
+    key: "bruto_inkomen",
+    label: "Bruto inkomen uit arbeid (per jaar)",
+    kind: "money",
+    section: "partner",
+    required: true,
+    help: "Exclusief salaris uit een eigen BV; dat vult u in bij Zakelijk.",
+  },
+  {
+    key: "pensioen_per_jaar",
+    label: "Opgebouwd pensioen (bruto per jaar)",
+    kind: "money",
+    section: "partner",
+    help: "Exclusief AOW.",
+  },
 ];
+
+export const OWNER_OPTIONS = [
+  { value: "joint", label: "Samen" },
+  { value: "client", label: "Cliënt" },
+  { value: "partner", label: "Partner" },
+] as const;
+export type OwnerValue = (typeof OWNER_OPTIONS)[number]["value"];
+
+export const GIFT_KINDS = [
+  { value: "jaarlijks", label: "Jaarlijkse schenking" },
+  { value: "eenmalig_verhoogd", label: "Eenmalig verhoogde vrijstelling (18–40 jaar)" },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Asset types

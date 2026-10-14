@@ -72,7 +72,7 @@ export function RegisterForm({ invitedEmail }: { invitedEmail?: string }) {
       </SubmitButton>
       <p className="text-center text-sm text-ink-500">
         Al een account?{" "}
-        <Link href="/inloggen" className="font-medium text-brand-600 hover:underline">
+        <Link href="/inloggen" className="font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2">
           Inloggen
         </Link>
       </p>

@@ -64,6 +64,16 @@ begin
     'asset change touches client.updated_at';
 end $$;
 
+do $$
+declare n int;
+begin
+  assert (select not ai_extraction_enabled from public.firms), 'AI reader is off by default';
+  update public.firms set ai_extraction_enabled = true, ai_extraction_changed_at = now();
+  get diagnostics n = row_count;
+  assert n = 1, 'owner can switch on the AI reader';
+  update public.firms set ai_extraction_enabled = false;
+end $$;
+
 -- ---------------------------------------------------------------------------
 -- Planner A sees firm A data; owner-only actions are blocked.
 -- ---------------------------------------------------------------------------
@@ -80,6 +90,10 @@ begin
   update public.house_styles set primary_color = '#000000';
   get diagnostics n = row_count;
   assert n = 0, 'planner cannot change house style';
+
+  update public.firms set ai_extraction_enabled = true;
+  get diagnostics n = row_count;
+  assert n = 0, 'planner cannot switch on the AI reader';
 
   begin
     insert into public.invitations (firm_id, email, invited_by) values (public.current_firm_id(), 'x@a.nl', auth.uid());

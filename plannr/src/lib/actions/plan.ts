@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { ASSET_TYPES, getAssetType, isStepKey, PRIVE_INPUT_FIELDS, REPORT_SECTION_KEYS } from "@/lib/plan/definitions";
+import { ASSET_TYPES, getAssetType, isStepKey, REPORT_SECTION_KEYS } from "@/lib/plan/definitions";
 import { isAssetTypeRelevant } from "@/lib/plan/status";
-import { sanitizeAssetPatch, sanitizeKeyList, sanitizePriveInputs } from "@/lib/plan/sanitize";
+import { sanitizeAssetPatch, sanitizeKeyList, sanitizePlanInputs } from "@/lib/plan/sanitize";
 import {
   DEFAULT_PLAN_CONFIG,
   normalizeAsset,
@@ -61,7 +61,7 @@ export async function createPlanAction(clientId: string, _prev: { error?: string
       client_id: clientId,
       title,
       config: DEFAULT_PLAN_CONFIG,
-      inputs: { prive: {}, fromDocument: [] },
+      inputs: { prive: {}, partner: {}, kinderen: [], schenkingen: [], fromDocument: [] },
       created_by: member.userId,
     })
     .select("id")
@@ -101,8 +101,8 @@ export async function updatePlanConfig(planId: string, raw: unknown) {
   if (!plan) return { ok: false };
   const current = parsePlanConfig(plan.config);
   const incoming = parsePlanConfig(raw);
-  // visitedSteps is owned by the server.
-  const config: PlanConfig = { ...incoming, visitedSteps: current.visitedSteps };
+  // visitedSteps and hiddenInsights are changed by their own actions.
+  const config: PlanConfig = { ...incoming, visitedSteps: current.visitedSteps, hiddenInsights: current.hiddenInsights };
   const { error } = await supabase.from("plans").update({ config }).eq("id", planId);
   if (error) return { ok: false };
   await ensureRequiredRows(supabase, member.firm.id, planId, config);
@@ -123,6 +123,17 @@ export async function updateReportSections(planId: string, sections: unknown) {
   return { ok: !error };
 }
 
+export async function updateHiddenInsights(planId: string, hidden: unknown) {
+  await requireMember();
+  const supabase = await createClient();
+  const { data: plan } = await supabase.from("plans").select("config").eq("id", planId).single();
+  if (!plan) return { ok: false };
+  const config = parsePlanConfig({ ...(plan.config as object), hiddenInsights: hidden });
+  const { error } = await supabase.from("plans").update({ config }).eq("id", planId);
+  revalidatePlan();
+  return { ok: !error };
+}
+
 export async function markStepVisited(planId: string, step: string) {
   await requireMember();
   if (!isStepKey(step)) return;
@@ -136,13 +147,10 @@ export async function markStepVisited(planId: string, step: string) {
   revalidatePlan();
 }
 
-export async function updatePriveInputs(planId: string, prive: unknown, fromDocument: unknown) {
+export async function updatePlanInputs(planId: string, raw: unknown) {
   await requireMember();
   const supabase = await createClient();
-  const inputs = {
-    prive: sanitizePriveInputs(prive),
-    fromDocument: sanitizeKeyList(fromDocument, PRIVE_INPUT_FIELDS.map((f) => f.key)),
-  };
+  const inputs = sanitizePlanInputs(raw);
   const { error } = await supabase.from("plans").update({ inputs }).eq("id", planId);
   if (error) return { ok: false };
   await markInProgress(supabase, planId);

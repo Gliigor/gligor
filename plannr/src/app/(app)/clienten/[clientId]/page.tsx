@@ -4,8 +4,9 @@ import { requireMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { PlusLink } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader, EmptyState } from "@/components/ui/card";
-import { ArrowLeft, ArrowRight, Download, FileText } from "@/components/ui/icons";
+import { ArrowRight, Download, FileText } from "@/components/ui/icons";
 import { formatDateTime, fullName } from "@/lib/format";
 import { PLAN_STATUS_LABELS, type ClientRow, type PlanStatus } from "@/lib/plan/types";
 import { Notes, type NoteItem } from "./notes";
@@ -67,18 +68,13 @@ export default async function ClientPage({ params }: PageProps<"/clienten/[clien
   history.sort((a, b) => b.at.localeCompare(a.at));
 
   return (
-    <div className="space-y-6">
-      <Link href="/clienten" className="inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-800">
-        <ArrowLeft className="h-4 w-4" /> Cliënten
-      </Link>
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">{fullName(client)}</h1>
-          {client.company_name ? <p className="text-ink-500">{client.company_name}</p> : null}
-        </div>
-        <ClientSettings client={client} canDelete={member.isOwner} />
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        back={{ href: "/clienten", label: "Cliënten" }}
+        eyebrow={client.company_name ?? "Cliënt"}
+        title={fullName(client)}
+        actions={<ClientSettings client={client} canDelete={member.isOwner} />}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <div className="space-y-6">
@@ -86,7 +82,7 @@ export default async function ClientPage({ params }: PageProps<"/clienten/[clien
             <CardHeader
               title="Plannen"
               description="Elk plan blijft altijd bewerkbaar."
-              action={<PlusLink href={`/clienten/${clientId}/plannen/nieuw`} label="Nieuw plan" />}
+              action={<PlusLink href={`/clienten/${clientId}/plannen/nieuw`} label="Nieuw plan" compact />}
             />
             {plans && plans.length > 0 ? (
               <ul className="divide-y divide-ink-100">

@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { requireMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getAiReaderStatus } from "@/lib/extraction/ai/config";
 import { extractDocument } from "@/lib/extraction/extract-document";
 import { planExtractionChanges } from "@/lib/extraction/apply";
 import { getAssetType } from "@/lib/plan/definitions";
 import { loadPlan } from "@/lib/plan/load";
-import { sanitizeAssetPatch } from "@/lib/plan/sanitize";
+import { sanitizeAssetPatch, sanitizePlanInputs } from "@/lib/plan/sanitize";
 import type { DocumentType } from "@/lib/plan/types";
 
 export interface RegisterResult {
@@ -15,6 +16,7 @@ export interface RegisterResult {
   error?: string;
   appliedCount?: number;
   notes?: string[];
+  method?: "voorbeeld" | "ai";
 }
 
 /**
@@ -51,10 +53,12 @@ export async function registerDocument(
   try {
     const { data: blob, error: downloadError } = await supabase.storage.from("documents").download(input.path);
     if (downloadError || !blob) throw new Error("download");
-    const extracted = await extractDocument(new File([blob], fileName, { type: blob.type }), input.type);
+    const reader = getAiReaderStatus();
+    const ai = member.firm.ai_extraction_enabled && reader.configured ? reader.config : null;
+    const extracted = await extractDocument(new File([blob], fileName, { type: blob.type }), input.type, ai);
     const changes = planExtractionChanges(extracted, bundle.config, bundle.inputs, bundle.assets);
 
-    if (changes.inputs) await supabase.from("plans").update({ inputs: changes.inputs }).eq("id", planId);
+    if (changes.inputs) await supabase.from("plans").update({ inputs: sanitizePlanInputs(changes.inputs) }).eq("id", planId);
     for (const u of changes.updates) {
       const type = bundle.assets.find((a) => a.id === u.id)!.type;
       await supabase
@@ -86,8 +90,10 @@ export async function registerDocument(
     await supabase.from("plans").update({ status: "in_bewerking" }).eq("id", planId).eq("status", "concept");
 
     revalidatePath("/clienten/[clientId]/plannen/[planId]", "layout");
-    return { ok: true, appliedCount: changes.appliedCount, notes: extracted.notes };
-  } catch {
+    return { ok: true, appliedCount: changes.appliedCount, notes: extracted.notes, method: extracted.method };
+  } catch (err) {
+    // Never log the document or the model's answer; the error type is enough.
+    console.error("document extraction failed:", err instanceof Error ? err.name : typeof err, (err as { status?: number })?.status ?? "");
     await supabase.from("documents").update({ extraction_status: "mislukt" }).eq("id", doc.id);
     revalidatePath("/clienten/[clientId]/plannen/[planId]", "layout");
     return { ok: false, error: "Het document is opgeslagen, maar kon niet worden uitgelezen. Vul de gegevens handmatig in." };

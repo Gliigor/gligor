@@ -1,8 +1,7 @@
-import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { toHouseStyle } from "@/lib/house-style/types";
-import { ArrowLeft } from "@/components/ui/icons";
 import { HouseStyleEditor } from "./house-style-editor";
 
 export const metadata = { title: "Huisstijl" };
@@ -19,17 +18,13 @@ export default async function HouseStylePage() {
   }
 
   return (
-    <div className="space-y-5">
-      <Link href="/instellingen" className="inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-800">
-        <ArrowLeft className="h-4 w-4" /> Instellingen
-      </Link>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Huisstijl</h1>
-        <p className="text-sm text-ink-500">
-          Geldt automatisch voor elk rapport dat iemand van {member.firm.name} exporteert. Eerder geëxporteerde rapporten
-          blijven ongewijzigd.
-        </p>
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        back={{ href: "/instellingen", label: "Instellingen" }}
+        eyebrow="Rapporten"
+        title="Huisstijl"
+        subtitle={`Geldt automatisch voor elk rapport dat iemand van ${member.firm.name} exporteert. Eerder geëxporteerde rapporten blijven ongewijzigd.`}
+      />
       <HouseStyleEditor firmId={member.firm.id} firmName={member.firm.name} initial={style} logoUrl={logoUrl} website={member.firm.website_url ?? ""} />
     </div>
   );

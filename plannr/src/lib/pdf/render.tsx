@@ -5,7 +5,7 @@ import path from "node:path";
 import { Font, renderToBuffer } from "@react-pdf/renderer";
 import { FONT_OPTIONS } from "@/lib/house-style/fonts";
 import type { HouseStyle } from "@/lib/house-style/types";
-import { ReportDocument, type ReportData, type ReportLogo } from "./report";
+import { ReportDocument, type ReportData, type ReportLogo, type SectionPages } from "./report";
 
 let fontsRegistered = false;
 
@@ -26,9 +26,24 @@ function registerFonts() {
   fontsRegistered = true;
 }
 
+/**
+ * Renders twice: the first pass records on which page each section starts,
+ * the second pass prints those page numbers in the table of contents.
+ */
 export async function renderReportPdf(data: ReportData, style: HouseStyle, logo?: ReportLogo | null): Promise<Buffer> {
   registerFonts();
-  return renderToBuffer(<ReportDocument data={data} style={style} logo={logo} />);
+  const pages: SectionPages = {};
+  await renderToBuffer(
+    <ReportDocument
+      data={data}
+      style={style}
+      logo={logo}
+      onSectionPage={(key, page) => {
+        if (!pages[key]) pages[key] = page;
+      }}
+    />,
+  );
+  return renderToBuffer(<ReportDocument data={data} style={style} logo={logo} sectionPages={pages} />);
 }
 
 /** Detects PNG/JPEG from magic bytes (logos are restricted to these types). */

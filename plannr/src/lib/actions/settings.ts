@@ -8,6 +8,7 @@ import { siteUrl } from "@/lib/site-url";
 import { isFontName } from "@/lib/house-style/fonts";
 import { generateHouseStyleFromWebsite, type StyleSuggestion } from "@/lib/house-style/generate-from-website";
 import { isHexColor, isLayoutVariant } from "@/lib/house-style/types";
+import { getAiReaderStatus } from "@/lib/extraction/ai/config";
 
 // Every action here starts with requireOwner(): owner-only rules are enforced
 // on the server (and again by RLS in the database), not just hidden in the UI.
@@ -142,4 +143,19 @@ export async function suggestFromWebsiteAction(website: string): Promise<ActionR
     const message = e instanceof Error && /adres|website|toegestaan/.test(e.message) ? e.message : "De website kon niet worden geanalyseerd.";
     return { ok: false, error: message };
   }
+}
+
+export async function setAiReaderAction(enabled: boolean): Promise<ActionResult> {
+  const member = await requireOwner();
+  if (enabled && !getAiReaderStatus().configured) {
+    return { ok: false, error: "De AI-lezer is op deze server nog niet ingesteld." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("firms")
+    .update({ ai_extraction_enabled: enabled, ai_extraction_changed_at: new Date().toISOString() })
+    .eq("id", member.firm.id);
+  if (error) return { ok: false, error: "Opslaan is niet gelukt." };
+  revalidatePath("/", "layout");
+  return { ok: true, message: enabled ? "Automatisch uitlezen staat aan." : "Automatisch uitlezen staat uit." };
 }

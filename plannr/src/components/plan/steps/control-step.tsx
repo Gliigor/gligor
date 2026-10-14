@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { AlertTriangle, Check, FileText, Plus, Trash2 } from "@/components/ui/icons";
-import { addAsset, deleteAsset, updateAsset, updatePriveInputs } from "@/lib/actions/plan";
+import { addAsset, deleteAsset, updateAsset, updatePlanInputs } from "@/lib/actions/plan";
 import {
   ASSET_TYPES,
+  OWNER_OPTIONS,
   PRIVE_INPUT_FIELDS,
   SECTIONS,
   type AssetTypeDef,
@@ -20,6 +21,9 @@ import { findMissingFields, isFieldVisible } from "@/lib/plan/status";
 import type { AssetRow, PlanConfig, PlanInputs } from "@/lib/plan/types";
 import { formatEuro } from "@/lib/format";
 import { FieldInput, FieldShell, NumberInput } from "../fields";
+import { ownerOf } from "@/lib/plan/to-engine-input";
+import { inputClass } from "@/components/ui/form";
+import { ChildrenCard, PartnerCard } from "./household-cards";
 import { SaveIndicator, useAutosave } from "../use-autosave";
 
 const domId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -54,13 +58,17 @@ export function ControlStep({
     sideAssets.reduce((n, a) => n + (a.metadata._fromDocument?.length ?? 0), 0);
 
   // --- mutations ---------------------------------------------------------------
+  function saveInputs(next: PlanInputs) {
+    setInputs(next);
+    schedule("inputs", () => updatePlanInputs(planId, next));
+  }
+
   function setInput(key: string, value: number | string | null) {
-    const next: PlanInputs = {
+    saveInputs({
+      ...inputs,
       prive: { ...inputs.prive, [key]: value },
       fromDocument: inputs.fromDocument.filter((k) => k !== key),
-    };
-    setInputs(next);
-    schedule("inputs", () => updatePriveInputs(planId, next.prive, next.fromDocument));
+    });
   }
 
   function patchAsset(id: string, patch: { label?: string; value?: number | null; meta?: [string, unknown] }) {
@@ -103,6 +111,24 @@ export function ControlStep({
       </Card>
     );
   }
+
+  const ownerSelect = (row: AssetRow, bv = false) =>
+    config.sections.partner ? (
+      <FieldShell id={domId(`asset.${row.id}.eigenaar`)} label={bv ? "Aandelen van" : "Eigenaar"}>
+        <select
+          id={domId(`asset.${row.id}.eigenaar`)}
+          className={inputClass}
+          value={ownerOf(row)}
+          onChange={(e) => patchAsset(row.id, { meta: ["eigenaar", e.target.value] })}
+        >
+          {OWNER_OPTIONS.filter((o) => !bv || o.value !== "joint").map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.value === "partner" && inputs.partner.naam ? inputs.partner.naam : o.label}
+            </option>
+          ))}
+        </select>
+      </FieldShell>
+    ) : null;
 
   const inputField = (field: FieldDef) => {
     const id = `input.${field.key}`;
@@ -186,6 +212,7 @@ export function ControlStep({
                 </FieldShell>
               ) : null}
               {def.metadataFields.filter((f) => f.section === section && isFieldVisible(f, config)).map((f) => metaField(row, f))}
+              {def.side === "prive" && def.type !== "hypotheek" ? ownerSelect(row) : null}
             </div>
             {def.multiple ? (
               <div className="mt-2 flex justify-end">
@@ -231,8 +258,12 @@ export function ControlStep({
         </Card>
       ) : null}
 
+      {side === "prive" && config.sections.partner ? (
+        <PartnerCard inputs={inputs} missingIds={missingIds} onChange={saveInputs} />
+      ) : null}
+
       {side === "prive"
-        ? sections.map((section) => {
+        ? sections.filter((section) => section.key !== "partner" && section.key !== "kinderen").map((section) => {
             const fields = PRIVE_INPUT_FIELDS.filter((f) => f.section === section.key);
             const types = ASSET_TYPES.filter((t) => t.side === "prive" && t.sections[0] === section.key);
             return (
@@ -261,6 +292,7 @@ export function ControlStep({
                   description="Box 2 — aanmerkelijk belang"
                 />
                 <div className="space-y-5 p-4 sm:p-5">
+                  {config.sections.partner ? <div className="max-w-xs">{ownerSelect(row, true)}</div> : null}
                   {sections.map((section) => {
                     const fields = def.metadataFields.filter((f) => f.section === section.key);
                     if (fields.length === 0) return null;
@@ -285,6 +317,10 @@ export function ControlStep({
               </Card>
             ));
           })}
+
+      {side === "prive" && config.sections.kinderen ? (
+        <ChildrenCard inputs={inputs} missingIds={missingIds} referenceYear={new Date().getFullYear()} onChange={saveInputs} />
+      ) : null}
     </div>
   );
 }

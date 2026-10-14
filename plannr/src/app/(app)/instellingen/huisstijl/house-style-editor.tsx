@@ -279,7 +279,7 @@ export function HouseStyleEditor({
                 <div className="space-y-2 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold">{v.label}</span>
-                    <a href={src} target="_blank" rel="noopener" className="text-xs font-medium text-brand-600 hover:underline">
+                    <a href={src} target="_blank" rel="noopener" className="text-xs font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2">
                       Volledig bekijken (PDF)
                     </a>
                   </div>

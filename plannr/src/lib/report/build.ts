@@ -4,6 +4,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculatePlan } from "@/lib/engine";
+import { deriveInsights } from "@/lib/insights";
 import { toHouseStyle, type HouseStyle } from "@/lib/house-style/types";
 import type { ReportSectionKey } from "@/lib/plan/definitions";
 import { toEngineInput } from "@/lib/plan/to-engine-input";
@@ -43,14 +44,16 @@ export async function buildReport(
 
   const config = parsePlanConfig(plan.config);
   const now = opts.now ?? new Date();
-  const result = await calculatePlan(
-    toEngineInput({
-      config,
-      inputs: parsePlanInputs(plan.inputs),
-      assets: (assets ?? []).map((a) => normalizeAsset(a)),
-      referenceYear: now.getFullYear(),
-    }),
-  );
+  const engineInput = toEngineInput({
+    config,
+    inputs: parsePlanInputs(plan.inputs),
+    assets: (assets ?? []).map((a) => normalizeAsset(a)),
+    referenceYear: now.getFullYear(),
+    clientName: client.first_name,
+  });
+  const result = await calculatePlan(engineInput);
+  const hidden = new Set(config.hiddenInsights);
+  const insights = deriveInsights(engineInput, result).filter((i) => !hidden.has(i.id));
   const style = toHouseStyle(hs);
 
   return {
@@ -59,13 +62,20 @@ export async function buildReport(
     logo: await loadLogo(supabase, style.logoPath),
     data: {
       firmName: firm.name,
-      clientName: fullName(client),
+      clientName:
+        result.household.persons.length > 1
+          ? `${fullName(client)} en ${result.household.persons[1].name}`
+          : fullName(client),
       companyName: client.company_name,
       planTitle: plan.title,
       plannerName: opts.plannerName ?? null,
       generatedAt: now,
       result,
-      sections: opts.sections ?? config.reportSections,
+      // A family section only makes sense with a partner or children.
+      sections: (opts.sections ?? config.reportSections).filter(
+        (k) => k !== "schenkingen" || result.household.persons.length > 1 || result.gifts !== null,
+      ),
+      insights,
     },
   };
 }

@@ -1,10 +1,16 @@
 // Client-facing PDF report, rendered server-side with React-PDF in the firm's
-// house style. All numbers come from a PlanResult (i.e. from calculatePlan()).
+// house style. All numbers come from a PlanResult (i.e. from calculatePlan());
+// the "Aandachtspunten" come from the deterministic rules in src/lib/insights.
+//
+// Structure: colour cover → contents → one section per page group, each with a
+// numbered opener. Page numbers in the contents are filled in by a two-pass
+// render (see renderReportPdf in ./render.tsx).
 
-import { Document, Image, Page, Polyline, StyleSheet, Svg, Line as SvgLine, Text, View } from "@react-pdf/renderer";
+import { Circle, Document, Image, Page, Polyline, StyleSheet, Svg, Line as SvgLine, Text, View } from "@react-pdf/renderer";
 import type { PlanResult } from "@/lib/engine/types";
 import type { HouseStyle } from "@/lib/house-style/types";
-import type { ReportSectionKey } from "@/lib/plan/definitions";
+import { INSIGHT_TONE_LABELS, type Insight, type InsightTone } from "@/lib/insights";
+import { REPORT_SECTIONS, type ReportSectionKey } from "@/lib/plan/definitions";
 import { formatDate, formatEuro, formatEuroCompact, formatPercent } from "@/lib/format";
 
 export interface ReportData {
@@ -16,6 +22,8 @@ export interface ReportData {
   generatedAt: Date;
   result: PlanResult;
   sections: ReportSectionKey[];
+  /** Aandachtspunten shown in the report (already filtered by the planner). */
+  insights: Insight[];
 }
 
 export interface ReportLogo {
@@ -23,70 +31,122 @@ export interface ReportLogo {
   format: "png" | "jpg";
 }
 
-const TEXT = "#1f2328";
-const MUTED = "#5b6472";
-const RULE = "#e3e6ea";
-const NEGATIVE = "#b42323";
+/** Page on which each section starts; filled by the first render pass. */
+export type SectionPages = Partial<Record<ReportSectionKey, number>>;
 
-/** Mixes a hex color with white. amount 0 = color, 1 = white. */
-export function tint(hex: string, amount: number): string {
+const TEXT = "#1d2129";
+const MUTED = "#5d6573";
+const SUBTLE = "#8a93a3";
+const RULE = "#e2e5ea";
+const PAPER = "#f6f5f2";
+const NEGATIVE = "#b42323";
+const TONE_COLORS: Record<InsightTone, string> = { aandacht: "#b7791f", kans: "#2f7d55", info: "#5d6573" };
+
+// --- colour helpers -----------------------------------------------------------
+
+function rgb(hex: string) {
   const n = parseInt(hex.slice(1), 16);
-  const mix = (c: number) => Math.round(c + (255 - c) * amount);
-  const r = mix((n >> 16) & 255);
-  const g = mix((n >> 8) & 255);
-  const b = mix(n & 255);
-  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
+/** Mixes a hex colour with white. amount 0 = colour, 1 = white. */
+export function tint(hex: string, amount: number): string {
+  const { r, g, b } = rgb(hex);
+  const mix = (c: number) => Math.round(c + (255 - c) * amount);
+  return `#${((1 << 24) | (mix(r) << 16) | (mix(g) << 8) | mix(b)).toString(16).slice(1)}`;
+}
+
+/** Mixes a hex colour with black. */
+function shade(hex: string, amount: number): string {
+  const { r, g, b } = rgb(hex);
+  const mix = (c: number) => Math.round(c * (1 - amount));
+  return `#${((1 << 24) | (mix(r) << 16) | (mix(g) << 8) | mix(b)).toString(16).slice(1)}`;
+}
+
+function luminance(hex: string): number {
+  const { r, g, b } = rgb(hex);
+  const ch = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
+}
+
+/** Readable text colours on a given background. */
+function onColor(bg: string) {
+  const dark = luminance(bg) > 0.45;
+  return dark ? { text: "#14171c", soft: "#3a404b" } : { text: "#ffffff", soft: tint(bg, 0.72) };
+}
+
+/** A dark, legible version of the brand colour for headings on white. */
+function inkOf(hex: string): string {
+  return luminance(hex) > 0.3 ? shade(hex, 0.45) : hex;
+}
+
+/** Ends a sentence without doubling the full stop of names like "B.V.". */
+function withFullStop(text: string): string {
+  return text.endsWith(".") ? text : `${text}.`;
+}
+
+// --- styles -------------------------------------------------------------------
+
 function makeStyles(hs: HouseStyle) {
-  const v = hs.layoutVariant;
+  const ink = inkOf(hs.primaryColor);
   return StyleSheet.create({
     page: {
       fontFamily: hs.fontBody,
-      fontSize: 10,
+      fontSize: 9.5,
       color: TEXT,
-      paddingTop: v === "minimalistisch" ? 64 : 56,
+      paddingTop: 78,
       paddingBottom: 64,
-      paddingHorizontal: v === "minimalistisch" ? 64 : 52,
-      lineHeight: 1.45,
+      paddingHorizontal: 56,
+      lineHeight: 1.5,
     },
-    h2: {
-      fontFamily: hs.fontHeading,
-      fontWeight: 700,
-      fontSize: v === "minimalistisch" ? 11 : 16,
-      color: hs.primaryColor,
-      textTransform: v === "minimalistisch" ? "uppercase" : "none",
-      letterSpacing: v === "minimalistisch" ? 1.5 : 0,
-      marginBottom: 10,
-      ...(v === "klassiek" ? { paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: hs.primaryColor } : {}),
-      ...(v === "modern" ? { paddingLeft: 8, borderLeftWidth: 4, borderLeftColor: hs.accentColor } : {}),
-    },
-    section: { marginBottom: 22 },
-    lead: { color: MUTED, marginBottom: 10 },
-    row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: RULE },
-    rowTotal: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, marginTop: 2 },
-    cellLabel: { flex: 1, paddingRight: 8 },
-    cellValue: { width: 110, textAlign: "right" },
-    bold: { fontWeight: 700 },
-    footer: {
-      position: "absolute",
-      bottom: 28,
-      left: v === "minimalistisch" ? 64 : 52,
-      right: v === "minimalistisch" ? 64 : 52,
+    lead: { color: MUTED, marginBottom: 12, fontSize: 10, lineHeight: 1.55 },
+    h3: { fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 11.5, color: ink, marginBottom: 6, marginTop: 4 },
+    row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 0.5, borderBottomColor: RULE },
+    rowTotal: {
       flexDirection: "row",
       justifyContent: "space-between",
-      fontSize: 7.5,
-      color: MUTED,
-      borderTopWidth: v === "minimalistisch" ? 0 : 0.5,
-      borderTopColor: RULE,
-      paddingTop: 6,
+      paddingVertical: 6,
+      marginTop: 2,
+      borderTopWidth: 1,
+      borderTopColor: TEXT,
     },
+    cellLabel: { flex: 1, paddingRight: 8 },
+    cellValue: { width: 96, textAlign: "right" },
+    bold: { fontWeight: 700 },
+    section: { marginBottom: 20 },
+    ink: { color: ink },
   });
 }
 
 type Styles = ReturnType<typeof makeStyles>;
 
-// --- building blocks -------------------------------------------------------
+// --- building blocks -----------------------------------------------------------
+
+function LogoPlate({ logo, firmName, hs, size = "lg" }: { logo?: ReportLogo | null; firmName: string; hs: HouseStyle; size?: "lg" | "sm" }) {
+  if (!logo) {
+    return (
+      <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: size === "lg" ? 15 : 9 }}>{firmName}</Text>
+    );
+  }
+  return (
+    <View
+      style={{
+        backgroundColor: "#ffffff",
+        paddingVertical: size === "lg" ? 14 : 0,
+        paddingHorizontal: size === "lg" ? 18 : 0,
+        borderRadius: 3,
+        alignSelf: "flex-start",
+      }}
+    >
+      {/* React-PDF's Image has no alt attribute (PDF images are not HTML). */}
+      {/* eslint-disable-next-line jsx-a11y/alt-text */}
+      <Image src={logo} style={{ maxWidth: size === "lg" ? 180 : 90, maxHeight: size === "lg" ? 60 : 22, objectFit: "contain" }} />
+    </View>
+  );
+}
 
 function Table({ rows, s, total }: { rows: [string, number][]; s: Styles; total?: [string, number] }) {
   return (
@@ -110,22 +170,22 @@ function Table({ rows, s, total }: { rows: [string, number][]; s: Styles; total?
 function Bars({ data, color }: { data: { label: string; value: number }[]; color: string }) {
   const max = Math.max(1, ...data.map((d) => Math.abs(d.value)));
   return (
-    <View style={{ marginTop: 8 }}>
+    <View style={{ marginTop: 12 }}>
       {data.map((d) => (
-        <View key={d.label} style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }} wrap={false}>
-          <Text style={{ width: 120, fontSize: 9, color: MUTED }}>{d.label}</Text>
+        <View key={d.label} style={{ flexDirection: "row", alignItems: "center", marginBottom: 7 }} wrap={false}>
+          <Text style={{ width: 118, fontSize: 8.5, color: MUTED }}>{d.label}</Text>
           <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
             <View
               style={{
                 width: `${Math.max(1, (Math.abs(d.value) / max) * 100)}%`,
-                maxWidth: "78%",
-                height: 12,
+                maxWidth: "80%",
+                height: 11,
                 backgroundColor: d.value < 0 ? NEGATIVE : color,
-                borderTopRightRadius: 3,
-                borderBottomRightRadius: 3,
+                borderTopRightRadius: 2,
+                borderBottomRightRadius: 2,
               }}
             />
-            <Text style={{ fontSize: 9, marginLeft: 6 }}>{formatEuroCompact(d.value)}</Text>
+            <Text style={{ fontSize: 8.5, marginLeft: 6 }}>{formatEuroCompact(d.value)}</Text>
           </View>
         </View>
       ))}
@@ -141,15 +201,18 @@ function Tiles({ items, hs }: { items: { label: string; value: string }[]; hs: H
         <View key={t.label} style={{ width: "33.33%", padding: 4 }} wrap={false}>
           <View
             style={{
-              padding: 10,
-              borderRadius: v === "modern" ? 6 : 2,
-              backgroundColor: v === "modern" ? tint(hs.primaryColor, 0.9) : v === "klassiek" ? "#f7f7f5" : "#ffffff",
+              paddingVertical: 10,
+              paddingHorizontal: 11,
+              backgroundColor: v === "minimalistisch" ? "#ffffff" : v === "modern" ? tint(hs.primaryColor, 0.92) : PAPER,
+              borderLeftWidth: v === "klassiek" ? 2 : 0,
+              borderLeftColor: hs.accentColor,
               borderWidth: v === "minimalistisch" ? 0.5 : 0,
               borderColor: RULE,
+              borderRadius: v === "modern" ? 4 : 0,
             }}
           >
-            <Text style={{ fontSize: 8, color: MUTED }}>{t.label}</Text>
-            <Text style={{ fontSize: 13, fontWeight: 700, color: v === "minimalistisch" ? TEXT : hs.primaryColor, marginTop: 2 }}>
+            <Text style={{ fontSize: 7.5, color: MUTED, textTransform: "uppercase", letterSpacing: 0.6 }}>{t.label}</Text>
+            <Text style={{ fontFamily: hs.fontHeading, fontSize: 14, fontWeight: 700, color: inkOf(hs.primaryColor), marginTop: 3 }}>
               {t.value}
             </Text>
           </View>
@@ -160,15 +223,15 @@ function Tiles({ items, hs }: { items: { label: string; value: string }[]; hs: H
 }
 
 function ProjectionChart({ result, hs }: { result: PlanResult; hs: HouseStyle }) {
-  const W = 490;
-  const H = 190;
+  const W = 483;
+  const H = 200;
   const padL = 56;
-  const padR = 64;
+  const padR = 62;
   const padT = 8;
   const padB = 20;
   const pts = result.projection.points;
   const keys = ["optimistisch", "neutraal", "pessimistisch"] as const;
-  const colors = { optimistisch: hs.accentColor, neutraal: hs.primaryColor, pessimistisch: hs.secondaryColor };
+  const colors = { optimistisch: hs.accentColor, neutraal: inkOf(hs.primaryColor), pessimistisch: hs.secondaryColor };
   const values = pts.flatMap((p) => keys.map((k) => p[k]));
   const min = Math.min(0, ...values);
   const max = Math.max(1, ...values);
@@ -176,6 +239,7 @@ function ProjectionChart({ result, hs }: { result: PlanResult; hs: HouseStyle })
   const y = (v: number) => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => min + f * (max - min));
   const sc = result.projection.scenarios;
+  const retireIndex = result.retirement.retirementYear ? pts.findIndex((p) => p.year === result.retirement.retirementYear) : -1;
 
   return (
     <View wrap={false}>
@@ -183,7 +247,7 @@ function ProjectionChart({ result, hs }: { result: PlanResult; hs: HouseStyle })
         {keys.map((k) => (
           <View key={k} style={{ flexDirection: "row", alignItems: "center", marginRight: 14 }}>
             <View style={{ width: 12, height: 2, backgroundColor: colors[k], marginRight: 4 }} />
-            <Text style={{ fontSize: 8, color: MUTED }}>
+            <Text style={{ fontSize: 7.5, color: MUTED }}>
               {sc[k].label} ({formatPercent(sc[k].returnRate)})
             </Text>
           </View>
@@ -193,6 +257,14 @@ function ProjectionChart({ result, hs }: { result: PlanResult; hs: HouseStyle })
         {ticks.map((t) => (
           <SvgLine key={t} x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={RULE} strokeWidth={0.5} />
         ))}
+        {retireIndex > 0 ? (
+          <SvgLine x1={x(retireIndex)} x2={x(retireIndex)} y1={padT} y2={H - padB} stroke={SUBTLE} strokeWidth={0.5} strokeDasharray="2 2" />
+        ) : null}
+        {retireIndex > 0 ? (
+          <Text x={x(retireIndex) + 3} y={padT + 8} style={{ fontSize: 6.5, fill: SUBTLE }}>
+            pensioen
+          </Text>
+        ) : null}
         {ticks.map((t) => (
           <Text key={`l${t}`} x={padL - 6} y={y(t) + 3} style={{ fontSize: 7, fill: MUTED }} textAnchor="end">
             {formatEuroCompact(t)}
@@ -213,7 +285,7 @@ function ProjectionChart({ result, hs }: { result: PlanResult; hs: HouseStyle })
             key={k}
             points={pts.map((p, i) => `${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join(" ")}
             stroke={colors[k]}
-            strokeWidth={k === "neutraal" ? 2 : 1.5}
+            strokeWidth={k === "neutraal" ? 2 : 1.4}
             fill="none"
           />
         ))}
@@ -227,152 +299,447 @@ function ProjectionChart({ result, hs }: { result: PlanResult; hs: HouseStyle })
   );
 }
 
-// --- sections ----------------------------------------------------------------
+function InsightCard({ insight, hs }: { insight: Insight; hs: HouseStyle }) {
+  const color = TONE_COLORS[insight.tone];
+  return (
+    <View
+      wrap={false}
+      style={{
+        flexDirection: "row",
+        marginBottom: 9,
+        borderLeftWidth: 2.5,
+        borderLeftColor: color,
+        backgroundColor: hs.layoutVariant === "minimalistisch" ? "#ffffff" : PAPER,
+        borderWidth: hs.layoutVariant === "minimalistisch" ? 0.5 : 0,
+        borderColor: RULE,
+        paddingVertical: 9,
+        paddingHorizontal: 11,
+      }}
+    >
+      <View style={{ flex: 1, paddingRight: 10 }}>
+        <Text style={{ fontSize: 7, color, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700 }}>
+          {INSIGHT_TONE_LABELS[insight.tone]}
+        </Text>
+        <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 11, marginTop: 2, marginBottom: 3 }}>{insight.title}</Text>
+        <Text style={{ color: MUTED, fontSize: 9 }}>{insight.body}</Text>
+      </View>
+      {insight.amount ? (
+        <View style={{ width: 110, alignItems: "flex-end", justifyContent: "center" }}>
+          <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 13, color: TEXT }}>
+            {formatEuro(insight.amount.value, { whole: true })}
+          </Text>
+          <Text style={{ fontSize: 7, color: MUTED, textAlign: "right", marginTop: 2 }}>{insight.amount.label}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// --- section openers --------------------------------------------------------------
+
+function SectionOpener({
+  number,
+  title,
+  intro,
+  hs,
+}: {
+  number: number;
+  title: string;
+  intro?: string;
+  hs: HouseStyle;
+}) {
+  const v = hs.layoutVariant;
+  const nr = String(number).padStart(2, "0");
+  const ink = inkOf(hs.primaryColor);
+
+  if (v === "modern") {
+    return (
+      <View style={{ marginBottom: 18 }} wrap={false} minPresenceAhead={160}>
+        <View style={{ backgroundColor: hs.primaryColor, paddingVertical: 16, paddingHorizontal: 18, borderRadius: 4, flexDirection: "row", alignItems: "flex-end" }}>
+          <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 30, color: hs.accentColor, marginRight: 14, lineHeight: 1 }}>{nr}</Text>
+          <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 20, color: onColor(hs.primaryColor).text, lineHeight: 1.15 }}>{title}</Text>
+        </View>
+        {intro ? <Text style={{ color: MUTED, fontSize: 10, marginTop: 10, lineHeight: 1.55 }}>{intro}</Text> : null}
+      </View>
+    );
+  }
+  if (v === "minimalistisch") {
+    return (
+      <View style={{ marginBottom: 18 }} wrap={false} minPresenceAhead={160}>
+        <Text style={{ fontSize: 7.5, color: SUBTLE, letterSpacing: 2, textTransform: "uppercase" }}>Hoofdstuk {nr}</Text>
+        <Text style={{ fontFamily: hs.fontHeading, fontSize: 24, color: TEXT, marginTop: 4, lineHeight: 1.15 }}>{title}</Text>
+        <View style={{ width: 28, height: 1.5, backgroundColor: hs.primaryColor, marginTop: 10, marginBottom: intro ? 10 : 0 }} />
+        {intro ? <Text style={{ color: MUTED, fontSize: 10, lineHeight: 1.55 }}>{intro}</Text> : null}
+      </View>
+    );
+  }
+  // klassiek
+  return (
+    <View style={{ marginBottom: 18 }} wrap={false} minPresenceAhead={160}>
+      <View style={{ flexDirection: "row", alignItems: "flex-end", borderBottomWidth: 1, borderBottomColor: ink, paddingBottom: 7 }}>
+        <Text style={{ fontFamily: hs.fontHeading, fontSize: 11, color: hs.accentColor, marginRight: 10, letterSpacing: 1, paddingBottom: 3 }}>{nr}</Text>
+        <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 21, color: ink, lineHeight: 1.15 }}>{title}</Text>
+      </View>
+      {intro ? <Text style={{ color: MUTED, fontSize: 10, marginTop: 10, lineHeight: 1.55 }}>{intro}</Text> : null}
+    </View>
+  );
+}
+
+// --- section bodies -----------------------------------------------------------------
 
 function summaryText(r: PlanResult): string {
   const parts = [
-    `Het totale netto vermogen bedraagt ${formatEuro(r.wealth.total, { whole: true })}, waarvan ${formatEuro(r.wealth.prive.total, { whole: true })} privé en ${formatEuro(r.wealth.zakelijk.total, { whole: true })} zakelijk.`,
+    `Uw totale netto vermogen bedraagt ${formatEuro(r.wealth.total, { whole: true })}, waarvan ${formatEuro(r.wealth.prive.total, { whole: true })} privé en ${formatEuro(r.wealth.zakelijk.total, { whole: true })} zakelijk.`,
   ];
   if (r.income.expenses > 0) {
     parts.push(
       r.income.balance >= 0
-        ? `Na belasting en uitgaven resteert jaarlijks ongeveer ${formatEuro(r.income.balance, { whole: true })}.`
-        : `De jaarlijkse uitgaven zijn ongeveer ${formatEuro(-r.income.balance, { whole: true })} hoger dan het netto inkomen.`,
+        ? `Na belastingen en uitgaven houdt u jaarlijks ongeveer ${formatEuro(r.income.balance, { whole: true })} over.`
+        : `Uw jaarlijkse uitgaven zijn ongeveer ${formatEuro(-r.income.balance, { whole: true })} hoger dan uw netto inkomen.`,
     );
   }
   const last = r.projection.points[r.projection.points.length - 1];
   if (last) {
     parts.push(
-      `In het neutrale scenario groeit het vermogen naar circa ${formatEuro(last.neutraal, { whole: true })} in ${last.year} (${formatEuro(last.neutraalReeel, { whole: true })} in de koopkracht van vandaag).`,
+      `In het neutrale scenario groeit het vermogen naar circa ${formatEuro(last.neutraal, { whole: true })} in ${last.year}; dat is ${formatEuro(last.neutraalReeel, { whole: true })} in de koopkracht van vandaag.`,
     );
   }
   return parts.join(" ");
 }
 
-function Sections({ data, hs, s }: { data: ReportData; hs: HouseStyle; s: Styles }) {
-  const r = data.result;
-  const w = r.wealth;
-  const blocks: Record<ReportSectionKey, React.ReactNode> = {
-    samenvatting: (
-      <View style={s.section} key="samenvatting">
-        <Text style={s.h2} minPresenceAhead={120}>Samenvatting</Text>
-        <Text style={s.lead}>{summaryText(r)}</Text>
-        <Tiles
-          hs={hs}
-          items={[
-            { label: "Totaal vermogen", value: formatEuro(w.total, { whole: true }) },
-            { label: "Vermogen privé", value: formatEuro(w.prive.total, { whole: true }) },
-            { label: "Vermogen zakelijk", value: formatEuro(w.zakelijk.total, { whole: true }) },
-            { label: "Netto inkomen per jaar", value: formatEuro(r.income.net, { whole: true }) },
-            { label: "Jaarlijks saldo", value: formatEuro(r.income.balance, { whole: true }) },
-            { label: "Belastingdruk", value: formatPercent(r.taxes.effectiveRate) },
-          ]}
-        />
-      </View>
-    ),
-    vermogensoverzicht: (
-      <View style={s.section} key="vermogensoverzicht">
-        <Text style={s.h2} minPresenceAhead={120}>Vermogensoverzicht</Text>
-        <Table
-          s={s}
-          rows={[
-            ["Eigen woning (WOZ-waarde)", w.prive.eigenWoningValue],
-            ["Hypotheek", -w.prive.mortgageDebt],
-            ["Bezittingen box 3", w.prive.box3Assets],
-            ["Schulden box 3", -w.prive.box3Debts],
-            ["Aandelen BV (indicatief)", w.zakelijk.shareValue],
-          ]}
-          total={["Totaal netto vermogen", w.total]}
-        />
-        <Bars
-          color={hs.primaryColor}
-          data={[
-            { label: "Eigen woning (netto)", value: w.prive.eigenWoningNet },
-            { label: "Box 3 (netto)", value: w.prive.box3Net },
-            { label: "Aandelen BV", value: w.zakelijk.shareValue },
-          ]}
-        />
-      </View>
-    ),
-    inkomsten_uitgaven: (
-      <View style={s.section} key="inkomsten_uitgaven" wrap={false}>
-        <Text style={s.h2} minPresenceAhead={120}>Inkomsten en uitgaven</Text>
-        <Table
-          s={s}
-          rows={[
-            ["Bruto inkomen uit arbeid", r.income.grossEmployment],
-            ["Salaris DGA", r.income.dgaSalary],
-            ["Ontvangen dividend", r.income.dividendReceived],
-            ["Belastingen (box 1, 2 en 3)", -r.income.taxTotal],
-            ["Netto inkomen", r.income.net],
-            ["Uitgaven huishouden", -r.income.expenses],
-          ]}
-          total={["Saldo per jaar", r.income.balance]}
-        />
-        <Bars
-          color={hs.secondaryColor}
-          data={[
-            { label: "Netto inkomen", value: r.income.net },
-            { label: "Uitgaven", value: r.income.expenses },
-            { label: "Saldo", value: r.income.balance },
-          ]}
-        />
-      </View>
-    ),
-    belastingdruk: (
-      <View style={s.section} key="belastingdruk" wrap={false}>
-        <Text style={s.h2} minPresenceAhead={120}>Belastingdruk per box</Text>
-        <Text style={s.lead}>Indicatie van de belasting per box in het referentiejaar {r.referenceYear}.</Text>
-        <Table s={s} rows={r.taxes.lines.map((l) => [l.label, l.tax])} total={["Totaal", r.taxes.total]} />
-        <Text style={{ marginTop: 6, color: MUTED }}>
-          Effectieve belastingdruk: {formatPercent(r.taxes.effectiveRate)} van het bruto inkomen.
-        </Text>
-      </View>
-    ),
-    rendementsscenarios: (
-      <View style={s.section} key="rendementsscenarios">
-        <View wrap={false}>
-          <Text style={s.h2}>Rendementsscenario&apos;s</Text>
-          <Text style={s.lead}>
-            Verwachte ontwikkeling van het totale netto vermogen over {r.projection.points.length - 1} jaar in drie
-            scenario&apos;s
-            {r.retirement.retirementYear ? `, met pensionering in ${r.retirement.retirementYear}` : ""}.
+const BOX_EXPLANATION: Record<1 | 2 | 3, { what: string; how: string }> = {
+  1: {
+    what: "Inkomen uit werk en woning: salaris (ook het salaris uit uw eigen BV), pensioen en het eigenwoningforfait, verminderd met de betaalde hypotheekrente.",
+    how: "Progressief tarief: hoe hoger het inkomen, hoe hoger het tarief op elke extra euro. Hypotheekrente is aftrekbaar tegen maximaal het tarief van de middelste schijf.",
+  },
+  2: {
+    what: "Inkomen uit aanmerkelijk belang (5% of meer van de aandelen in een BV): vooral dividend en de winst bij verkoop van aandelen.",
+    how: "Twee tarieven: een laag tarief tot een vaste grens per persoon en een hoger tarief daarboven. De BV heeft over dezelfde winst al vennootschapsbelasting betaald.",
+  },
+  3: {
+    what: "Vermogen in sparen en beleggen: spaargeld, beleggingen en overig vastgoed, verminderd met schulden. Uw eigen woning en uw BV-aandelen vallen hier niet onder.",
+    how: "Niet het werkelijke rendement wordt belast, maar een fictief (forfaitair) rendement per vermogenscategorie, boven het heffingsvrij vermogen.",
+  },
+};
+
+function TaxSection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) {
+  const total = r.taxes.total;
+  const colors = [inkOf(hs.primaryColor), hs.secondaryColor, hs.accentColor];
+  return (
+    <View>
+      {total > 0 ? (
+        <View style={{ marginBottom: 16 }} wrap={false}>
+          <Text style={{ fontSize: 7.5, color: MUTED, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>
+            Verdeling van {formatEuro(total, { whole: true })} belasting per jaar
           </Text>
-          <ProjectionChart result={r} hs={hs} />
-        </View>
-        <View style={{ marginTop: 10 }}>
-          <View style={[s.row, { borderBottomColor: TEXT }]}>
-            <Text style={[s.cellLabel, s.bold]}>Jaar</Text>
-            <Text style={[s.cellValue, s.bold]}>Pessimistisch</Text>
-            <Text style={[s.cellValue, s.bold]}>Neutraal</Text>
-            <Text style={[s.cellValue, s.bold]}>Optimistisch</Text>
+          <View style={{ flexDirection: "row", height: 14 }}>
+            {r.taxes.lines.map((l, i) =>
+              l.tax > 0 ? (
+                <View
+                  key={l.box}
+                  style={{ width: `${(l.tax / total) * 100}%`, backgroundColor: colors[i], borderRightWidth: 1.5, borderRightColor: "#ffffff" }}
+                />
+              ) : null,
+            )}
           </View>
-          {r.projection.points
-            .filter((_, i) => i % 5 === 0)
-            .map((p) => (
-              <View key={p.year} style={s.row} wrap={false}>
-                <Text style={s.cellLabel}>
-                  {p.year}
-                  {p.age ? ` (${p.age} jr)` : ""}
+          <View style={{ flexDirection: "row", marginTop: 5 }}>
+            {r.taxes.lines.map((l, i) => (
+              <View key={l.box} style={{ flexDirection: "row", alignItems: "center", marginRight: 14 }}>
+                <View style={{ width: 7, height: 7, backgroundColor: colors[i], marginRight: 4 }} />
+                <Text style={{ fontSize: 7.5, color: MUTED }}>
+                  Box {l.box}: {formatEuro(l.tax, { whole: true })}
                 </Text>
-                <Text style={s.cellValue}>{formatEuro(p.pessimistisch, { whole: true })}</Text>
-                <Text style={s.cellValue}>{formatEuro(p.neutraal, { whole: true })}</Text>
-                <Text style={s.cellValue}>{formatEuro(p.optimistisch, { whole: true })}</Text>
               </View>
             ))}
+          </View>
         </View>
+      ) : null}
+
+      {r.taxes.lines.map((l) => (
+        <View key={l.box} wrap={false} style={{ marginBottom: 12, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: RULE }}>
+          <Text style={s.h3}>{l.label}</Text>
+          <Text style={{ color: TEXT, marginBottom: 3 }}>{BOX_EXPLANATION[l.box].what}</Text>
+          <Text style={{ color: MUTED, marginBottom: 7 }}>{BOX_EXPLANATION[l.box].how}</Text>
+          <View style={{ flexDirection: "row" }}>
+            {[
+              ["Grondslag", formatEuro(l.base, { whole: true })],
+              ["Belasting", formatEuro(l.tax, { whole: true })],
+              ["Gemiddeld tarief", formatPercent(l.effectiveRate)],
+              ["Tarief volgende euro", l.marginalRate > 0 ? formatPercent(l.marginalRate) : "—"],
+            ].map(([k, v]) => (
+              <View key={k} style={{ flex: 1 }}>
+                <Text style={{ fontSize: 7, color: MUTED, textTransform: "uppercase", letterSpacing: 0.5 }}>{k}</Text>
+                <Text style={{ fontWeight: 700, fontSize: 10.5, marginTop: 2 }}>{v}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ))}
+
+      <View wrap={false} style={{ marginTop: 4 }}>
+        <Text style={s.h3}>Gemiddeld tarief en het tarief op de volgende euro</Text>
+        <Text style={{ color: MUTED }}>
+          Het gemiddelde tarief is de belasting gedeeld door de grondslag: wat u gemiddeld afdraagt. Het tarief op de volgende euro
+          laat zien wat een extra euro inkomen in die box kost. Dat tweede getal bepaalt of het loont om inkomen te verschuiven,
+          bijvoorbeeld tussen salaris en dividend, of tussen jaren. Over alle boxen samen betaalt u{" "}
+          {formatPercent(r.taxes.effectiveRate)} van uw bruto inkomen aan belasting.
+        </Text>
       </View>
-    ),
-    zakelijk_overzicht: (
-      <View style={s.section} key="zakelijk_overzicht" wrap={false}>
-        <Text style={s.h2} minPresenceAhead={120}>Zakelijk overzicht</Text>
-        {w.zakelijk.companies.length === 0 ? (
-          <Text style={s.lead}>Dit plan bevat geen zakelijke onderdelen.</Text>
-        ) : (
-          w.zakelijk.companies.map((c) => (
-            <View key={c.name || "bv"}>
-              <Text style={[s.bold, { marginBottom: 4 }]}>
-                {c.name || "BV"} — {c.sharePercentage}% aandelenbezit
+
+      {r.taxes.box3.base > 0 ? (
+        <View wrap={false} style={{ marginTop: 14 }}>
+          <Text style={s.h3}>Zo is de box 3-heffing berekend</Text>
+          <Table
+            s={s}
+            rows={[
+              ["Rendementsgrondslag (bezittingen min schulden)", r.taxes.box3.base],
+              ["Forfaitair (fictief) rendement", r.taxes.box3.deemedReturn],
+              ["Heffingsvrij vermogen", -r.taxes.box3.exemption],
+              ["Grondslag sparen en beleggen", r.taxes.box3.taxableBase],
+            ]}
+            total={["Box 3-belasting", r.taxes.lines.find((l) => l.box === 3)?.tax ?? 0]}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function FamilySection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) {
+  const persons = r.household.persons;
+  const year = r.referenceYear;
+  return (
+    <View>
+      <Text style={s.h3}>Huishouden</Text>
+      <View style={[s.row, { borderBottomColor: TEXT }]}>
+        <Text style={[s.cellLabel, s.bold]}>Naam</Text>
+        <Text style={[s.cellValue, s.bold]}>Leeftijd</Text>
+        <Text style={[s.cellValue, s.bold]}>Stopt met werken</Text>
+        <Text style={[s.cellValue, s.bold]}>AOW vanaf</Text>
+      </View>
+      {persons.map((p) => (
+        <View key={p.role} style={s.row} wrap={false}>
+          <Text style={s.cellLabel}>{p.name}</Text>
+          <Text style={s.cellValue}>{p.birthYear ? `${year - p.birthYear} jaar` : "—"}</Text>
+          <Text style={s.cellValue}>{p.retirementYear ?? "—"}</Text>
+          <Text style={s.cellValue}>{p.aowYear ?? "—"}</Text>
+        </View>
+      ))}
+      {persons.length > 1 ? (
+        <Text style={{ color: MUTED, marginTop: 6 }}>
+          {r.household.fiscalPartners
+            ? "U bent fiscaal partners: dividend uit de BV en vermogen in box 3 zijn in deze berekening zo gunstig mogelijk tussen u beiden verdeeld."
+            : "U bent geen fiscaal partners: inkomen en vermogen zijn toegerekend aan degene die eigenaar is."}
+        </Text>
+      ) : null}
+
+      {r.gifts ? (
+        <View style={{ marginTop: 18 }}>
+          <Text style={s.h3}>Schenkingen aan kinderen in {r.gifts.year}</Text>
+          {r.gifts.perChild.length === 0 ? (
+            <Text style={s.lead}>Er zijn dit jaar geen schenkingen gepland.</Text>
+          ) : (
+            <View>
+              <View style={[s.row, { borderBottomColor: TEXT }]}>
+                <Text style={[s.cellLabel, s.bold]}>Kind</Text>
+                <Text style={[s.cellValue, s.bold]}>Schenking</Text>
+                <Text style={[s.cellValue, s.bold]}>Vrijstelling</Text>
+                <Text style={[s.cellValue, s.bold]}>Schenkbelasting</Text>
+              </View>
+              {r.gifts.perChild.map((c) => (
+                <View key={c.name} style={s.row} wrap={false}>
+                  <Text style={s.cellLabel}>
+                    {c.name}
+                    {c.age !== null ? ` (${c.age} jaar)` : ""}
+                  </Text>
+                  <Text style={s.cellValue}>{formatEuro(c.amount, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(c.exemption, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(c.giftTax, { whole: true })}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          <View style={{ marginTop: 10, backgroundColor: PAPER, padding: 12, borderLeftWidth: 2, borderLeftColor: hs.accentColor }} wrap={false}>
+            <Text>
+              In totaal staat {formatEuro(r.gifts.totalPlanned, { whole: true })} aan schenkingen gepland. Schenkingen verlagen uw
+              vermogen in box 3 en daarmee de box 3-heffing, en verkleinen later de nalatenschap. Schenkbelasting wordt betaald door
+              het kind dat de schenking ontvangt.
+            </Text>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const SECTION_INTRO: Partial<Record<ReportSectionKey, string>> = {
+  vermogensoverzicht: "Een overzicht van wat u bezit en wat u verschuldigd bent, privé en via uw onderneming.",
+  inkomsten_uitgaven: "Wat er jaarlijks binnenkomt, wat er na belastingen overblijft en hoe dat zich verhoudt tot uw uitgaven.",
+  belastingdruk: "In Nederland wordt inkomen in drie boxen belast, elk met eigen regels. Hieronder ziet u per box wat er wordt belast, hoeveel en waarom.",
+  rendementsscenarios: "Hoe uw vermogen zich de komende jaren kan ontwikkelen bij drie verschillende rendementen.",
+  zakelijk_overzicht: "De kerncijfers van uw onderneming en hoe die doorwerken in uw privévermogen.",
+  schenkingen: "Uw huishouden, de momenten van stoppen met werken en AOW, en de schenkingen aan uw kinderen.",
+  aandachtspunten: "Op basis van uw situatie zien wij de volgende kansen en aandachtspunten. Bedragen zijn indicatief en bedoeld als vertrekpunt voor het gesprek.",
+  toelichting: "De uitgangspunten achter de berekeningen in dit rapport.",
+};
+
+function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData; hs: HouseStyle; s: Styles }) {
+  const r = data.result;
+  const w = r.wealth;
+  switch (k) {
+    case "samenvatting":
+      return (
+        <View>
+          <View style={{ marginBottom: 16 }} wrap={false}>
+            <Text style={{ fontSize: 7.5, color: MUTED, textTransform: "uppercase", letterSpacing: 0.8 }}>Totaal netto vermogen</Text>
+            <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 34, lineHeight: 1.25, color: inkOf(hs.primaryColor), marginTop: 2 }}>
+              {formatEuro(w.total, { whole: true })}
+            </Text>
+          </View>
+          <Text style={s.lead}>{summaryText(r)}</Text>
+          <Tiles
+            hs={hs}
+            items={[
+              { label: "Vermogen privé", value: formatEuro(w.prive.total, { whole: true }) },
+              { label: "Vermogen zakelijk", value: formatEuro(w.zakelijk.total, { whole: true }) },
+              { label: "Belastingdruk", value: formatPercent(r.taxes.effectiveRate) },
+              { label: "Netto inkomen / jaar", value: formatEuro(r.income.net, { whole: true }) },
+              { label: "Uitgaven / jaar", value: formatEuro(r.income.expenses, { whole: true }) },
+              { label: "Saldo / jaar", value: formatEuro(r.income.balance, { whole: true }) },
+            ]}
+          />
+          {data.insights.length > 0 ? (
+            <View style={{ marginTop: 18 }} wrap={false}>
+              <Text style={s.h3}>Belangrijkste aandachtspunten</Text>
+              {data.insights.slice(0, 3).map((i) => (
+                <View key={i.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: RULE }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: TONE_COLORS[i.tone], marginRight: 8 }} />
+                  <Text style={{ flex: 1 }}>{i.title}</Text>
+                  {i.amount ? <Text style={{ color: MUTED }}>{formatEuro(i.amount.value, { whole: true })}</Text> : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      );
+    case "vermogensoverzicht":
+      return (
+        <View>
+          <Text style={s.h3}>Privé</Text>
+          <Table
+            s={s}
+            rows={[
+              ["Eigen woning (WOZ-waarde)", w.prive.eigenWoningValue],
+              ["Hypotheek", -w.prive.mortgageDebt],
+              ["Bezittingen box 3", w.prive.box3Assets],
+              ["Schulden box 3", -w.prive.box3Debts],
+            ]}
+            total={["Netto vermogen privé", w.prive.total]}
+          />
+          {w.zakelijk.total !== 0 || w.zakelijk.companies.length > 0 ? (
+            <View style={{ marginTop: 14 }}>
+              <Text style={s.h3}>Zakelijk</Text>
+              <Table s={s} rows={[["Aandelen BV (indicatieve waarde)", w.zakelijk.shareValue]]} total={["Netto vermogen zakelijk", w.zakelijk.total]} />
+            </View>
+          ) : null}
+          <View style={{ marginTop: 14, flexDirection: "row", justifyContent: "space-between", backgroundColor: PAPER, paddingVertical: 10, paddingHorizontal: 12 }} wrap={false}>
+            <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 12 }}>Totaal netto vermogen</Text>
+            <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 12, color: inkOf(hs.primaryColor) }}>
+              {formatEuro(w.total, { whole: true })}
+            </Text>
+          </View>
+          <Bars
+            color={inkOf(hs.primaryColor)}
+            data={[
+              { label: "Eigen woning (netto)", value: w.prive.eigenWoningNet },
+              { label: "Box 3 (netto)", value: w.prive.box3Net },
+              { label: "Aandelen BV", value: w.zakelijk.shareValue },
+            ]}
+          />
+        </View>
+      );
+    case "inkomsten_uitgaven":
+      return (
+        <View>
+          <Table
+            s={s}
+            rows={[
+              [r.household.persons.length > 1 ? "Bruto inkomen uit arbeid (samen)" : "Bruto inkomen uit arbeid", r.income.grossEmployment],
+              ["Salaris uit eigen BV", r.income.dgaSalary],
+              ["Ontvangen dividend", r.income.dividendReceived],
+              ["Belastingen (box 1, 2 en 3)", -r.income.taxTotal],
+              ["Netto inkomen", r.income.net],
+              ["Uitgaven huishouden", -r.income.expenses],
+            ]}
+            total={["Saldo per jaar", r.income.balance]}
+          />
+          {r.household.persons.length > 1 ? (
+            <View style={{ marginTop: 16 }} wrap={false}>
+              <Text style={s.h3}>Per persoon</Text>
+              <View style={[s.row, { borderBottomColor: TEXT }]}>
+                <Text style={[s.cellLabel, s.bold]}>Naam</Text>
+                <Text style={[s.cellValue, s.bold]}>Bruto inkomen</Text>
+                <Text style={[s.cellValue, s.bold]}>Belasting</Text>
+                <Text style={[s.cellValue, s.bold]}>Netto</Text>
+              </View>
+              {r.household.persons.map((p) => (
+                <View key={p.role} style={s.row}>
+                  <Text style={s.cellLabel}>{p.name}</Text>
+                  <Text style={s.cellValue}>{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(p.box1Tax + p.box2Tax + p.box3Tax, { whole: true })}</Text>
+                  <Text style={[s.cellValue, s.bold]}>{formatEuro(p.net, { whole: true })}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          <Bars
+            color={hs.secondaryColor}
+            data={[
+              { label: "Netto inkomen", value: r.income.net },
+              { label: "Uitgaven", value: r.income.expenses },
+              { label: "Saldo", value: r.income.balance },
+            ]}
+          />
+        </View>
+      );
+    case "belastingdruk":
+      return <TaxSection r={r} s={s} hs={hs} />;
+    case "rendementsscenarios":
+      return (
+        <View>
+          <ProjectionChart result={r} hs={hs} />
+          <View style={{ marginTop: 14 }}>
+            <View style={[s.row, { borderBottomColor: TEXT }]}>
+              <Text style={[s.cellLabel, s.bold]}>Jaar</Text>
+              <Text style={[s.cellValue, s.bold]}>Pessimistisch</Text>
+              <Text style={[s.cellValue, s.bold]}>Neutraal</Text>
+              <Text style={[s.cellValue, s.bold]}>Optimistisch</Text>
+            </View>
+            {r.projection.points
+              .filter((_, i) => i % 5 === 0)
+              .map((p) => (
+                <View key={p.year} style={s.row} wrap={false}>
+                  <Text style={s.cellLabel}>
+                    {p.year}
+                    {p.age ? `  (${p.age} jaar)` : ""}
+                  </Text>
+                  <Text style={s.cellValue}>{formatEuro(p.pessimistisch, { whole: true })}</Text>
+                  <Text style={[s.cellValue, s.bold]}>{formatEuro(p.neutraal, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(p.optimistisch, { whole: true })}</Text>
+                </View>
+              ))}
+          </View>
+        </View>
+      );
+    case "zakelijk_overzicht":
+      return w.zakelijk.companies.length === 0 ? (
+        <Text style={s.lead}>Dit plan bevat geen zakelijke onderdelen.</Text>
+      ) : (
+        <View>
+          {w.zakelijk.companies.map((c) => (
+            <View key={c.name || "bv"} style={s.section}>
+              <Text style={s.h3}>
+                {c.name || "BV"} · {c.sharePercentage}% aandelenbezit
               </Text>
               <Table
                 s={s}
@@ -381,139 +748,245 @@ function Sections({ data, hs, s }: { data: ReportData; hs: HouseStyle; s: Styles
                   ["Liquide middelen BV", w.zakelijk.liquidAssets],
                   ["Resultaat na belasting", c.resultAfterTax],
                   ["Dividenduitkering", c.dividend],
-                  ["Salaris DGA", c.dgaSalary],
-                  ["Pensioen in eigen beheer / ODV", w.zakelijk.pensionObligation],
+                  ["Salaris uit de BV", c.dgaSalary],
+                  ["Oudedagsverplichting / pensioen in eigen beheer", w.zakelijk.pensionObligation],
                 ]}
                 total={["Indicatieve waarde aandelen", w.zakelijk.shareValue]}
               />
             </View>
-          ))
-        )}
-      </View>
-    ),
-    toelichting: (
-      <View style={s.section} key="toelichting" wrap={false}>
-        <Text style={s.h2} minPresenceAhead={120}>Toelichting en uitgangspunten</Text>
-        <Text style={{ marginBottom: 6 }}>
-          Dit rapport is opgesteld op basis van de gegevens die bij {data.firmName} bekend waren op{" "}
-          {formatDate(data.generatedAt)}. Bedragen zijn afgerond en indicatief.
-        </Text>
-        <Text style={{ marginBottom: 6 }}>
-          Uitgangspunten: inflatie, rendementen en belastingtarieven zijn vereenvoudigd ({r.engine.assumptionsLabel}). Er is
-          geen rekening gehouden met heffingskortingen, toeslagen en persoonlijke aftrekposten.
-        </Text>
-        <Text style={{ color: MUTED, fontSize: 8.5 }}>
-          Let op: deze berekening is gemaakt met een prototype-rekenkern ({r.engine.name} v{r.engine.version}) en is niet
-          geschikt als financieel advies.
-        </Text>
-      </View>
-    ),
-  };
-  const ordered = ["samenvatting", "vermogensoverzicht", "inkomsten_uitgaven", "belastingdruk", "rendementsscenarios", "zakelijk_overzicht", "toelichting"] as const;
-  return <>{ordered.filter((k) => data.sections.includes(k)).map((k) => blocks[k])}</>;
+          ))}
+        </View>
+      );
+    case "schenkingen":
+      return <FamilySection r={r} s={s} hs={hs} />;
+    case "aandachtspunten":
+      return data.insights.length === 0 ? (
+        <Text style={s.lead}>Op basis van de ingevulde gegevens zijn er geen bijzondere aandachtspunten.</Text>
+      ) : (
+        <View>
+          {data.insights.map((i) => (
+            <InsightCard key={i.id} insight={i} hs={hs} />
+          ))}
+        </View>
+      );
+    case "toelichting":
+      return (
+        <View>
+          <Text style={{ marginBottom: 7 }}>
+            Dit rapport is opgesteld op basis van de gegevens die bij {data.firmName} bekend waren op {formatDate(data.generatedAt)}.
+            Bedragen zijn afgerond en indicatief.
+          </Text>
+          <Text style={{ marginBottom: 7 }}>
+            Inflatie, rendementen en belastingtarieven zijn vereenvoudigd ({r.engine.assumptionsLabel}). Er is geen rekening
+            gehouden met heffingskortingen, toeslagen en persoonlijke aftrekposten. De scenario&apos;s zijn geen voorspelling:
+            werkelijke rendementen kunnen hoger of lager uitvallen.
+          </Text>
+          <Text style={{ color: MUTED, fontSize: 8.5 }}>
+            Deze berekening is gemaakt met een prototype-rekenkern ({r.engine.name} v{r.engine.version}) en is niet geschikt als
+            financieel advies.
+          </Text>
+        </View>
+      );
+  }
 }
 
-// --- cover -------------------------------------------------------------------
+// --- cover & contents ----------------------------------------------------------------
 
 function Cover({ data, hs, logo }: { data: ReportData; hs: HouseStyle; logo?: ReportLogo | null }) {
   const v = hs.layoutVariant;
-  // React-PDF's Image has no alt attribute (PDF images are not HTML).
-  // eslint-disable-next-line jsx-a11y/alt-text
-  const logoEl = logo ? <Image src={logo} style={{ maxWidth: 150, maxHeight: 56, objectFit: "contain" }} /> : (
-    <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 14, color: v === "modern" ? "#ffffff" : hs.primaryColor }}>
-      {data.firmName}
-    </Text>
-  );
-  const subtitle = [data.clientName, data.companyName].filter(Boolean).join(" · ");
+  const on = onColor(hs.primaryColor);
+  const meta = [
+    ["Opgesteld voor", [data.clientName, data.companyName].filter(Boolean).join(" · ")],
+    ["Datum", formatDate(data.generatedAt)],
+    ["Adviseur", [data.plannerName, data.firmName].filter(Boolean).join(", ")],
+  ];
 
   if (v === "modern") {
     return (
-      <Page size="A4" style={{ fontFamily: hs.fontBody, color: TEXT }}>
-        <View style={{ backgroundColor: hs.primaryColor, height: "58%", padding: 52, justifyContent: "space-between" }}>
-          <View style={logo ? { backgroundColor: "#ffffff", padding: 10, borderRadius: 6, alignSelf: "flex-start" } : {}}>{logoEl}</View>
+      <Page size="A4" style={{ fontFamily: hs.fontBody, color: TEXT, backgroundColor: "#ffffff" }}>
+        <View style={{ backgroundColor: hs.primaryColor, height: "66%", paddingHorizontal: 52, paddingTop: 52, paddingBottom: 46, justifyContent: "space-between", position: "relative" }}>
+          <Svg width={595} height={556} style={{ position: "absolute", top: 0, left: 0 }}>
+            <Circle cx={520} cy={120} r={190} fill={hs.secondaryColor} fillOpacity={0.35} />
+            <Circle cx={600} cy={330} r={150} fill={hs.accentColor} fillOpacity={0.55} />
+            <Circle cx={455} cy={300} r={46} fill={hs.accentColor} fillOpacity={0.9} />
+          </Svg>
+          <View style={{ color: on.text }}>
+            <LogoPlate logo={logo} firmName={data.firmName} hs={hs} />
+          </View>
           <View>
-            <View style={{ width: 48, height: 4, backgroundColor: hs.accentColor, marginBottom: 14 }} />
-            <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 32, color: "#ffffff", lineHeight: 1.15 }}>
-              Financieel plan
-            </Text>
-            <Text style={{ fontSize: 14, color: tint(hs.primaryColor, 0.75), marginTop: 6 }}>{data.planTitle}</Text>
+            <View style={{ width: 44, height: 4, backgroundColor: hs.accentColor, marginBottom: 16 }} />
+            <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 42, color: on.text, lineHeight: 1.08 }}>Financieel{"\n"}plan</Text>
+            <Text style={{ fontSize: 13, color: on.soft, marginTop: 10 }}>{data.planTitle}</Text>
           </View>
         </View>
-        <View style={{ padding: 52 }}>
-          <Text style={{ fontSize: 9, color: MUTED }}>Opgesteld voor</Text>
-          <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{subtitle}</Text>
-          <Text style={{ fontSize: 9, color: MUTED, marginTop: 18 }}>Datum</Text>
-          <Text style={{ fontSize: 12, marginTop: 2 }}>{formatDate(data.generatedAt)}</Text>
-          {data.plannerName ? (
-            <>
-              <Text style={{ fontSize: 9, color: MUTED, marginTop: 18 }}>Financieel planner</Text>
-              <Text style={{ fontSize: 12, marginTop: 2 }}>
-                {data.plannerName}, {data.firmName}
-              </Text>
-            </>
-          ) : null}
+        <View style={{ paddingHorizontal: 52, paddingTop: 34, flexDirection: "row" }}>
+          {meta.map(([k, val]) => (
+            <View key={k} style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ fontSize: 7.5, color: MUTED, textTransform: "uppercase", letterSpacing: 0.8 }}>{k}</Text>
+              <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 11.5, marginTop: 4, lineHeight: 1.3 }}>{val}</Text>
+            </View>
+          ))}
         </View>
+        <Text style={{ position: "absolute", bottom: 40, left: 52, fontSize: 7.5, color: SUBTLE }}>Vertrouwelijk</Text>
       </Page>
     );
   }
 
   if (v === "minimalistisch") {
     return (
-      <Page size="A4" style={{ fontFamily: hs.fontBody, color: TEXT, padding: 72, justifyContent: "space-between" }}>
-        <View>{logoEl}</View>
-        <View>
-          <Text style={{ fontFamily: hs.fontHeading, fontSize: 30, lineHeight: 1.2 }}>{data.planTitle}</Text>
-          <View style={{ width: 32, height: 1.5, backgroundColor: hs.primaryColor, marginVertical: 16 }} />
-          <Text style={{ fontSize: 12 }}>{subtitle}</Text>
-          <Text style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>{formatDate(data.generatedAt)}</Text>
+      <Page size="A4" style={{ fontFamily: hs.fontBody, color: TEXT, flexDirection: "row", backgroundColor: "#ffffff" }}>
+        <View style={{ width: "36%", backgroundColor: hs.primaryColor, padding: 40, justifyContent: "space-between", color: on.text }}>
+          <LogoPlate logo={logo} firmName={data.firmName} hs={hs} />
+          <View>
+            <View style={{ width: 24, height: 2, backgroundColor: hs.accentColor, marginBottom: 10 }} />
+            <Text style={{ fontSize: 8, color: on.soft, lineHeight: 1.6 }}>{data.firmName}</Text>
+            {data.plannerName ? <Text style={{ fontSize: 8, color: on.soft }}>{data.plannerName}</Text> : null}
+          </View>
         </View>
-        <Text style={{ fontSize: 8, color: MUTED }}>
-          {data.firmName}
-          {data.plannerName ? ` · ${data.plannerName}` : ""}
-        </Text>
+        <View style={{ flex: 1, paddingHorizontal: 48, paddingVertical: 64, justifyContent: "center" }}>
+          <Text style={{ fontSize: 8, color: SUBTLE, letterSpacing: 2.5, textTransform: "uppercase" }}>Financieel plan</Text>
+          <Text style={{ fontFamily: hs.fontHeading, fontSize: 34, color: TEXT, marginTop: 10, lineHeight: 1.12 }}>{data.planTitle}</Text>
+          <View style={{ width: 36, height: 1.5, backgroundColor: hs.primaryColor, marginVertical: 22 }} />
+          <Text style={{ fontSize: 13 }}>{data.clientName}</Text>
+          {data.companyName ? <Text style={{ fontSize: 10, color: MUTED, marginTop: 3 }}>{data.companyName}</Text> : null}
+          <Text style={{ fontSize: 9, color: SUBTLE, marginTop: 22 }}>{formatDate(data.generatedAt)}</Text>
+        </View>
       </Page>
     );
   }
 
-  // klassiek
+  // klassiek: full-colour page with an inset frame
   return (
-    <Page size="A4" style={{ fontFamily: hs.fontBody, color: TEXT, padding: 56 }}>
-      <View style={{ borderBottomWidth: 1, borderBottomColor: hs.primaryColor, paddingBottom: 14 }}>{logoEl}</View>
-      <View style={{ marginTop: 200, alignItems: "center" }}>
-        <Text style={{ fontSize: 10, color: MUTED, letterSpacing: 2, textTransform: "uppercase" }}>Financieel plan</Text>
-        <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 28, color: hs.primaryColor, marginTop: 10, textAlign: "center" }}>
-          {data.planTitle}
-        </Text>
-        <View style={{ width: 60, height: 2, backgroundColor: hs.accentColor, marginVertical: 18 }} />
-        <Text style={{ fontSize: 14 }}>{data.clientName}</Text>
-        {data.companyName ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{data.companyName}</Text> : null}
-      </View>
-      <View style={{ position: "absolute", bottom: 56, left: 56, right: 56, flexDirection: "row", justifyContent: "space-between", fontSize: 9, color: MUTED }}>
-        <Text>
-          {data.firmName}
-          {data.plannerName ? ` · ${data.plannerName}` : ""}
-        </Text>
-        <Text>{formatDate(data.generatedAt)}</Text>
+    <Page size="A4" style={{ fontFamily: hs.fontBody, backgroundColor: hs.primaryColor, padding: 30 }}>
+      <View style={{ flex: 1, borderWidth: 0.75, borderColor: hs.accentColor, paddingHorizontal: 40, paddingVertical: 44, alignItems: "center", justifyContent: "space-between" }}>
+        <View style={{ alignItems: "center", color: on.text }}>
+          <LogoPlate logo={logo} firmName={data.firmName} hs={hs} />
+        </View>
+        <View style={{ alignItems: "center" }}>
+          <Text style={{ fontSize: 8.5, color: hs.accentColor, letterSpacing: 3, textTransform: "uppercase" }}>Financieel plan</Text>
+          <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 34, color: on.text, marginTop: 14, textAlign: "center", lineHeight: 1.15 }}>
+            {data.planTitle}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 22 }}>
+            <View style={{ width: 34, height: 0.75, backgroundColor: hs.accentColor }} />
+            <View style={{ width: 5, height: 5, backgroundColor: hs.accentColor, marginHorizontal: 8, transform: "rotate(45deg)" }} />
+            <View style={{ width: 34, height: 0.75, backgroundColor: hs.accentColor }} />
+          </View>
+          <Text style={{ fontFamily: hs.fontHeading, fontSize: 16, color: on.text }}>{data.clientName}</Text>
+          {data.companyName ? <Text style={{ fontSize: 10.5, color: on.soft, marginTop: 4 }}>{data.companyName}</Text> : null}
+        </View>
+        <View style={{ alignItems: "center" }}>
+          <Text style={{ fontSize: 8.5, color: on.soft }}>{[data.plannerName, data.firmName].filter(Boolean).join(" · ")}</Text>
+          <Text style={{ fontSize: 8.5, color: on.soft, marginTop: 3 }}>{formatDate(data.generatedAt)}</Text>
+        </View>
       </View>
     </Page>
   );
 }
 
-export function ReportDocument({ data, style, logo }: { data: ReportData; style: HouseStyle; logo?: ReportLogo | null }) {
+function Contents({ data, hs, pages, s }: { data: ReportData; hs: HouseStyle; pages?: SectionPages; s: Styles }) {
+  const ink = inkOf(hs.primaryColor);
+  const labels = new Map(REPORT_SECTIONS.map((r) => [r.key, r.label]));
+  return (
+    <View>
+      <Text style={{ fontSize: 7.5, color: SUBTLE, letterSpacing: 2, textTransform: "uppercase" }}>Inhoud</Text>
+      <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 26, color: ink, marginTop: 6, marginBottom: 24 }}>
+        In dit rapport
+      </Text>
+      {data.sections.map((k, i) => (
+        <View key={k} style={{ flexDirection: "row", alignItems: "flex-end", paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: RULE }}>
+          <Text style={{ fontFamily: hs.fontHeading, fontSize: 10, color: hs.accentColor, width: 30 }}>{String(i + 1).padStart(2, "0")}</Text>
+          <Text style={{ fontFamily: hs.fontHeading, fontSize: 12.5, flex: 1 }}>{labels.get(k)}</Text>
+          <Text style={{ fontSize: 10, color: MUTED }}>{pages?.[k] ?? ""}</Text>
+        </View>
+      ))}
+      <View style={{ marginTop: 34, backgroundColor: hs.layoutVariant === "minimalistisch" ? "#ffffff" : PAPER, padding: 16, borderLeftWidth: 2, borderLeftColor: hs.accentColor }}>
+        <Text style={s.h3}>Over dit rapport</Text>
+        <Text style={{ color: MUTED }}>
+          Dit rapport geeft een overzicht van uw financiële situatie: uw vermogen, inkomsten, belastingen en de verwachte
+          ontwikkeling naar de toekomst. De cijfers zijn een momentopname op {formatDate(data.generatedAt)} en vormen de basis voor
+          het gesprek met {data.plannerName ?? "uw adviseur"} van {withFullStop(data.firmName)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function PageChrome({ data, hs, logo }: { data: ReportData; hs: HouseStyle; logo?: ReportLogo | null }) {
+  return (
+    <>
+      <View
+        fixed
+        style={{
+          position: "absolute",
+          top: 30,
+          left: 56,
+          right: 56,
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          paddingBottom: 8,
+          borderBottomWidth: 0.5,
+          borderBottomColor: RULE,
+          color: inkOf(hs.primaryColor),
+        }}
+      >
+        <LogoPlate logo={logo} firmName={data.firmName} hs={hs} size="sm" />
+        <Text style={{ fontSize: 7.5, color: MUTED }}>
+          {data.clientName} · {data.planTitle}
+        </Text>
+      </View>
+      <View fixed style={{ position: "absolute", bottom: 28, left: 56, right: 56, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View style={{ width: 5, height: 5, backgroundColor: hs.accentColor, marginRight: 6 }} />
+          <Text style={{ fontSize: 7, color: SUBTLE }}>Vertrouwelijk · {data.firmName}</Text>
+        </View>
+        <Text style={{ fontSize: 7, color: SUBTLE }} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+      </View>
+    </>
+  );
+}
+
+export function ReportDocument({
+  data,
+  style,
+  logo,
+  sectionPages,
+  onSectionPage,
+}: {
+  data: ReportData;
+  style: HouseStyle;
+  logo?: ReportLogo | null;
+  sectionPages?: SectionPages;
+  onSectionPage?: (key: ReportSectionKey, page: number) => void;
+}) {
   const s = makeStyles(style);
+  const labels = new Map(REPORT_SECTIONS.map((r) => [r.key, r.label]));
   return (
     <Document title={`${data.planTitle} — ${data.clientName}`} author={data.firmName} creator="Plannr" language="nl">
       <Cover data={data} hs={style} logo={logo} />
-      <Page size="A4" style={s.page} wrap>
-        {data.sections.length === 0 ? <Text style={s.lead}>Er zijn geen rapportonderdelen geselecteerd.</Text> : null}
-        <Sections data={data} hs={style} s={s} />
-        <View style={s.footer} fixed>
-          <Text>
-            {data.firmName} · {data.planTitle}
-          </Text>
-          <Text render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} van ${totalPages}`} />
-        </View>
+      <Page size="A4" style={s.page}>
+        <PageChrome data={data} hs={style} logo={logo} />
+        <Contents data={data} hs={style} pages={sectionPages} s={s} />
       </Page>
+      {data.sections.map((k, i) => (
+        <Page key={k} size="A4" style={s.page} wrap>
+          <PageChrome data={data} hs={style} logo={logo} />
+          {onSectionPage ? (
+            // Records the page each section starts on (first render pass only).
+            <Text
+              fixed
+              style={{ position: "absolute", top: 0, left: 0, fontSize: 1 }}
+              render={({ pageNumber, subPageNumber }) => {
+                if (subPageNumber === 1) onSectionPage(k, pageNumber);
+                return "";
+              }}
+            />
+          ) : null}
+          <SectionOpener number={i + 1} title={labels.get(k) ?? k} intro={SECTION_INTRO[k]} hs={style} />
+          <SectionBody k={k} data={data} hs={style} s={s} />
+        </Page>
+      ))}
     </Document>
   );
 }
