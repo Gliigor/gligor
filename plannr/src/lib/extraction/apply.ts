@@ -1,7 +1,7 @@
 // Turns ExtractedData into concrete changes for a plan, respecting the plan
 // configuration: values only land in sections that were checked in step 1.
 
-import { getAssetType, PRIVE_INPUT_FIELDS } from "@/lib/plan/definitions";
+import { getAssetType, PARTNER_FIELDS, PRIVE_INPUT_FIELDS } from "@/lib/plan/definitions";
 import { isAssetTypeRelevant, isFieldVisible } from "@/lib/plan/status";
 import type { AssetMetadata, AssetRow, PlanConfig, PlanInputs } from "@/lib/plan/types";
 import type { ExtractedData } from "./types";
@@ -33,6 +33,20 @@ export function planExtractionChanges(
     appliedCount++;
   }
 
+  // Partner inputs (ids as used by the partner card: "partner.<key>")
+  for (const field of PARTNER_FIELDS) {
+    const v = data.partner[field.key as keyof typeof data.partner];
+    if (v === undefined || !isFieldVisible(field, config)) continue;
+    const id = `partner.${field.key}`;
+    const next: PlanInputs = nextInputs ?? { ...inputs, prive: { ...inputs.prive }, fromDocument: [...inputs.fromDocument] };
+    next.partner = { ...next.partner, [field.key]: v };
+    if (!next.fromDocument.includes(id)) next.fromDocument.push(id);
+    nextInputs = next;
+    appliedCount++;
+  }
+  // Ownership per item only matters when the partner is part of the plan.
+  const withOwner = config.sections.partner;
+
   const updates: ExtractionChanges["updates"] = [];
   const inserts: ExtractionChanges["inserts"] = [];
 
@@ -49,6 +63,7 @@ export function planExtractionChanges(
       return f && isFieldVisible(f, config);
     });
     const hasValue = found.value !== undefined && Boolean(def.valueField);
+    const owner = withOwner ? found.metadata?.eigenaar : undefined;
     if (!hasValue && visibleMeta.length === 0) continue;
 
     const existing = def.multiple
@@ -64,6 +79,7 @@ export function planExtractionChanges(
       fromDoc.add(key);
       appliedCount++;
     }
+    if (owner === "client" || owner === "partner" || owner === "joint") metadata.eigenaar = owner;
     let value = existing?.value ?? null;
     if (hasValue) {
       value = found.value!;

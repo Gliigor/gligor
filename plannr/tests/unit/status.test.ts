@@ -32,7 +32,7 @@ test("extraction fills an empty placeholder row instead of duplicating it", asyn
   const { planExtractionChanges } = await import("@/lib/extraction/apply");
   const placeholder = { id: "p1", firm_id: "f", plan_id: "p", side: "prive" as const, type: "spaargeld", tax_box: 3, label: "", value: null, metadata: {}, source: "handmatig" as const, sort_order: 0 };
   const changes = planExtractionChanges(
-    { documentType: "ib_aangifte", year: 2025, prive: { geboortejaar: 1974 }, assets: [{ type: "spaargeld", label: "Spaarrekening", value: 1000 }, { type: "bv_aandelen", metadata: { eigen_vermogen: 5 } }], notes: [] },
+    { documentType: "ib_aangifte", year: 2025, method: "ai", partner: {}, sources: [], prive: { geboortejaar: 1974 }, assets: [{ type: "spaargeld", label: "Spaarrekening", value: 1000 }, { type: "bv_aandelen", metadata: { eigen_vermogen: 5 } }], notes: [] },
     DEFAULT_PLAN_CONFIG,
     parsePlanInputs({}),
     [placeholder],

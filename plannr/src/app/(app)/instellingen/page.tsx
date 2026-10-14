@@ -6,13 +6,16 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ChevronRight } from "@/components/ui/icons";
 import { formatDateTime } from "@/lib/format";
-import { FirmForm, InviteForm, RevokeButton } from "./settings-forms";
+import { EU_REGIONS, getAiReaderStatus } from "@/lib/extraction/ai/config";
+import { AiReaderSwitch, FirmForm, InviteForm, RevokeButton } from "./settings-forms";
 
 export const metadata = { title: "Instellingen" };
 
 export default async function SettingsPage() {
   const member = await requireOwner();
   const supabase = await createClient();
+  const reader = getAiReaderStatus();
+  const regionName = EU_REGIONS[reader.configured ? reader.config.region : "eu-central-1"];
   const [{ data: users }, { data: invitations }] = await Promise.all([
     supabase.from("users").select("id, name, email, role, last_login_at").order("created_at"),
     supabase.from("invitations").select("id, email, created_at").is("accepted_at", null).order("created_at", { ascending: false }),
@@ -36,6 +39,30 @@ export default async function SettingsPage() {
         <CardHeader title="Kantoor" />
         <div className="p-4 sm:p-5">
           <FirmForm name={member.firm.name} />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Documenten uitlezen"
+          description="Laat een geüploade IB-aangifte of jaarrekening automatisch overnemen in het plan."
+        />
+        <div className="space-y-4 p-4 sm:p-5">
+          <AiReaderSwitch
+            enabled={member.firm.ai_extraction_enabled}
+            available={reader.configured}
+            unavailableReason={reader.configured ? undefined : reader.reason}
+          />
+          <ul className="space-y-1.5 border-t border-ink-100 pt-4 text-sm text-ink-600">
+            <li>Het document wordt gelezen door Claude (Anthropic) via Amazon Bedrock in {regionName} en verlaat de EU niet.</li>
+            <li>Alleen het bestand wordt verstuurd, zonder naam of andere gegevens uit Plannr. Er wordt niet om een BSN of adres gevraagd.</li>
+            <li>Volgens de voorwaarden van Amazon Bedrock wordt de inhoud niet bewaard en niet gebruikt om modellen te trainen.</li>
+            <li>De AI neemt alleen bedragen over, met het paginanummer erbij. Alle berekeningen doet Plannr zelf. Controleer de ingevulde waarden altijd.</li>
+            <li>Zet je dit aan, vermeld AWS dan als subverwerker in je verwerkersovereenkomst en privacyverklaring.</li>
+          </ul>
+          {member.firm.ai_extraction_changed_at ? (
+            <p className="text-xs text-ink-400">Laatst gewijzigd op {formatDateTime(member.firm.ai_extraction_changed_at)}</p>
+          ) : null}
         </div>
       </Card>
 

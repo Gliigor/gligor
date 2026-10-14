@@ -77,6 +77,10 @@ one file: `supabase/migrations/20261012000000_plannr_schema.sql`.
 Run it **once**. Running it a second time fails with "already exists" — that is
 harmless and means it is already done.
 
+Later migrations are separate, smaller files in the same folder (for example
+`20261014000000_ai_reader_switch.sql`). Run each new file once, in date order,
+the same way. They use `if not exists`, so running one twice is harmless.
+
 **Option B — Supabase CLI:**
 
 ```bash
@@ -203,7 +207,7 @@ src/
     api/                                   PDF preview/export, downloads, house-style samples
   lib/
     engine/            calculatePlan() + assumptions.ts + mock engine
-    extraction/        extractDocument() stub + applying results to a plan
+    extraction/        extractDocument(): AI reader (Bedrock, EU) or example data + applying results to a plan
     house-style/       curated fonts, layout variants, generateHouseStyleFromWebsite()
     pdf/               React-PDF report (3 layouts)
     plan/              plan definitions (sections, steps, fields, asset types), status logic
@@ -219,7 +223,7 @@ scripts/seed.tsx       demo data
 | ---- | ---- | -------------- |
 | `calculatePlan(input): Promise<PlanResult>` | `src/lib/engine/index.ts` | a licensed rekenkern (e.g. Bokkz / FINACT). The UI, results step and PDF only talk to this function. |
 | Assumptions (tax rates, returns, inflation) | `src/lib/engine/assumptions.ts` | — all in one place |
-| `extractDocument(file, type)` | `src/lib/extraction/extract-document.ts` | OCR / AI / specialist API. v1 returns example data and never reads file contents. |
+| `extractDocument(file, type, ai)` | `src/lib/extraction/extract-document.ts` | Claude on Amazon Bedrock (EU) when configured and switched on by the firm owner; otherwise labelled example data that never reads the file. |
 | `generateHouseStyleFromWebsite(url)` | `src/lib/house-style/generate-from-website.ts` | a smarter brand scraper. v1 reads theme-color, CSS colors and font names. |
 
 The engine is deterministic and has no AI in it. `calculatePlan` is `async`
@@ -251,10 +255,35 @@ holding structures (several BVs) fit the same model.
   (`admin_totals`, `admin_firm_stats`, `admin_monthly_stats`) that return
   counts and dates only and refuse anyone not in `super_admins`. The super
   admin account has no firm, so RLS hides every client row from it.
-- No financial data or document contents are logged. The extraction stub does
-  not read file contents.
+- No financial data or document contents are logged — also not by the AI
+  reader, which logs only the error type when reading fails.
+- The AI reader is off unless the deployment is configured for it **and** the
+  firm owner switches it on (`firms.ai_extraction_enabled`, owner-only by RLS).
+  See "AI document reader" below.
 - The secret key is only used by the seed script and for sending invitation
   e-mails; everything else runs as the logged-in user.
+
+### AI document reader
+
+`src/lib/extraction/ai/` reads an uploaded IB-aangifte or jaarrekening with
+Claude through Amazon Bedrock.
+
+- **EU only.** `config.ts` refuses any region outside an explicit EU list
+  (`eu-west-2` is London and `eu-central-2` is Zürich, so a plain `eu-` prefix
+  is not enough). The default is `eu-central-1`, Frankfurt.
+- **Data minimisation.** Only the file is sent: no client name, plan data or
+  user data. The schema (`schema.ts`) asks for amounts, birth years, the
+  partner's first name and page numbers. It never asks for a BSN, address or
+  account number.
+- **No AI arithmetic.** The model transcribes. `map.ts` adds up wages per
+  employer, derives an interest rate from interest paid and maps owners, and it
+  is unit-tested. The engine stays deterministic.
+- **Check by the planner.** Every value is marked "uit document" and listed
+  with its page under the uploaded document.
+- **Refusals.** If the main model declines, the request is retried once on a
+  fallback model (`PLANNR_BEDROCK_FALLBACK_MODEL`).
+- **Two switches.** The environment variables in `.env.example` (server) and
+  the owner's switch under Instellingen (per firm, off by default).
 
 ### Roles & invitations
 
@@ -270,7 +299,8 @@ holding structures (several BVs) fit the same model.
 ## 5. Tests
 
 - `npm test` — unit tests for formatting (Dutch amounts/dates), the engine,
-  step/missing-field logic and document pre-filling.
+  insights, choice comparisons, step/missing-field logic, and document
+  pre-filling including the mapping of AI reader output.
 - `npm run test:db` — starts a throwaway `supabase/postgres` container,
   applies the migration and checks RLS isolation between firms, owner-only
   rules, invitations, storage folders and that the super admin sees counts only.
@@ -279,9 +309,10 @@ holding structures (several BVs) fit the same model.
 
 ## 6. Known limitations / next steps
 
-- Mock calculation engine (indicative 2025 rules; no heffingskortingen,
-  toeslagen or partner calculations).
-- Document extraction returns example data.
+- Mock calculation engine (indicative 2025 rules; no heffingskortingen or
+  toeslagen).
+- Document extraction returns example data unless the AI reader is set up
+  (Amazon Bedrock, EU) and switched on by the firm owner.
 - One BV per plan in the UI (the data model supports more).
 - No billing, seat limits, client portal or custom fonts (out of scope for v1).
 - If two planners edit the *same plan* at the same moment, the last save wins.

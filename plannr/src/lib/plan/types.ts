@@ -24,6 +24,8 @@ export interface FirmRow {
   name: string;
   website_url: string | null;
   created_at: string;
+  ai_extraction_enabled: boolean;
+  ai_extraction_changed_at: string | null;
 }
 
 export interface UserRow {

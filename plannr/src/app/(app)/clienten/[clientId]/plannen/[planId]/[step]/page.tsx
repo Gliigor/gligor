@@ -16,6 +16,10 @@ import { ReportStep } from "@/components/plan/steps/report-step";
 import { InsightsPanel } from "@/components/plan/insights-panel";
 import { ChoicesPanel } from "@/components/plan/choices-panel";
 import { deriveInsights } from "@/lib/insights";
+import { getAiReaderStatus } from "@/lib/extraction/ai/config";
+
+// Reading a document with the AI reader can take a minute or two.
+export const maxDuration = 300;
 
 export async function generateMetadata({ params }: PageProps<"/clienten/[clientId]/plannen/[planId]/[step]">) {
   const { step } = await params;
@@ -48,6 +52,8 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
           firmId={member.firm.id}
           planId={planId}
           documents={bundle.documents}
+          aiReader={member.firm.ai_extraction_enabled && getAiReaderStatus().configured}
+          isOwner={member.isOwner}
           priveEnabled={sideHasSections("prive", config)}
           zakelijkEnabled={sideHasSections("zakelijk", config)}
         />
