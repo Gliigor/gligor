@@ -86,6 +86,17 @@ export const ASSUMPTIONS = {
   bv: {
     /** The BV's liquid assets earn the scenario return after corporate tax (1 − 19% Vpb). */
     returnOnLiquidAssetsFactor: 0.81,
+    /** Wet excessief lenen: debts to the own BV above this amount (excluding eigen-woningschulden) are taxed in box 2. */
+    excessiefLenenGrens: 500_000,
+  },
+
+  /** Insurance policies and lijfrente balances grow at this fixed rate (all scenarios). */
+  policyReturn: 0.03,
+
+  giften: {
+    /** Deductible part of gifts: above 1% of the income, at most 10% of the income. */
+    drempel: 0.01,
+    maximum: 0.1,
   },
 } as const;
 

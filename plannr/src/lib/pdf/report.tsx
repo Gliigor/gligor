@@ -7,7 +7,7 @@
 // render (see renderReportPdf in ./render.tsx).
 
 import { Circle, Document, Image, Page, Polyline, StyleSheet, Svg, Line as SvgLine, Text, View } from "@react-pdf/renderer";
-import type { PlanResult } from "@/lib/engine/types";
+import type { CashFlowItem, PlanResult } from "@/lib/engine/types";
 import type { HouseStyle } from "@/lib/house-style/types";
 import { INSIGHT_TONE_LABELS, type Insight, type InsightTone } from "@/lib/insights";
 import { REPORT_SECTIONS, type ReportSectionKey } from "@/lib/plan/definitions";
@@ -24,6 +24,14 @@ export interface ReportData {
   sections: ReportSectionKey[];
   /** Aandachtspunten shown in the report (already filtered by the planner). */
   insights: Insight[];
+  /** Income and expense items with a period, as entered. */
+  items?: CashFlowItem[];
+}
+
+function periodOf(it: CashFlowItem): string {
+  const start = it.startYear ? String(it.startYear) : it.startFrom === "pensioen" ? "pensioen" : "nu";
+  if (it.oneOff) return it.startYear ? String(it.startYear) : "dit jaar";
+  return it.endYear ? `${start} – ${it.endYear}` : `vanaf ${start}`;
 }
 
 export interface ReportLogo {
@@ -633,9 +641,16 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
               ["Hypotheek", -w.prive.mortgageDebt],
               ["Bezittingen box 3", w.prive.box3Assets],
               ["Schulden box 3", -w.prive.box3Debts],
+              ...w.prive.otherAssets.map((o): [string, number] => [o.label, o.value]),
             ]}
             total={["Netto vermogen privé", w.prive.total]}
           />
+          {w.prive.bvLoans.total > 0 ? (
+            <Text style={{ color: MUTED, fontSize: 8.5, marginTop: 6 }}>
+              Waarvan schulden aan de eigen BV: {formatEuro(w.prive.bvLoans.total, { whole: true })}
+              {w.prive.bvLoans.excess > 0 ? `, waarvan ${formatEuro(w.prive.bvLoans.excess, { whole: true })} boven de grens van de Wet excessief lenen.` : "."}
+            </Text>
+          ) : null}
           {w.zakelijk.total !== 0 || w.zakelijk.companies.length > 0 ? (
             <View style={{ marginTop: 14 }}>
               <Text style={s.h3}>Zakelijk</Text>
@@ -653,6 +668,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
             data={[
               { label: "Eigen woning (netto)", value: w.prive.eigenWoningNet },
               { label: "Box 3 (netto)", value: w.prive.box3Net },
+              ...(w.prive.otherAssetsTotal ? [{ label: "Polissen en leningen", value: w.prive.otherAssetsTotal }] : []),
               { label: "Aandelen BV", value: w.zakelijk.shareValue },
             ]}
           />
@@ -667,9 +683,11 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
               [r.household.persons.length > 1 ? "Bruto inkomen uit arbeid (samen)" : "Bruto inkomen uit arbeid", r.income.grossEmployment],
               ["Salaris uit eigen BV", r.income.dgaSalary],
               ["Ontvangen dividend", r.income.dividendReceived],
+              ...(r.income.otherIncome ? [["Overig belastbaar inkomen", r.income.otherIncome] as [string, number]] : []),
+              ...(r.income.taxFreeIncome ? [["Onbelast inkomen", r.income.taxFreeIncome] as [string, number]] : []),
               ["Belastingen (box 1, 2 en 3)", -r.income.taxTotal],
               ["Netto inkomen", r.income.net],
-              ["Uitgaven huishouden", -r.income.expenses],
+              ["Uitgaven", -r.income.expenses],
             ]}
             total={["Saldo per jaar", r.income.balance]}
           />
@@ -685,7 +703,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
               {r.household.persons.map((p) => (
                 <View key={p.role} style={s.row}>
                   <Text style={s.cellLabel}>{p.name}</Text>
-                  <Text style={s.cellValue}>{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived + p.otherIncome + p.taxFreeIncome, { whole: true })}</Text>
                   <Text style={s.cellValue}>{formatEuro(p.box1Tax + p.box2Tax + p.box3Tax, { whole: true })}</Text>
                   <Text style={[s.cellValue, s.bold]}>{formatEuro(p.net, { whole: true })}</Text>
                 </View>
@@ -700,6 +718,45 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
               { label: "Saldo", value: r.income.balance },
             ]}
           />
+          {data.items && data.items.length > 0 ? (
+            <View style={{ marginTop: 16 }}>
+              <Text style={s.h3}>Posten met een periode</Text>
+              <View style={[s.row, { borderBottomColor: TEXT }]}>
+                <Text style={[s.cellLabel, s.bold]}>Post</Text>
+                <Text style={[s.cellValue, s.bold]}>Periode</Text>
+                <Text style={[s.cellValue, s.bold]}>Per jaar</Text>
+              </View>
+              {data.items.map((it, i) => (
+                <View key={i} style={s.row} wrap={false}>
+                  <Text style={s.cellLabel}>{it.label}</Text>
+                  <Text style={s.cellValue}>{periodOf(it)}</Text>
+                  <Text style={s.cellValue}>{formatEuro(it.group === "uitgave" ? -it.amount : it.amount, { whole: true })}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          <View style={{ marginTop: 16 }} wrap={false}>
+            <Text style={s.h3}>Verloop in de tijd</Text>
+            <View style={[s.row, { borderBottomColor: TEXT }]}>
+              <Text style={[s.cellLabel, s.bold]}>Jaar</Text>
+              <Text style={[s.cellValue, s.bold]}>Netto inkomen</Text>
+              <Text style={[s.cellValue, s.bold]}>Uitgaven</Text>
+              <Text style={[s.cellValue, s.bold]}>Saldo</Text>
+            </View>
+            {r.projection.points
+              .filter((_, i) => i % 5 === 0)
+              .map((p) => (
+                <View key={p.year} style={s.row}>
+                  <Text style={s.cellLabel}>
+                    {p.year}
+                    {p.age ? `  (${p.age} jaar)` : ""}
+                  </Text>
+                  <Text style={s.cellValue}>{formatEuro(p.netIncome, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(p.spending, { whole: true })}</Text>
+                  <Text style={[s.cellValue, s.bold]}>{formatEuro(p.netIncome - p.spending, { whole: true })}</Text>
+                </View>
+              ))}
+          </View>
         </View>
       );
     case "belastingdruk":
@@ -736,25 +793,33 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
         <Text style={s.lead}>Dit plan bevat geen zakelijke onderdelen.</Text>
       ) : (
         <View>
-          {w.zakelijk.companies.map((c) => (
-            <View key={c.name || "bv"} style={s.section}>
+          {w.zakelijk.companies.map((c, i) => (
+            <View key={`${c.name}-${i}`} style={s.section}>
               <Text style={s.h3}>
-                {c.name || "BV"} · {c.sharePercentage}% aandelenbezit
+                {c.name || "BV"} · {c.heldByHolding ? "gehouden via de holding" : `${c.sharePercentage}% aandelenbezit`}
               </Text>
               <Table
                 s={s}
                 rows={[
-                  ["Eigen vermogen BV", w.zakelijk.equity],
-                  ["Liquide middelen BV", w.zakelijk.liquidAssets],
+                  ["Eigen vermogen BV", c.equity],
+                  ["Liquide middelen BV", c.liquidAssets],
                   ["Resultaat na belasting", c.resultAfterTax],
                   ["Dividenduitkering", c.dividend],
                   ["Salaris uit de BV", c.dgaSalary],
-                  ["Oudedagsverplichting / pensioen in eigen beheer", w.zakelijk.pensionObligation],
+                  ["Oudedagsverplichting / pensioen in eigen beheer", c.pensionObligation],
+                  ...(c.paidInCapital ? [["Fiscaal gestort kapitaal (aandelenkapitaal en agio)", c.paidInCapital] as [string, number]] : []),
                 ]}
-                total={["Indicatieve waarde aandelen", w.zakelijk.shareValue]}
+                total={
+                  c.heldByHolding
+                    ? undefined
+                    : ["Indicatieve waarde aandelen", (c.equity * c.sharePercentage) / 100]
+                }
               />
             </View>
           ))}
+          {w.zakelijk.companies.length > 1 ? (
+            <Table s={s} rows={[]} total={["Waarde aandelen in box 2 (totaal)", w.zakelijk.shareValue]} />
+          ) : null}
         </View>
       );
     case "schenkingen":

@@ -1,7 +1,8 @@
 // Maps stored plan data (plans.config, plans.inputs, assets rows) onto the
 // engine's PlanInput. This is the only place that knows both shapes.
 
-import type { Box3Category, GiftInput, Owner, PlanInput } from "@/lib/engine/types";
+import type { Box3Category, CashFlowItem, GiftInput, LoanInput, Owner, PlanInput, PolicyInput } from "@/lib/engine/types";
+import { getCashKind } from "./definitions";
 import type { AssetRow, PlanConfig, PlanInputs } from "./types";
 import { toNumber } from "./types";
 
@@ -10,17 +11,34 @@ const BOX3_CATEGORY: Record<string, Box3Category> = {
   beleggingen: "investments",
   overig_vastgoed_nl: "otherRealEstate",
   schulden_box3: "debts",
+  // Money lent to others is an "overige bezitting" in box 3, taxed like investments.
+  vordering_derden: "investments",
 };
+
+/** A kapitaalverzekering that is not exempt is an ordinary box 3 asset. */
+const isBox3Policy = (a: AssetRow) => a.type === "kapitaalverzekering" && a.metadata.fiscaal === "box3";
+
+const POLICY_LABELS: Record<string, string> = {
+  kapitaalverzekering: "Kapitaalverzekering",
+  lijfrente: "Lijfrente",
+  spaarrekening_eigen_woning: "Spaarrekening eigen woning",
+  lening_dga: "Lening van de eigen BV",
+  vordering_bv: "Lening aan de eigen BV",
+};
+const labelOf = (a: AssetRow) => a.label.trim() || POLICY_LABELS[a.type] || a.type;
 
 function meta(asset: AssetRow, key: string): number {
   return toNumber(asset.metadata[key]) ?? 0;
 }
 
-/** Owner stored in asset metadata; privé items default to joint, a BV to the client. */
+/** Items that belong to the DGA personally unless stated otherwise. */
+const CLIENT_BY_DEFAULT = new Set(["bv_aandelen", "lening_dga", "vordering_bv", "lijfrente"]);
+
+/** Owner stored in asset metadata; privé items default to joint, BV-related items to the client. */
 export function ownerOf(asset: AssetRow): Owner {
   const o = asset.metadata.eigenaar;
   if (o === "client" || o === "partner" || o === "joint") return o;
-  return asset.type === "bv_aandelen" ? "client" : "joint";
+  return CLIENT_BY_DEFAULT.has(asset.type) ? "client" : "joint";
 }
 
 export function toEngineInput(args: {
@@ -97,9 +115,57 @@ export function toEngineInput(args: {
         woning || mortgages.length > 0
           ? { wozValue: woning?.value ?? 0, mortgages, owner: woning ? ownerOf(woning) : "joint" }
           : null,
-      box3: assets
-        .filter((a) => BOX3_CATEGORY[a.type])
-        .map((a) => ({ category: BOX3_CATEGORY[a.type], value: a.value ?? 0, owner: ownerOf(a) })),
+      box3: [
+        ...assets
+          .filter((a) => BOX3_CATEGORY[a.type] && (a.type !== "vordering_derden" || c.box3))
+          .map((a) => ({ category: BOX3_CATEGORY[a.type], value: a.value ?? 0, owner: ownerOf(a) })),
+        ...assets.filter(isBox3Policy).map((a) => ({ category: "investments" as const, value: a.value ?? 0, owner: ownerOf(a) })),
+      ],
+      cashItems: inputs.posten.flatMap((x): CashFlowItem[] => {
+        const kind = getCashKind(x.soort);
+        if (!kind || !c[kind.section] || !x.bedrag) return [];
+        return [
+          {
+            label: x.omschrijving || kind.label,
+            group: kind.group,
+            tax: kind.tax,
+            person: kind.perPerson ? (x.persoon ?? "client") : null,
+            amount: x.bedrag,
+            startYear: x.startjaar,
+            startFrom: kind.defaultStart,
+            endYear: kind.oneOff ? null : x.eindjaar,
+            oneOff: kind.oneOff,
+            growth: x.groei,
+          },
+        ];
+      }),
+      policies: assets
+        .filter((a) => ["kapitaalverzekering", "lijfrente", "spaarrekening_eigen_woning"].includes(a.type) && !isBox3Policy(a))
+        .map(
+          (a): PolicyInput => ({
+            kind: a.type as PolicyInput["kind"],
+            label: labelOf(a),
+            owner: ownerOf(a),
+            value: a.value ?? 0,
+            payoutYear: toNumber(a.metadata.uitkering_jaar),
+            expectedPayout: toNumber(a.metadata.verwachte_uitkering),
+            startYear: toNumber(a.metadata.start_uitkering),
+            years: toNumber(a.metadata.duur_jaren),
+            yearlyContribution: meta(a, "jaarlijkse_inleg"),
+          }),
+        ),
+      loans: assets
+        .filter((a) => a.type === "lening_dga" || a.type === "vordering_bv")
+        .map(
+          (a): LoanInput => ({
+            kind: a.type as LoanInput["kind"],
+            label: labelOf(a),
+            owner: ownerOf(a),
+            amount: a.value ?? 0,
+            interestRate: meta(a, "rente"),
+            forHome: a.metadata.eigen_woning === "ja",
+          }),
+        ),
     },
     zakelijk: {
       companies: assets
@@ -114,6 +180,8 @@ export function toEngineInput(args: {
           pensionObligation: meta(a, "odv_waarde"),
           dgaSalary: meta(a, "salaris_dga"),
           dividend: meta(a, "dividenduitkering"),
+          heldByHolding: a.metadata.gehouden_door === "holding",
+          paidInCapital: meta(a, "aandelenkapitaal") + meta(a, "agio"),
         })),
     },
   };

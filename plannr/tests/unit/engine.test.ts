@@ -25,7 +25,7 @@ const dgaAssets = [
 const dgaInput = () =>
   toEngineInput({
     config: dgaConfig,
-    inputs: { prive: { geboortejaar: 1972, pensioenleeftijd: 67, bruto_inkomen: 0, jaarlijkse_uitgaven: 70_000, pensioen_per_jaar: 20_000 }, partner: {}, kinderen: [], schenkingen: [], fromDocument: [] },
+    inputs: { prive: { geboortejaar: 1972, pensioenleeftijd: 67, bruto_inkomen: 0, jaarlijkse_uitgaven: 70_000, pensioen_per_jaar: 20_000 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
     assets: dgaAssets,
     referenceYear: 2026,
   });

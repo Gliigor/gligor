@@ -7,6 +7,7 @@
 
 import { ASSUMPTIONS, SCENARIO_KEYS, type ScenarioKey } from "./assumptions";
 import type {
+  CashFlowItem,
   GiftSummary,
   Owner,
   PersonInput,
@@ -87,12 +88,21 @@ export function mockCalculate(input: PlanInput): PlanResult {
 
   // --- Wealth -----------------------------------------------------------------------
   const woning = s.eigenWoning ? input.prive.eigenWoning : null;
+  const loans = input.prive.loans;
+  // A loan from the own BV for the eigen woning is an eigenwoningschuld; other loans from the BV are box 3 debts.
+  const homeLoans = loans.filter((l) => l.kind === "lening_dga" && l.forHome && s.eigenWoning);
+  const otherBvDebts = loans.filter((l) => l.kind === "lening_dga" && !(l.forHome && s.eigenWoning));
+  const tbsLoans = loans.filter((l) => l.kind === "vordering_bv");
+  const mortgages = [...(woning?.mortgages ?? []), ...homeLoans.map((l) => ({ amount: l.amount, interestRate: l.interestRate }))];
   const eigenWoningValue = woning?.wozValue ?? 0;
-  const mortgageDebt = woning ? woning.mortgages.reduce((sum, m) => sum + m.amount, 0) : 0;
-  const yearlyMortgageInterest = woning ? woning.mortgages.reduce((sum, m) => sum + m.amount * (m.interestRate / 100), 0) : 0;
+  const mortgageDebt = mortgages.reduce((sum, m) => sum + m.amount, 0);
+  const yearlyMortgageInterest = mortgages.reduce((sum, m) => sum + m.amount * (m.interestRate / 100), 0);
   const forfait = eigenWoningValue * a.box1.eigenwoningforfait;
 
-  const box3Items = s.box3 ? input.prive.box3 : [];
+  const box3Items = [
+    ...(s.box3 ? input.prive.box3 : []),
+    ...otherBvDebts.map((l) => ({ category: "debts" as const, value: l.amount, owner: l.owner })),
+  ];
   const sumCat = (cat: string, role?: Role) =>
     box3Items.filter((i) => i.category === cat).reduce((sum, i) => sum + i.value * (role ? share(i.owner, role) : 1), 0);
   const b3 = { savings: sumCat("savings"), investments: sumCat("investments"), otherRealEstate: sumCat("otherRealEstate"), debts: sumCat("debts") };
@@ -104,35 +114,138 @@ export function mockCalculate(input: PlanInput): PlanResult {
     owner: (c.owner === "partner" && hasPartner ? "partner" : "client") as Role,
   }));
   const pct = (c: { sharePercentage: number }) => c.sharePercentage / 100;
-  const shareValue = companies.reduce((sum, c) => sum + (s.balans ? c.equity : 0) * pct(c), 0);
+  // A werkmaatschappij held by a holding is not in box 2 itself: its value sits in the holding's
+  // deelneming, and its profit (dividend to the holding is tax-free) adds to the group.
+  const direct = companies.filter((c) => !c.heldByHolding);
+  const shareValue = direct.reduce((sum, c) => sum + (s.balans ? c.equity : 0) * pct(c), 0);
   const equity = s.balans ? companies.reduce((sum, c) => sum + c.equity, 0) : 0;
   const liquidAssets = s.balans ? companies.reduce((sum, c) => sum + c.liquidAssets, 0) : 0;
-  const ownLiquid = s.balans ? companies.reduce((sum, c) => sum + c.liquidAssets * pct(c), 0) : 0;
+  const ownLiquid = s.balans ? direct.reduce((sum, c) => sum + c.liquidAssets * pct(c), 0) : 0;
   const pensionObligation = s.pensioenEigenBeheer ? companies.reduce((sum, c) => sum + c.pensionObligation, 0) : 0;
   const dgaSalaryOf = (role: Role) => (s.bv ? companies.filter((c) => c.owner === role).reduce((sum, c) => sum + c.dgaSalary, 0) : 0);
-  const dividendOf = (role: Role) => (s.dividend ? companies.filter((c) => c.owner === role).reduce((sum, c) => sum + c.dividend * pct(c), 0) : 0);
+  const dividendOf = (role: Role) => (s.dividend ? direct.filter((c) => c.owner === role).reduce((sum, c) => sum + c.dividend * pct(c), 0) : 0);
   const retainedOf = (role: Role) =>
     s.resultaat
       ? companies
           .filter((c) => c.owner === role)
-          .reduce((sum, c) => sum + Math.max(0, c.resultAfterTax - (s.dividend ? c.dividend : 0)) * pct(c), 0)
+          .reduce(
+            (sum, c) => sum + Math.max(0, c.resultAfterTax - (s.dividend && !c.heldByHolding ? c.dividend : 0)) * pct(c),
+            0,
+          )
       : 0;
 
   if (companies.some((c) => c.sharePercentage > 0 && c.sharePercentage < 5)) {
     warnings.push("Een aandelenbelang onder 5% is geen aanmerkelijk belang; het is in deze indicatie toch in box 2 meegenomen.");
   }
 
+  // --- Items over time, policies and loans to the own BV ------------------------------
+  const ref = input.referenceYear;
+  const indexAt = (t: number) => Math.pow(1 + a.inflation, t);
+  const personOf = (role: Role) => people.find((x) => x.role === role)?.p ?? null;
+  const items = input.prive.cashItems.filter((it) => it.amount > 0 && (it.person !== "partner" || hasPartner));
+  const startOf = (it: CashFlowItem) => {
+    if (it.startYear !== null) return it.startYear;
+    const p = personOf(it.person ?? "client");
+    if (it.startFrom === "pensioen" && p?.birthYear && p.retirementAge) return p.birthYear + p.retirementAge;
+    return ref;
+  };
+  /** Amount of an item in year ref + t, in money of the reference year (0 when not active). */
+  const itemReal = (it: CashFlowItem, t: number) => {
+    const year = ref + t;
+    const start = startOf(it);
+    if (year < start || (it.oneOff ? year !== start : it.endYear !== null && year > it.endYear)) return 0;
+    if (it.growth === null) return it.amount;
+    return (it.amount * Math.pow(1 + it.growth / 100, t)) / indexAt(t);
+  };
+
+  // Policies are scenario-independent: they grow at a fixed rate.
+  const N = a.projectionYears;
+  const policies = input.prive.policies;
+  const balances = policies.map((p) => p.value);
+  const policyWealth: number[] = [];
+  const kewPayout: number[] = [];
+  const lijfrenteIn: Record<Role, number>[] = [];
+  const lijfrenteOut: Record<Role, number>[] = [];
+  for (let t = 0; t <= N; t++) {
+    const year = ref + t;
+    let wealth = 0;
+    let payout = 0;
+    const inflow = { client: 0, partner: 0 };
+    const outflow = { client: 0, partner: 0 };
+    policies.forEach((p, i) => {
+      if (p.kind === "spaarrekening_eigen_woning") {
+        if (t > 0) balances[i] *= 1 + a.savingsRate;
+      } else if (p.kind === "kapitaalverzekering") {
+        if (p.payoutYear !== null && year > p.payoutYear) balances[i] = 0;
+        else if (t > 0) balances[i] *= 1 + a.policyReturn;
+        if (p.payoutYear !== null && year === p.payoutYear) {
+          payout += p.expectedPayout ?? balances[i];
+          balances[i] = 0;
+        }
+      } else {
+        const start = p.startYear ?? Number.POSITIVE_INFINITY;
+        const years = Math.max(1, p.years ?? 20);
+        if (t > 0) balances[i] *= 1 + a.policyReturn;
+        if (year < start) {
+          if (t > 0) balances[i] += p.yearlyContribution;
+          for (const r of roles) inflow[r] += p.yearlyContribution * share(p.owner, r);
+        } else if (year < start + years && balances[i] > 0) {
+          const pay = balances[i] / (start + years - year);
+          balances[i] -= pay;
+          for (const r of roles) outflow[r] += pay * share(p.owner, r);
+        }
+      }
+      wealth += balances[i];
+    });
+    policyWealth.push(wealth);
+    kewPayout.push(payout);
+    lijfrenteIn.push(inflow);
+    lijfrenteOut.push(outflow);
+  }
+  const tbsValue = tbsLoans.reduce((sum, l) => sum + l.amount, 0);
+  const tbsInterestOf = (role: Role) => tbsLoans.reduce((sum, l) => sum + l.amount * (l.interestRate / 100) * share(l.owner, role), 0);
+
+  /** Everything the items, policies and TBS loans add for one person in year ref + t (money of the reference year). */
+  const flowsAt = (t: number, role: Role) => {
+    const mine = items.filter((it) => it.person !== null && it.person === role);
+    const sum = (pred: (it: CashFlowItem) => boolean) => mine.filter(pred).reduce((x, it) => x + itemReal(it, t), 0);
+    return {
+      box1: sum((it) => it.group === "inkomen" && it.tax === "box1") + (lijfrenteOut[t][role] + tbsInterestOf(role)) / indexAt(t),
+      taxFree: sum((it) => it.group === "inkomen" && it.tax === "onbelast"),
+      deductibleGifts: sum((it) => it.tax === "aftrekbaar"),
+      lijfrenteContribution: lijfrenteIn[t][role] / indexAt(t),
+    };
+  };
+  /** All expense items of the household in year ref + t (money of the reference year). */
+  const itemExpensesAt = (t: number) => items.filter((it) => it.group === "uitgave").reduce((x, it) => x + itemReal(it, t), 0);
+  /** Tax saved by deductible gifts (giftenaftrek), at the limited deduction rate. */
+  const giftDeduction = (gifts: number, income: number, rate: number) =>
+    Math.min(Math.max(0, gifts - a.giften.drempel * income), a.giften.maximum * income) * rate;
+
+  // Wet excessief lenen: debts to the own BV (not for the eigen woning) above the limit.
+  const bvDebtOf = (role: Role) =>
+    loans.filter((l) => l.kind === "lening_dga" && !l.forHome).reduce((sum, l) => sum + l.amount * share(l.owner, role), 0);
+  const bvDebtTotal = loans.filter((l) => l.kind === "lening_dga").reduce((sum, l) => sum + l.amount, 0);
+  const bvExcess = fiscal
+    ? Math.max(0, roles.reduce((x, r) => x + bvDebtOf(r), 0) - a.bv.excessiefLenenGrens)
+    : roles.reduce((x, r) => x + Math.max(0, bvDebtOf(r) - a.bv.excessiefLenenGrens), 0);
+  if (bvExcess > 0) {
+    warnings.push(
+      "De schulden aan de eigen BV liggen boven de grens van de Wet excessief lenen. Het meerdere wordt eenmalig als inkomen in box 2 belast; dat is in deze indicatie niet doorgerekend.",
+    );
+  }
+
   // --- Eigen woning allocation ------------------------------------------------------
   const employmentOf = (role: Role) => (s.inkomen ? (people.find((x) => x.role === role)?.p.grossEmploymentIncome ?? 0) : 0);
   const ewShare: Record<Role, number> = { client: 0, partner: 0 };
-  if (woning) {
+  if (woning || mortgages.length > 0) {
     if (fiscal) {
       // Fiscal partners may allocate the eigen woning freely: put it with the higher income.
       const income = (r: Role) => employmentOf(r) + dgaSalaryOf(r);
       const top = roles.reduce((best, r) => (income(r) > income(best) ? r : best), "client" as Role);
       ewShare[top] = 1;
     } else {
-      for (const r of roles) ewShare[r] = share(woning.owner, r);
+      for (const r of roles) ewShare[r] = share(woning?.owner ?? "joint", r);
     }
   }
 
@@ -155,10 +268,16 @@ export function mockCalculate(input: PlanInput): PlanResult {
   const personResults: PersonResult[] = people.map(({ role, p }) => {
     const employment = employmentOf(role);
     const dga = dgaSalaryOf(role);
-    const gross1 = employment + dga + forfait * ewShare[role];
+    const f = flowsAt(0, role);
+    const gross1 = Math.max(0, employment + dga + f.box1 - f.lijfrenteContribution + forfait * ewShare[role]);
     const interest = yearlyMortgageInterest * ewShare[role];
     const box1Base = Math.max(0, gross1 - interest);
-    const box1 = Math.max(0, progressiveTax(gross1, a.box1.brackets) - interest * a.box1.hypotheekrenteAftrekTarief);
+    const box1 = Math.max(
+      0,
+      progressiveTax(gross1, a.box1.brackets) -
+        interest * a.box1.hypotheekrenteAftrekTarief -
+        giftDeduction(f.deductibleGifts, gross1, a.box1.hypotheekrenteAftrekTarief),
+    );
     const dividendReceived = fiscal ? totalDividend / 2 : dividendOf(role);
     const b2 = fiscal ? box2Tax(totalDividend, 2) / 2 : box2Tax(dividendOf(role), 1);
     const b3t = fiscal ? (box3Joint?.tax ?? 0) / 2 : box3PerPerson[role].tax;
@@ -171,11 +290,13 @@ export function mockCalculate(input: PlanInput): PlanResult {
       grossEmployment: round(employment),
       dgaSalary: round(dga),
       dividendReceived: round(dividendReceived),
+      otherIncome: round(f.box1),
+      taxFreeIncome: round(f.taxFree),
       box1Base: round(box1Base),
       box1Tax: round(box1),
       box2Tax: round(b2),
       box3Tax: round(b3t),
-      net: round(employment + dga + dividendReceived - box1 - b2 - b3t),
+      net: round(employment + dga + f.box1 + f.taxFree + dividendReceived - box1 - b2 - b3t),
     };
   });
 
@@ -187,7 +308,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
   const box1Marginal = Math.max(
     0,
     ...roles.map((r) => {
-      const gross = employmentOf(r) + dgaSalaryOf(r) + forfait * ewShare[r];
+      const gross = employmentOf(r) + dgaSalaryOf(r) + flowsAt(0, r).box1 + forfait * ewShare[r];
       return gross > 0 ? marginalRate(gross, a.box1.brackets) : 0;
     }),
   );
@@ -221,11 +342,15 @@ export function mockCalculate(input: PlanInput): PlanResult {
 
   const grossEmployment = roles.reduce((x, r) => x + employmentOf(r), 0);
   const dgaSalary = roles.reduce((x, r) => x + dgaSalaryOf(r), 0);
+  const otherIncome = personResults.reduce((x, p) => x + p.otherIncome, 0);
+  const taxFreeIncome = personResults.reduce((x, p) => x + p.taxFreeIncome, 0);
   const taxTotal = box1TaxTotal + box2TaxTotal + box3Total.tax;
-  const grossTotal = grossEmployment + dgaSalary + totalDividend;
+  const grossTotal = grossEmployment + dgaSalary + totalDividend + otherIncome + taxFreeIncome;
   const net = grossTotal - taxTotal;
   const expenses = s.inkomen ? input.prive.yearlyExpenses : 0;
-  const balance = s.inkomen ? net - expenses : 0;
+  // Expense items and lijfrente contributions this year, on top of the fixed household expenses.
+  const extraExpensesNow = itemExpensesAt(0) + roles.reduce((x, r) => x + flowsAt(0, r).lijfrenteContribution, 0);
+  const balance = s.inkomen ? net - expenses - extraExpensesNow : 0;
 
   // --- Retirement --------------------------------------------------------------------
   const aowPerPerson = s.pensioen ? (hasPartner ? a.aow.samenwonend : a.aow.alleenstaand) : 0;
@@ -313,12 +438,15 @@ export function mockCalculate(input: PlanInput): PlanResult {
       const labour = working ? employmentOf(role) + dgaSalaryOf(role) : 0;
       const pension = working ? 0 : pensionOf(p);
       const aow = age !== null && age >= a.aow.age ? aowPerPerson : 0;
-      const gross = labour + pension + aow + forfait * ewShare[role];
+      const f = flowsAt(t, role);
+      const gross = Math.max(0, labour + pension + aow + f.box1 - f.lijfrenteContribution + forfait * ewShare[role]);
       const interest = yearlyMortgageInterest * ewShare[role];
-      const taxGross = age !== null && age >= a.aow.age ? gross * a.box1.pensionerRate : progressiveTax(gross, a.box1.brackets);
-      const tax = Math.max(0, taxGross - interest * a.box1.hypotheekrenteAftrekTarief);
+      const pensioner = age !== null && age >= a.aow.age;
+      const taxGross = pensioner ? gross * a.box1.pensionerRate : progressiveTax(gross, a.box1.brackets);
+      const deductionRate = pensioner ? a.box1.pensionerRate : a.box1.hypotheekrenteAftrekTarief;
+      const tax = Math.max(0, taxGross - interest * a.box1.hypotheekrenteAftrekTarief - giftDeduction(f.deductibleGifts, gross, deductionRate));
       box1Today += tax;
-      netToday += labour + pension + aow - tax;
+      netToday += labour + pension + aow + f.box1 - f.lijfrenteContribution + f.taxFree - tax;
       if (working) {
         regularDividend += dividendOf(role);
         retainedToday += retainedOf(role);
@@ -326,6 +454,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
     }
     const regularBox2Today = box2Tax(regularDividend, peopleCount);
     netToday += regularDividend - regularBox2Today;
+    const spendingToday = (s.inkomen ? expenses + itemExpensesAt(t) : 0);
 
     for (const key of SCENARIO_KEYS) {
       const st = state[key];
@@ -352,7 +481,9 @@ export function mockCalculate(input: PlanInput): PlanResult {
           return gross - tax;
         };
 
-        const flow = (s.inkomen ? (netToday - expenses) * priceIndex : 0) - giftsNow;
+        // A kapitaalverzekering that pays out this year lands in savings.
+        st.savings += kewPayout[t];
+        const flow = (s.inkomen ? (netToday - spendingToday) * priceIndex : 0) - giftsNow;
         if (flow >= 0) {
           // Surplus tops up the cash buffer first, the rest is invested.
           const toSavings = Math.min(flow, Math.max(0, buffer - st.savings));
@@ -381,7 +512,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
         }
       }
       const houseNet = s.eigenWoning ? st.house - mortgageDebt : 0;
-      totals[key] = round(st.savings + st.invested + st.bvLiquid + bvRest + houseNet);
+      totals[key] = round(st.savings + st.invested + st.bvLiquid + bvRest + houseNet + policyWealth[t] + tbsValue);
     }
 
     points.push({
@@ -391,6 +522,8 @@ export function mockCalculate(input: PlanInput): PlanResult {
       neutraal: totals.neutraal,
       optimistisch: totals.optimistisch,
       neutraalReeel: round(totals.neutraal / priceIndex),
+      netIncome: round(s.inkomen ? netToday * priceIndex : 0),
+      spending: round(spendingToday * priceIndex + giftsTotalIn(year)),
     });
   }
 
@@ -398,10 +531,15 @@ export function mockCalculate(input: PlanInput): PlanResult {
     warnings.push("In het neutrale scenario raakt het vrij beschikbare vermogen binnen de projectieperiode uitgeput.");
   }
 
-  const priveTotal = eigenWoningValue - mortgageDebt + box3Assets - b3.debts;
+  const otherAssets = [
+    ...policies.map((p) => ({ label: p.label, value: round(p.value) })),
+    ...tbsLoans.map((l) => ({ label: l.label, value: round(l.amount) })),
+  ];
+  const otherAssetsTotal = otherAssets.reduce((x, o) => x + o.value, 0);
+  const priveTotal = eigenWoningValue - mortgageDebt + box3Assets - b3.debts + otherAssetsTotal;
 
   return {
-    engine: { name: "Plannr prototype-rekenkern", version: "0.2.0", isPrototype: true, assumptionsLabel: a.label },
+    engine: { name: "Plannr prototype-rekenkern", version: "0.3.0", isPrototype: true, assumptionsLabel: a.label },
     referenceYear: input.referenceYear,
     wealth: {
       prive: {
@@ -411,6 +549,9 @@ export function mockCalculate(input: PlanInput): PlanResult {
         box3Assets: round(box3Assets),
         box3Debts: round(b3.debts),
         box3Net: round(box3Assets - b3.debts),
+        otherAssets,
+        otherAssetsTotal: round(otherAssetsTotal),
+        bvLoans: { total: round(bvDebtTotal), excess: round(bvExcess) },
         total: round(priveTotal),
       },
       zakelijk: {
@@ -425,6 +566,11 @@ export function mockCalculate(input: PlanInput): PlanResult {
           resultAfterTax: s.resultaat ? c.resultAfterTax : 0,
           dividend: s.dividend ? c.dividend : 0,
           dgaSalary: s.bv ? c.dgaSalary : 0,
+          equity: s.balans ? c.equity : 0,
+          liquidAssets: s.balans ? c.liquidAssets : 0,
+          pensionObligation: s.pensioenEigenBeheer ? c.pensionObligation : 0,
+          heldByHolding: c.heldByHolding,
+          paidInCapital: c.paidInCapital,
         })),
       },
       total: round(priveTotal + shareValue),
@@ -433,10 +579,12 @@ export function mockCalculate(input: PlanInput): PlanResult {
       grossEmployment: round(grossEmployment),
       dgaSalary: round(dgaSalary),
       dividendReceived: round(totalDividend),
+      otherIncome: round(otherIncome),
+      taxFreeIncome: round(taxFreeIncome),
       grossTotal: round(grossTotal),
       taxTotal: round(taxTotal),
       net: round(net),
-      expenses: round(expenses),
+      expenses: round(expenses + extraExpensesNow),
       balance: round(balance),
     },
     taxes: {

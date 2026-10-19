@@ -104,6 +104,10 @@ export interface FieldDef {
   required?: boolean;
   help?: string;
   options?: { value: string; label: string }[];
+  /** BV only: shown when the full balance sheet and P&L are switched on for that BV. */
+  extended?: boolean;
+  /** Calculated by Plannr from other fields; shown read-only. */
+  derived?: boolean;
 }
 
 /** Non-asset privé inputs, stored in plans.inputs.prive. */
@@ -212,6 +216,12 @@ export interface AssetTypeDef {
   showLabel: boolean;
   /** Type-specific fields stored in assets.metadata. */
   metadataFields: FieldDef[];
+  /** Not shown by default: added through "Onderwerp toevoegen" when the client has it. */
+  optional?: boolean;
+  /** One line shown in the "Onderwerp toevoegen" list. */
+  description?: string;
+  /** Metadata a new row starts with. */
+  defaults?: Record<string, string | number>;
 }
 
 export const ASSET_TYPES: AssetTypeDef[] = [
@@ -312,9 +322,152 @@ export const ASSET_TYPES: AssetTypeDef[] = [
     showLabel: true,
     metadataFields: [],
   },
+  // --- Optional privé topics (added when the client has them) ---------------------
   {
-    // One row per BV. v1 shows exactly one; holding structures can add more
-    // rows of this type later.
+    type: "kapitaalverzekering",
+    side: "prive",
+    taxBox: 1,
+    kind: "bezitting",
+    sections: ["box3", "pensioen"],
+    label: "Kapitaalverzekering",
+    itemLabel: "Polis",
+    multiple: true,
+    requiredRow: false,
+    optional: true,
+    defaults: { fiscaal: "vrijgesteld" },
+    description: "Kapitaalverzekering eigen woning (KEW) of spaarverzekering",
+    valueField: { label: "Huidige waarde", required: true },
+    showLabel: true,
+    metadataFields: [
+      { key: "uitkering_jaar", label: "Jaar van uitkering", kind: "integer", section: "algemeen", required: true },
+      {
+        key: "verwachte_uitkering",
+        label: "Verwachte uitkering",
+        kind: "money",
+        section: "algemeen",
+        help: "Leeg laten om te rekenen met de huidige waarde plus rendement.",
+      },
+      {
+        key: "fiscaal",
+        label: "Fiscale behandeling",
+        kind: "select",
+        section: "algemeen",
+        required: true,
+        options: [
+          { value: "vrijgesteld", label: "Vrijgesteld (box 1)" },
+          { value: "box3", label: "Box 3" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "lijfrente",
+    side: "prive",
+    taxBox: 1,
+    kind: "bezitting",
+    sections: ["pensioen", "box3"],
+    label: "Lijfrente",
+    itemLabel: "Lijfrente",
+    multiple: true,
+    requiredRow: false,
+    optional: true,
+    defaults: { duur_jaren: 20 },
+    description: "Lijfrenteverzekering, bancaire lijfrente of stamrecht",
+    valueField: { label: "Opgebouwde waarde", required: true },
+    showLabel: true,
+    metadataFields: [
+      { key: "start_uitkering", label: "Uitkering vanaf jaar", kind: "integer", section: "algemeen", required: true },
+      { key: "duur_jaren", label: "Looptijd uitkering (jaren)", kind: "integer", section: "algemeen", required: true },
+      {
+        key: "jaarlijkse_inleg",
+        label: "Jaarlijkse inleg tot uitkering",
+        kind: "money",
+        section: "algemeen",
+        help: "Aftrekbaar in box 1 binnen de jaarruimte.",
+      },
+    ],
+  },
+  {
+    type: "spaarrekening_eigen_woning",
+    side: "prive",
+    taxBox: 1,
+    kind: "bezitting",
+    sections: ["eigen_woning"],
+    label: "Spaarrekening eigen woning",
+    itemLabel: "Rekening",
+    multiple: true,
+    requiredRow: false,
+    optional: true,
+    description: "Spaarrekening of beleggingsrecht eigen woning (vrijgesteld)",
+    valueField: { label: "Saldo", required: true },
+    showLabel: true,
+    metadataFields: [],
+  },
+  {
+    type: "lening_dga",
+    side: "prive",
+    taxBox: 3,
+    kind: "schuld",
+    sections: ["bv", "box3"],
+    label: "Lening van de eigen BV",
+    itemLabel: "Lening",
+    multiple: true,
+    requiredRow: false,
+    optional: true,
+    defaults: { eigen_woning: "nee" },
+    description: "Schuld van de DGA aan de eigen BV (rekening-courant of lening)",
+    valueField: { label: "Openstaande schuld", required: true },
+    showLabel: true,
+    metadataFields: [
+      { key: "rente", label: "Rente", kind: "percent", section: "algemeen", required: true },
+      {
+        key: "eigen_woning",
+        label: "Gebruikt voor",
+        kind: "select",
+        section: "algemeen",
+        required: true,
+        help: "Een lening voor de eigen woning telt niet mee voor de grens van excessief lenen.",
+        options: [
+          { value: "nee", label: "Overig (box 3)" },
+          { value: "ja", label: "Eigen woning (box 1)" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "vordering_bv",
+    side: "prive",
+    taxBox: 1,
+    kind: "bezitting",
+    sections: ["bv", "box3"],
+    label: "Lening aan de eigen BV",
+    itemLabel: "Lening",
+    multiple: true,
+    requiredRow: false,
+    optional: true,
+    description: "Geld dat de DGA aan de eigen BV heeft geleend (terbeschikkingstelling, box 1)",
+    valueField: { label: "Uitstaand bedrag", required: true },
+    showLabel: true,
+    metadataFields: [{ key: "rente", label: "Rente", kind: "percent", section: "algemeen", required: true }],
+  },
+  {
+    type: "vordering_derden",
+    side: "prive",
+    taxBox: 3,
+    kind: "bezitting",
+    sections: ["box3"],
+    label: "Lening aan derden",
+    itemLabel: "Vordering",
+    multiple: true,
+    requiredRow: false,
+    optional: true,
+    description: "Uitgeleend geld aan anderen, bijvoorbeeld familie (box 3)",
+    valueField: { label: "Uitstaand bedrag", required: true },
+    showLabel: true,
+    metadataFields: [{ key: "rente", label: "Rente", kind: "percent", section: "algemeen" }],
+  },
+  {
+    // One row per BV; a holding with a werkmaatschappij is two rows.
     type: "bv_aandelen",
     side: "zakelijk",
     taxBox: 2,
@@ -322,7 +475,7 @@ export const ASSET_TYPES: AssetTypeDef[] = [
     sections: ["bv", "balans", "resultaat", "pensioen_eigen_beheer", "dividend"],
     label: "BV",
     itemLabel: "BV",
-    multiple: false,
+    multiple: true,
     requiredRow: true,
     showLabel: false,
     metadataFields: [
@@ -335,9 +488,43 @@ export const ASSET_TYPES: AssetTypeDef[] = [
         required: true,
         help: "Vanaf 5% is sprake van een aanmerkelijk belang (box 2).",
       },
+      {
+        key: "gehouden_door",
+        label: "Aandelen gehouden",
+        kind: "select",
+        section: "bv",
+        help: "Een werkmaatschappij onder een holding valt niet zelf in box 2: de waarde zit in de deelneming van de holding.",
+        options: [
+          { value: "dga", label: "Rechtstreeks (box 2)" },
+          { value: "holding", label: "Via een andere BV (holding)" },
+        ],
+      },
       { key: "salaris_dga", label: "Salaris DGA (bruto per jaar)", kind: "money", section: "bv", required: true },
-      { key: "eigen_vermogen", label: "Eigen vermogen BV", kind: "money", section: "balans", required: true },
+      // Full balance sheet (optional, per BV)
+      { key: "vaste_activa", label: "Vaste activa (geen deelnemingen)", kind: "money", section: "balans", extended: true },
+      { key: "deelnemingen", label: "Deelnemingen", kind: "money", section: "balans", extended: true },
+      { key: "vordering_dga", label: "Vordering op DGA (rekening-courant)", kind: "money", section: "balans", extended: true },
+      { key: "overige_vorderingen", label: "Uitgeleend geld en overige vorderingen", kind: "money", section: "balans", extended: true },
       { key: "liquide_middelen", label: "Liquide middelen BV", kind: "money", section: "balans", required: true },
+      { key: "aandelenkapitaal", label: "Aandelenkapitaal", kind: "money", section: "balans", extended: true },
+      {
+        key: "agio",
+        label: "Agio (fiscaal gestort kapitaal)",
+        kind: "money",
+        section: "balans",
+        extended: true,
+        help: "Kan zonder box 2-heffing worden terugbetaald.",
+      },
+      { key: "schuld_dga", label: "Schuld aan DGA", kind: "money", section: "balans", extended: true },
+      { key: "bankleningen", label: "Bankleningen", kind: "money", section: "balans", extended: true },
+      { key: "overige_schulden", label: "Overige schulden", kind: "money", section: "balans", extended: true },
+      { key: "eigen_vermogen", label: "Eigen vermogen BV", kind: "money", section: "balans", required: true },
+      // Profit and loss (optional, per BV)
+      { key: "opbrengsten", label: "Opbrengsten / omzet", kind: "money", section: "resultaat", extended: true },
+      { key: "management_fee", label: "Managementvergoeding ontvangen", kind: "money", section: "resultaat", extended: true },
+      { key: "bedrijfskosten", label: "Bedrijfskosten (excl. DGA-salaris)", kind: "money", section: "resultaat", extended: true },
+      { key: "afschrijvingen", label: "Afschrijvingen", kind: "money", section: "resultaat", extended: true },
+      { key: "verlies_te_verrekenen", label: "Te verrekenen verlies", kind: "money", section: "resultaat", extended: true },
       { key: "resultaat_na_belasting", label: "Resultaat na belasting", kind: "money", section: "resultaat", required: true },
       {
         key: "odv_waarde",
@@ -353,4 +540,46 @@ export const ASSET_TYPES: AssetTypeDef[] = [
 
 export function getAssetType(type: string): AssetTypeDef | undefined {
   return ASSET_TYPES.find((t) => t.type === type);
+}
+
+// ---------------------------------------------------------------------------
+// Income and expenses over time (plans.inputs.posten)
+// ---------------------------------------------------------------------------
+
+export type CashGroup = "inkomen" | "uitgave";
+/** box1: taxed in box 1 of the person; onbelast: received tax-free; aftrekbaar: deductible expense. */
+export type CashTax = "box1" | "onbelast" | "aftrekbaar" | "geen";
+
+export interface CashKindDef {
+  kind: string;
+  group: CashGroup;
+  label: string;
+  tax: CashTax;
+  /** Belongs to one person (needed for box 1). Household items have no person. */
+  perPerson: boolean;
+  /** Happens in one year only. */
+  oneOff: boolean;
+  /** When no start year is entered: from now, or from the person's retirement year. */
+  defaultStart: "nu" | "pensioen";
+  /** The plan section that must be enabled for this kind to be offered. */
+  section: SectionKey;
+  help?: string;
+}
+
+export const CASH_KINDS: CashKindDef[] = [
+  { kind: "salaris", group: "inkomen", label: "Salaris (geen DGA)", tax: "box1", perPerson: true, oneOff: false, defaultStart: "nu", section: "inkomen", help: "Een extra dienstbetrekking, of een baan die later begint of eindigt." },
+  { kind: "uitkering", group: "inkomen", label: "Uitkering (sociale verzekering)", tax: "box1", perPerson: true, oneOff: false, defaultStart: "nu", section: "inkomen", help: "Bijvoorbeeld WW of een arbeidsongeschiktheidsuitkering." },
+  { kind: "pensioen_uitkering", group: "inkomen", label: "Pensioenuitkering", tax: "box1", perPerson: true, oneOff: false, defaultStart: "pensioen", section: "pensioen", help: "Bijvoorbeeld pensioen van een eerdere werkgever. Zonder startjaar: vanaf de pensioenleeftijd." },
+  { kind: "lijfrente_uitkering", group: "inkomen", label: "Lijfrente-uitkering", tax: "box1", perPerson: true, oneOff: false, defaultStart: "pensioen", section: "pensioen", help: "Een lijfrente die al uitkeert of een vaste afspraak heeft. Een lijfrente met opgebouwde waarde voegt u toe bij Vermogen." },
+  { kind: "overig_inkomen", group: "inkomen", label: "Overig belastbaar inkomen", tax: "box1", perPerson: true, oneOff: false, defaultStart: "nu", section: "inkomen", help: "Bijvoorbeeld resultaat uit overige werkzaamheden of alimentatie." },
+  { kind: "eenmalig_inkomen", group: "inkomen", label: "Eenmalig belastbaar inkomen", tax: "box1", perPerson: true, oneOff: true, defaultStart: "nu", section: "inkomen" },
+  { kind: "onbelast_inkomen", group: "inkomen", label: "Onbelast inkomen", tax: "onbelast", perPerson: true, oneOff: false, defaultStart: "nu", section: "inkomen", help: "Bijvoorbeeld een erfenis in termijnen of een vrijgestelde uitkering." },
+  { kind: "uitgave", group: "uitgave", label: "Uitgaven in een periode", tax: "geen", perPerson: false, oneOff: false, defaultStart: "nu", section: "inkomen", help: "Kosten bovenop de vaste uitgaven, zolang ze duren. Bijvoorbeeld een lening die afloopt." },
+  { kind: "studiekosten", group: "uitgave", label: "Studiekosten kind(eren)", tax: "geen", perPerson: false, oneOff: false, defaultStart: "nu", section: "inkomen" },
+  { kind: "aftrekbare_gift", group: "uitgave", label: "Aftrekbare giften", tax: "aftrekbaar", perPerson: true, oneOff: false, defaultStart: "nu", section: "inkomen", help: "Giften aan goede doelen (ANBI): aftrekbaar boven 1% van het inkomen." },
+  { kind: "eenmalige_uitgave", group: "uitgave", label: "Eenmalige uitgave", tax: "geen", perPerson: false, oneOff: true, defaultStart: "nu", section: "inkomen", help: "Bijvoorbeeld een auto, verbouwing of wereldreis." },
+];
+
+export function getCashKind(kind: string): CashKindDef | undefined {
+  return CASH_KINDS.find((k) => k.kind === kind);
 }

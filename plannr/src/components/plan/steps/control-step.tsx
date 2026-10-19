@@ -9,6 +9,7 @@ import { AlertTriangle, Check, FileText, Plus, Trash2 } from "@/components/ui/ic
 import { addAsset, deleteAsset, updateAsset, updatePlanInputs } from "@/lib/actions/plan";
 import {
   ASSET_TYPES,
+  getAssetType,
   OWNER_OPTIONS,
   PRIVE_INPUT_FIELDS,
   SECTIONS,
@@ -24,6 +25,8 @@ import { FieldInput, FieldShell, NumberInput } from "../fields";
 import { ownerOf } from "@/lib/plan/to-engine-input";
 import { inputClass } from "@/components/ui/form";
 import { ChildrenCard, PartnerCard } from "./household-cards";
+import { AddMenu, CashItemsCard } from "./cash-items-card";
+import { deriveBv, isExtended } from "@/lib/plan/bv";
 import { SaveIndicator, useAutosave } from "../use-autosave";
 
 const domId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -152,7 +155,8 @@ export function ControlStep({
         key={field.key}
         id={domId(id)}
         field={field}
-        value={row.metadata[field.key] ?? null}
+        // A BV without a stated holder is held directly.
+        value={row.metadata[field.key] ?? (field.key === "gehouden_door" ? "dga" : null)}
         onChange={(v) => patchAsset(row.id, { meta: [field.key, v] })}
         missing={missingIds.has(id)}
         fromDocument={row.metadata._fromDocument?.includes(field.key)}
@@ -211,7 +215,9 @@ export function ControlStep({
                   />
                 </FieldShell>
               ) : null}
-              {def.metadataFields.filter((f) => f.section === section && isFieldVisible(f, config)).map((f) => metaField(row, f))}
+              {def.metadataFields
+                .filter((f) => (f.section === section || f.section === "algemeen") && isFieldVisible(f, config))
+                .map((f) => metaField(row, f))}
               {def.side === "prive" && def.type !== "hypotheek" ? ownerSelect(row) : null}
             </div>
             {def.multiple ? (
@@ -233,6 +239,112 @@ export function ControlStep({
           </Button>
         ) : null}
       </div>
+    );
+  };
+
+  const priveSections = sections.filter((section) => section.key !== "partner" && section.key !== "kinderen");
+  /** Where an optional privé topic is shown: its first enabled privé section, else the first privé card. */
+  const homeSection = (def: AssetTypeDef): SectionKey | undefined =>
+    def.sections.find((key) => priveSections.some((s) => s.key === key)) ??
+    (def.sections.some((key) => config.sections[key]) ? priveSections[0]?.key : undefined);
+
+  const derivedField = (row: AssetRow, field: FieldDef, value: number) => (
+    <FieldShell key={field.key} id={domId(`asset.${row.id}.${field.key}`)} label={field.label}>
+      <div
+        id={domId(`asset.${row.id}.${field.key}`)}
+        className="flex h-10 items-center justify-between rounded-sm border border-ink-200 bg-ink-50 px-3 text-[15px] tabular text-ink-900"
+      >
+        {formatEuro(value, { whole: true })}
+        <Badge>berekend</Badge>
+      </div>
+    </FieldShell>
+  );
+
+  const bvCard = (def: AssetTypeDef, row: AssetRow, count: number) => {
+    const extended = isExtended(row.metadata);
+    const d = deriveBv(row.metadata);
+    const derived: Record<string, number | null> = { eigen_vermogen: d.equity, resultaat_na_belasting: d.resultAfterTax };
+    const name = typeof row.metadata.bv_naam === "string" && row.metadata.bv_naam ? row.metadata.bv_naam : def.label;
+    const viaHolding = row.metadata.gehouden_door === "holding";
+    const equity = d.equity ?? (typeof row.metadata.eigen_vermogen === "number" ? row.metadata.eigen_vermogen : null);
+    const pct = typeof row.metadata.aandelen_percentage === "number" ? row.metadata.aandelen_percentage : null;
+    return (
+      <Card key={row.id}>
+        <CardHeader
+          title={name}
+          description={viaHolding ? "Werkmaatschappij, gehouden via een holding" : "Box 2: aanmerkelijk belang"}
+          action={
+            count > 1 ? (
+              <button
+                type="button"
+                onClick={() => removeRow(row.id)}
+                className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-ink-500 hover:bg-danger-50 hover:text-danger-600"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Verwijderen
+              </button>
+            ) : null
+          }
+        />
+        <div className="space-y-5 p-4 sm:p-5">
+          {config.sections.partner ? <div className="max-w-xs">{ownerSelect(row, true)}</div> : null}
+          {config.sections.balans || config.sections.resultaat ? (
+            <label className="flex items-start gap-2.5 text-sm text-ink-700">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-gold-500"
+                checked={extended}
+                onChange={(e) => patchAsset(row.id, { meta: ["uitgebreid", e.target.checked ? "ja" : null] })}
+              />
+              <span>
+                <span className="font-medium text-ink-900">Volledige balans en resultatenrekening invullen</span>
+                <span className="block text-xs text-ink-500">
+                  Eigen vermogen en resultaat na vennootschapsbelasting worden dan berekend.
+                </span>
+              </span>
+            </label>
+          ) : null}
+          {sections.map((section) => {
+            const fields = def.metadataFields.filter((f) => f.section === section.key && (!f.extended || extended));
+            if (fields.length === 0) return null;
+            return (
+              <div key={section.key} className="space-y-3">
+                <h4 className="text-sm font-semibold text-ink-800">{section.label}</h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {fields.map((f) => {
+                    const value = extended ? derived[f.key] : null;
+                    return value !== null && value !== undefined ? derivedField(row, f, value) : metaField(row, f);
+                  })}
+                </div>
+                {section.key === "resultaat" && extended && d.vpb !== null && d.profitBeforeTax !== null ? (
+                  <p className="text-xs text-ink-500 tabular">
+                    Winst vóór belasting {formatEuro(d.profitBeforeTax, { whole: true })} · vennootschapsbelasting{" "}
+                    {formatEuro(d.vpb, { whole: true })} (indicatief, na verliesverrekening)
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
+          {equity !== null && pct !== null && config.sections.balans && !viaHolding ? (
+            <p className="border-l-2 border-gold-500 bg-ink-50 px-3 py-2 text-sm text-ink-700">
+              Indicatieve waarde aandelen: <span className="font-semibold tabular">{formatEuro((equity * pct) / 100)}</span>
+            </p>
+          ) : null}
+        </div>
+      </Card>
+    );
+  };
+
+  const bvList = () => {
+    const def = getAssetType("bv_aandelen")!;
+    const rows = assets.filter((a) => a.type === def.type);
+    if (rows.length === 0) return <Card className="p-5">{assetBlock(def, sections[0].key)}</Card>;
+    return (
+      <>
+        {rows.map((row) => bvCard(def, row, rows.length))}
+        <Button variant="secondary" size="sm" onClick={() => void addRow(def.type)} disabled={adding === def.type}>
+          <Plus className="h-4 w-4" /> BV toevoegen
+        </Button>
+      </>
     );
   };
 
@@ -263,60 +375,37 @@ export function ControlStep({
       ) : null}
 
       {side === "prive"
-        ? sections.filter((section) => section.key !== "partner" && section.key !== "kinderen").map((section) => {
+        ? priveSections.map((section) => {
             const fields = PRIVE_INPUT_FIELDS.filter((f) => f.section === section.key);
-            const types = ASSET_TYPES.filter((t) => t.side === "prive" && t.sections[0] === section.key);
+            const core = ASSET_TYPES.filter((t) => t.side === "prive" && !t.optional && t.sections[0] === section.key);
+            const optional = ASSET_TYPES.filter((t) => t.side === "prive" && t.optional && homeSection(t) === section.key);
+            const shown = optional.filter((t) => assets.some((a) => a.type === t.type));
             return (
               <Card key={section.key}>
                 <CardHeader title={section.label} description={section.description} />
                 <div className="space-y-5 p-4 sm:p-5">
                   {fields.length > 0 ? <div className="grid gap-4 sm:grid-cols-2">{fields.map(inputField)}</div> : null}
-                  {types.map((t) => assetBlock(t, section.key))}
+                  {core.map((t) => assetBlock(t, section.key))}
+                  {shown.map((t) => assetBlock(t, section.key))}
+                  {optional.length > 0 ? (
+                    <div className="border-t border-ink-100 pt-4">
+                      <AddMenu
+                        label="Onderwerp toevoegen"
+                        options={optional.map((t) => ({ value: t.type, label: `${t.label}: ${t.description}` }))}
+                        onPick={(type) => void addRow(type)}
+                        disabled={adding !== null}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </Card>
             );
           })
-        : ASSET_TYPES.filter((t) => t.side === "zakelijk").map((def) => {
-            const rows = assets.filter((a) => a.type === def.type);
-            if (rows.length === 0) {
-              return (
-                <Card key={def.type} className="p-5">
-                  {assetBlock(def, sections[0].key)}
-                </Card>
-              );
-            }
-            return rows.map((row) => (
-              <Card key={row.id}>
-                <CardHeader
-                  title={typeof row.metadata.bv_naam === "string" && row.metadata.bv_naam ? row.metadata.bv_naam : def.label}
-                  description="Box 2 — aanmerkelijk belang"
-                />
-                <div className="space-y-5 p-4 sm:p-5">
-                  {config.sections.partner ? <div className="max-w-xs">{ownerSelect(row, true)}</div> : null}
-                  {sections.map((section) => {
-                    const fields = def.metadataFields.filter((f) => f.section === section.key);
-                    if (fields.length === 0) return null;
-                    return (
-                      <div key={section.key} className="space-y-3">
-                        <h4 className="text-sm font-semibold text-ink-800">{section.label}</h4>
-                        <div className="grid gap-4 sm:grid-cols-2">{fields.map((f) => metaField(row, f))}</div>
-                      </div>
-                    );
-                  })}
-                  {typeof row.metadata.eigen_vermogen === "number" &&
-                  typeof row.metadata.aandelen_percentage === "number" &&
-                  config.sections.balans ? (
-                    <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
-                      Indicatieve waarde aandelen:{" "}
-                      <span className="font-semibold tabular">
-                        {formatEuro((row.metadata.eigen_vermogen * row.metadata.aandelen_percentage) / 100)}
-                      </span>
-                    </p>
-                  ) : null}
-                </div>
-              </Card>
-            ));
-          })}
+        : bvList()}
+
+      {side === "prive" && (config.sections.inkomen || config.sections.pensioen) ? (
+        <CashItemsCard config={config} inputs={inputs} missingIds={missingIds} onChange={saveInputs} />
+      ) : null}
 
       {side === "prive" && config.sections.kinderen ? (
         <ChildrenCard inputs={inputs} missingIds={missingIds} referenceYear={new Date().getFullYear()} onChange={saveInputs} />

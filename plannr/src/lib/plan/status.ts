@@ -1,5 +1,6 @@
 import {
   ASSET_TYPES,
+  getCashKind,
   PARTNER_FIELDS,
   PRIVE_INPUT_FIELDS,
   SECTIONS,
@@ -67,6 +68,14 @@ export function findMissingFields(config: PlanConfig, inputs: PlanInputs, assets
     }
   }
 
+  for (const item of inputs.posten) {
+    const kind = getCashKind(item.soort);
+    if (!kind || !config.sections[kind.section]) continue;
+    const name = item.omschrijving || kind.label;
+    if (isEmpty(item.bedrag)) missing.push({ side: "prive", id: `post.${item.id}.bedrag`, label: `${name}: bedrag` });
+    if (kind.oneOff && isEmpty(item.startjaar)) missing.push({ side: "prive", id: `post.${item.id}.startjaar`, label: `${name}: jaar` });
+  }
+
   for (const def of ASSET_TYPES) {
     if (!isAssetTypeRelevant(def, config)) continue;
     const rows = assets.filter((a) => a.type === def.type);
@@ -78,8 +87,11 @@ export function findMissingFields(config: PlanConfig, inputs: PlanInputs, assets
       if (def.valueField?.required && isEmpty(row.value)) {
         missing.push({ side: def.side, id: `asset.${row.id}.value`, label: `${def.label}: ${def.valueField.label}` });
       }
+      // A werkmaatschappij under a holding normally has no pension obligation of its own.
+      const viaHolding = def.type === "bv_aandelen" && row.metadata.gehouden_door === "holding";
       for (const field of def.metadataFields) {
         if (!field.required || !isFieldVisible(field, config)) continue;
+        if (viaHolding && field.key === "odv_waarde") continue;
         if (isEmpty(row.metadata[field.key])) {
           missing.push({ side: def.side, id: `asset.${row.id}.${field.key}`, label: `${def.label}: ${field.label}` });
         }

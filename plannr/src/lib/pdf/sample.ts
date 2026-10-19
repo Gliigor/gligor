@@ -41,6 +41,14 @@ export const SAMPLE_INPUT: PlanInput = {
       { category: "savings", value: 85_000, owner: "joint" },
       { category: "investments", value: 240_000, owner: "joint" },
     ],
+    cashItems: [
+      { label: "Studiekosten Daan", group: "uitgave", tax: "geen", person: null, amount: 9_000, startYear: 2026, startFrom: "nu", endYear: 2029, oneOff: false, growth: null },
+      { label: "Pensioen vorige werkgever", group: "inkomen", tax: "box1", person: "partner", amount: 6_500, startYear: null, startFrom: "pensioen", endYear: null, oneOff: false, growth: 0 },
+    ],
+    policies: [
+      { kind: "lijfrente", label: "Lijfrente Nationale", owner: "client", value: 95_000, payoutYear: null, expectedPayout: null, startYear: 2034, years: 20, yearlyContribution: 6_000 },
+    ],
+    loans: [],
   },
   zakelijk: {
     companies: [
@@ -53,6 +61,8 @@ export const SAMPLE_INPUT: PlanInput = {
         resultAfterTax: 210_000,
         pensionObligation: 265_000,
         dgaSalary: 66_000,
+        heldByHolding: false,
+        paidInCapital: 18_000,
         dividend: 60_000,
       },
     ],
@@ -71,5 +81,6 @@ export async function sampleReportData(firmName: string): Promise<ReportData> {
     result,
     sections: [...REPORT_SECTION_KEYS],
     insights: deriveInsights(SAMPLE_INPUT, result),
+    items: SAMPLE_INPUT.prive.cashItems,
   };
 }

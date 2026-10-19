@@ -1,6 +1,7 @@
 // Validation of values coming from the browser before they are stored.
 
-import { getAssetType, PARTNER_FIELDS, PRIVE_INPUT_FIELDS, type FieldDef } from "./definitions";
+import { getAssetType, getCashKind, PARTNER_FIELDS, PRIVE_INPUT_FIELDS, type FieldDef } from "./definitions";
+import { applyBvDerivations } from "./bv";
 import { parsePlanInputs, type AssetMetadata, type PartnerInputs, type PlanInputs, type PriveInputs } from "./types";
 
 const MAX_AMOUNT = 1e12;
@@ -55,6 +56,21 @@ export function sanitizePlanInputs(raw: unknown): PlanInputs {
       startjaar: clamp(g.startjaar, 1990, 2100),
       jaren: clamp(g.jaren, 1, 50),
     })),
+    posten: parsed.posten.map((x) => {
+      const kind = getCashKind(x.soort);
+      const startjaar = clamp(x.startjaar, 1990, 2150);
+      const eindjaar = kind?.oneOff ? null : clamp(x.eindjaar, 1990, 2150);
+      return {
+        ...x,
+        omschrijving: x.omschrijving.trim(),
+        // Household items have no person; personal items default to the client.
+        persoon: kind?.perPerson ? (x.persoon ?? "client") : null,
+        bedrag: x.bedrag === null ? null : Math.min(MAX_AMOUNT, Math.max(0, Math.round(x.bedrag * 100) / 100)),
+        startjaar,
+        eindjaar: eindjaar !== null && startjaar !== null && eindjaar < startjaar ? startjaar : eindjaar,
+        groei: x.groei === null ? null : Math.min(20, Math.max(-20, Math.round(x.groei * 100) / 100)),
+      };
+    }),
     fromDocument: sanitizeKeyList(obj.fromDocument, allowedDocKeys),
   };
 }
@@ -73,6 +89,10 @@ export function sanitizeAssetPatch(type: string, patch: { label?: unknown; value
   metadata._fromDocument = sanitizeKeyList(rawMeta._fromDocument, ["value", ...def.metadataFields.map((f) => f.key)]);
   const owner = rawMeta.eigenaar;
   if (owner === "client" || owner === "partner" || owner === "joint") metadata.eigenaar = owner;
+  if (type === "bv_aandelen") {
+    if (rawMeta.uitgebreid === "ja") metadata.uitgebreid = "ja";
+    Object.assign(metadata, applyBvDerivations(metadata));
+  }
 
   const valueField: FieldDef = { key: "value", label: "", kind: "money", section: "algemeen" };
   let value = sanitizeFieldValue(valueField, patch.value) as number | null;
