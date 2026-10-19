@@ -178,6 +178,31 @@ export function deriveInsights(input: PlanInput, result: PlanResult): Insight[] 
     });
   }
 
+  const bvLoans = result.wealth.prive.bvLoans;
+  if (bvLoans.excess > 0) {
+    const box2Rate = ASSUMPTIONS.box2.brackets[ASSUMPTIONS.box2.brackets.length - 1].rate;
+    out.push({
+      id: "excessief-lenen",
+      tone: "aandacht",
+      category: "zakelijk",
+      title: "Schulden aan de eigen BV boven de grens",
+      body: `U leent ${euro(bvLoans.total)} van uw eigen BV. Boven ${euro(ASSUMPTIONS.bv.excessiefLenenGrens)} (eigen-woningschulden niet meegeteld) wordt het meerdere op 31 december belast als inkomen uit aanmerkelijk belang. Aflossen vóór die datum, of de lening voor de eigen woning laten registreren, voorkomt deze heffing.`,
+      amount: { value: bvLoans.excess * box2Rate, label: "indicatieve box 2-heffing" },
+    });
+  }
+
+  const paidIn = input.zakelijk.companies.filter((c) => !c.heldByHolding).reduce((x, c) => x + c.paidInCapital, 0);
+  if (s.dividend && dividend > 0 && paidIn > 0) {
+    out.push({
+      id: "terugbetaling-kapitaal",
+      tone: "kans",
+      category: "zakelijk",
+      title: "Gestort kapitaal kan belastingvrij terug",
+      body: `In de BV staat ${euro(paidIn)} aan fiscaal gestort kapitaal (aandelenkapitaal en agio). Dat kan via een kapitaalvermindering of agio-uitkering zonder box 2-heffing worden terugbetaald, in plaats van (een deel van) het dividend.`,
+      amount: { value: Math.min(paidIn, dividend) * ASSUMPTIONS.box2.brackets[0].rate, label: "box 2-heffing die u kunt uitstellen" },
+    });
+  }
+
   if (s.pensioenEigenBeheer && result.wealth.zakelijk.pensionObligation > 0) {
     const odv = result.wealth.zakelijk.pensionObligation;
     const cash = result.wealth.zakelijk.liquidAssets;

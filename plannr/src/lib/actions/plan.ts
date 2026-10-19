@@ -61,7 +61,7 @@ export async function createPlanAction(clientId: string, _prev: { error?: string
       client_id: clientId,
       title,
       config: DEFAULT_PLAN_CONFIG,
-      inputs: { prive: {}, partner: {}, kinderen: [], schenkingen: [], fromDocument: [] },
+      inputs: { prive: {}, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
       created_by: member.userId,
     })
     .select("id")
@@ -178,7 +178,7 @@ export async function addAsset(planId: string, type: string): Promise<{ ok: bool
       tax_box: def.taxBox,
       label: "",
       value: null,
-      metadata: {},
+      metadata: def.defaults ?? {},
       sort_order: (count ?? 0) + 1,
     })
     .select("*")

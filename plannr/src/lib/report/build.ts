@@ -76,6 +76,7 @@ export async function buildReport(
         (k) => k !== "schenkingen" || result.household.persons.length > 1 || result.gifts !== null,
       ),
       insights,
+      items: engineInput.prive.cashItems,
     },
   };
 }

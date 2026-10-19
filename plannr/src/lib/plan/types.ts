@@ -1,4 +1,5 @@
 import {
+  CASH_KINDS,
   REPORT_SECTION_KEYS,
   SECTION_KEYS,
   isReportSectionKey,
@@ -179,11 +180,29 @@ export interface GiftPlanInput {
   jaren: number | null;
 }
 
+/** An income or expense item over time (kinds: CASH_KINDS in definitions.ts). */
+export interface CashItem {
+  id: string;
+  soort: string;
+  /** Whose item; null for household expenses. */
+  persoon: "client" | "partner" | null;
+  omschrijving: string;
+  /** Per year: gross for income, net for expenses. For one-off kinds: the one amount. */
+  bedrag: number | null;
+  /** First year (null: from now, or from retirement for pension kinds). */
+  startjaar: number | null;
+  /** Last year, inclusive (null: no end). Ignored for one-off kinds. */
+  eindjaar: number | null;
+  /** Yearly change in % (null: moves with inflation). */
+  groei: number | null;
+}
+
 export interface PlanInputs {
   prive: PriveInputs;
   partner: PartnerInputs;
   kinderen: ChildInput[];
   schenkingen: GiftPlanInput[];
+  posten: CashItem[];
   /** Keys of prive inputs whose current value came from a document ("partner.x" for partner fields). */
   fromDocument: string[];
 }
@@ -270,10 +289,26 @@ export function parsePlanInputs(raw: unknown): PlanInputs {
     .filter((g) => g.id && childIds.has(g.kindId))
     .slice(0, 60);
 
+  const kinds = new Set(CASH_KINDS.map((k) => k.kind));
+  const posten: CashItem[] = (Array.isArray(obj.posten) ? obj.posten : [])
+    .filter(isRecord)
+    .map((x) => ({
+      id: id(x.id) ?? "",
+      soort: typeof x.soort === "string" ? x.soort : "",
+      persoon: (x.persoon === "client" || x.persoon === "partner" ? x.persoon : null) as CashItem["persoon"],
+      omschrijving: str(x.omschrijving, 120),
+      bedrag: num(x.bedrag),
+      startjaar: num(x.startjaar),
+      eindjaar: num(x.eindjaar),
+      groei: num(x.groei),
+    }))
+    .filter((x) => x.id && kinds.has(x.soort))
+    .slice(0, 100);
+
   const fromDocument = Array.isArray(obj.fromDocument)
     ? (obj.fromDocument as unknown[]).filter((k): k is string => typeof k === "string")
     : [];
-  return { prive, partner, kinderen, schenkingen, fromDocument };
+  return { prive, partner, kinderen, schenkingen, posten, fromDocument };
 }
 
 export function parseReportSections(raw: unknown): ReportSectionKey[] {

@@ -59,6 +59,7 @@ export function NumberInput({
   onChange,
   missing,
   fromDocument,
+  placeholder,
 }: {
   id: string;
   kind: "money" | "percent" | "integer";
@@ -66,6 +67,7 @@ export function NumberInput({
   onChange: (value: number | null) => void;
   missing?: boolean;
   fromDocument?: boolean;
+  placeholder?: string;
 }) {
   const format = (v: number | null) => (v === null ? "" : kind === "integer" ? nlYear.format(v) : nl.format(v));
   const [focused, setFocused] = useState(false);
@@ -81,6 +83,7 @@ export function NumberInput({
         id={id}
         inputMode={kind === "integer" ? "numeric" : "decimal"}
         autoComplete="off"
+        placeholder={placeholder}
         className={cn(
           inputClass,
           "tabular",

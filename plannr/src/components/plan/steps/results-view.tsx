@@ -49,6 +49,7 @@ export function ResultsView({
   const wealthBars = [
     { name: "Eigen woning (netto)", value: w.prive.eigenWoningNet },
     { name: "Box 3 (netto)", value: w.prive.box3Net },
+    ...(w.prive.otherAssetsTotal ? [{ name: "Polissen en leningen", value: w.prive.otherAssetsTotal }] : []),
     { name: "Aandelen BV", value: w.zakelijk.shareValue },
   ];
   const incomeBars = [
@@ -90,6 +91,8 @@ export function ResultsView({
       {insightsSlot}
 
       <ProjectionCard result={result} />
+
+      <CashFlowCard result={result} />
 
       {choicesSlot}
 
@@ -323,7 +326,7 @@ function HouseholdCard({ result }: { result: PlanResult }) {
                       {p.retirementYear ? `stopt ${p.retirementYear}` : "stopmoment onbekend"} · AOW {p.aowYear ?? "—"}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-right">{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived, { whole: true })}</td>
+                  <td className="px-3 py-2.5 text-right">{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived + p.otherIncome + p.taxFreeIncome, { whole: true })}</td>
                   <td className="px-3 py-2.5 text-right">{formatEuro(p.box1Tax + p.box2Tax + p.box3Tax, { whole: true })}</td>
                   <td className="px-5 py-2.5 text-right font-semibold">{formatEuro(p.net, { whole: true })}</td>
                 </tr>
@@ -367,5 +370,86 @@ function HouseholdCard({ result }: { result: PlanResult }) {
         </Card>
       ) : null}
     </div>
+  );
+}
+
+/** Household net income vs. spending per year (neutral scenario, nominal). */
+function CashFlowCard({ result }: { result: PlanResult }) {
+  const [showTable, setShowTable] = useState(false);
+  const points = result.projection.points;
+  const series = [
+    { key: "netIncome" as const, label: "Netto inkomen", color: SERIES.neutraal },
+    { key: "spending" as const, label: "Uitgaven", color: SERIES.optimistisch },
+  ];
+  return (
+    <Card>
+      <CardHeader
+        title="Inkomsten en uitgaven per jaar"
+        description="Netto inkomen na belasting en alle uitgaven (incl. posten met een periode en schenkingen), nominaal"
+        action={
+          <button type="button" onClick={() => setShowTable((x) => !x)} className="text-sm font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2">
+            {showTable ? "Toon grafiek" : "Toon als tabel"}
+          </button>
+        }
+      />
+      {showTable ? (
+        <div className="max-h-96 overflow-auto">
+          <table className="w-full text-sm tabular">
+            <thead className="sticky top-0 bg-ink-50 text-left text-xs text-ink-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">Jaar</th>
+                <th className="px-4 py-2 font-medium">Leeftijd</th>
+                <th className="px-4 py-2 text-right font-medium">Netto inkomen</th>
+                <th className="px-4 py-2 text-right font-medium">Uitgaven</th>
+                <th className="px-4 py-2 text-right font-medium">Saldo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {points.map((p) => (
+                <tr key={p.year}>
+                  <td className="px-4 py-1.5">{p.year}</td>
+                  <td className="px-4 py-1.5">{p.age ?? "—"}</td>
+                  <td className="px-4 py-1.5 text-right">{formatEuro(p.netIncome, { whole: true })}</td>
+                  <td className="px-4 py-1.5 text-right">{formatEuro(p.spending, { whole: true })}</td>
+                  <td className={`px-4 py-1.5 text-right ${p.netIncome - p.spending < 0 ? "text-danger-600" : ""}`}>
+                    {formatEuro(p.netIncome - p.spending, { whole: true })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="px-2 pb-3 pt-4 sm:px-4">
+          <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 px-2 text-xs text-ink-600">
+            {series.map((x) => (
+              <li key={x.key} className="inline-flex items-center gap-1.5">
+                <span className="h-0.5 w-4 rounded" style={{ background: x.color }} />
+                {x.label}
+              </li>
+            ))}
+            <li className="text-ink-500">Een tekort wordt aangevuld uit vermogen</li>
+          </ul>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={points} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
+              <CartesianGrid vertical={false} stroke={GRID} />
+              <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: GRID }} tick={{ fill: AXIS, fontSize: 12 }} minTickGap={24} />
+              <YAxis tickFormatter={(v) => formatEuroCompact(Number(v))} tickLine={false} axisLine={false} tick={{ fill: AXIS, fontSize: 12 }} width={72} />
+              <Tooltip
+                formatter={(v, name) => [formatEuro(Number(v), { whole: true }), series.find((x) => x.key === name)?.label ?? String(name)]}
+                labelFormatter={(year) => {
+                  const p = points.find((x) => x.year === year);
+                  return p?.age ? `${year} · leeftijd ${p.age}` : String(year);
+                }}
+                contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
+              />
+              {series.map((x) => (
+                <Line key={x.key} type="stepAfter" dataKey={x.key} stroke={x.color} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </Card>
   );
 }

@@ -31,6 +31,49 @@ export interface GiftInput {
   years: number;
 }
 
+/** An income or expense item over time. Amounts are per year, in money of the reference year. */
+export interface CashFlowItem {
+  label: string;
+  group: "inkomen" | "uitgave";
+  /** box1: taxed in box 1; onbelast: tax-free income; aftrekbaar: deductible expense (gifts). */
+  tax: "box1" | "onbelast" | "aftrekbaar" | "geen";
+  person: "client" | "partner" | null;
+  amount: number;
+  /** null: from the reference year, or from the person's retirement year when startFrom is "pensioen". */
+  startYear: number | null;
+  startFrom: "nu" | "pensioen";
+  /** Inclusive; null: no end. */
+  endYear: number | null;
+  oneOff: boolean;
+  /** Yearly change in % (null: moves with inflation). */
+  growth: number | null;
+}
+
+export interface PolicyInput {
+  kind: "kapitaalverzekering" | "lijfrente" | "spaarrekening_eigen_woning";
+  label: string;
+  owner: Owner;
+  value: number;
+  /** Kapitaalverzekering: year of payout and expected payout (null: grown value). */
+  payoutYear: number | null;
+  expectedPayout: number | null;
+  /** Lijfrente: first payout year, number of payout years and yearly contribution until then. */
+  startYear: number | null;
+  years: number | null;
+  yearlyContribution: number;
+}
+
+export interface LoanInput {
+  /** lening_dga: the person owes the own BV. vordering_bv: the person lent to the own BV (box 1, TBS). */
+  kind: "lening_dga" | "vordering_bv";
+  label: string;
+  owner: Owner;
+  amount: number;
+  interestRate: number;
+  /** lening_dga used for the eigen woning (box 1, outside the excessive-borrowing limit). */
+  forHome: boolean;
+}
+
 export interface PlanInput {
   referenceYear: number;
   household: {
@@ -59,6 +102,11 @@ export interface PlanInput {
     yearlyExpenses: number;
     eigenWoning: { wozValue: number; mortgages: { amount: number; interestRate: number }[]; owner: Owner } | null;
     box3: { category: Box3Category; value: number; owner: Owner }[];
+    /** Income and expenses over time, on top of the yearly figures above. */
+    cashItems: CashFlowItem[];
+    /** Exempt policies and balances outside box 3 (KEW, lijfrente, spaarrekening eigen woning). */
+    policies: PolicyInput[];
+    loans: LoanInput[];
   };
   zakelijk: {
     companies: {
@@ -71,6 +119,10 @@ export interface PlanInput {
       pensionObligation: number;
       dgaSalary: number;
       dividend: number;
+      /** Held by another BV (holding): not in box 2 itself; its profit flows to the holding. */
+      heldByHolding: boolean;
+      /** Share capital plus agio: can be repaid without box 2 tax. */
+      paidInCapital: number;
     }[];
   };
   /** Choices that change how the future is modelled (used by the comparisons). */
@@ -99,6 +151,9 @@ export interface ProjectionPoint {
   optimistisch: number;
   /** Neutral scenario in today's money (corrected for inflation). */
   neutraalReeel: number;
+  /** Household net income and spending this year (nominal, incl. gifts to children). */
+  netIncome: number;
+  spending: number;
 }
 
 export interface PersonResult {
@@ -110,6 +165,9 @@ export interface PersonResult {
   grossEmployment: number;
   dgaSalary: number;
   dividendReceived: number;
+  /** Other box 1 income: items, lijfrente and TBS interest. */
+  otherIncome: number;
+  taxFreeIncome: number;
   box1Base: number;
   box1Tax: number;
   box2Tax: number;
@@ -140,6 +198,11 @@ export interface PlanResult {
       box3Assets: number;
       box3Debts: number;
       box3Net: number;
+      /** Policies and loans outside box 3 (KEW, lijfrente, spaarrekening eigen woning, loans to the own BV). */
+      otherAssets: { label: string; value: number }[];
+      otherAssetsTotal: number;
+      /** Debts to the own BV: total, and the part above the excessive-borrowing limit (taxed in box 2). */
+      bvLoans: { total: number; excess: number };
       total: number;
     };
     zakelijk: {
@@ -149,7 +212,18 @@ export interface PlanResult {
       pensionObligation: number;
       total: number;
       /** Echo of the companies that were calculated, for reporting. */
-      companies: { name: string; sharePercentage: number; resultAfterTax: number; dividend: number; dgaSalary: number }[];
+      companies: {
+        name: string;
+        sharePercentage: number;
+        resultAfterTax: number;
+        dividend: number;
+        dgaSalary: number;
+        equity: number;
+        liquidAssets: number;
+        pensionObligation: number;
+        heldByHolding: boolean;
+        paidInCapital: number;
+      }[];
     };
     total: number;
   };
@@ -158,6 +232,8 @@ export interface PlanResult {
     grossEmployment: number;
     dgaSalary: number;
     dividendReceived: number;
+    otherIncome: number;
+    taxFreeIncome: number;
     grossTotal: number;
     taxTotal: number;
     net: number;

@@ -240,7 +240,16 @@ on purpose, so an API-backed version needs no changes elsewhere.
 the registry in `src/lib/plan/definitions.ts`, a `side`, `tax_box`, `value`
 and type-specific fields in `metadata`. Adding e.g. foreign real estate with a
 `land` field is one new registry entry. A BV is one `bv_aandelen` row, so
-holding structures (several BVs) fit the same model.
+holding structures (several BVs) fit the same model: a werkmaatschappij is a
+second row with `gehouden_door = holding`.
+
+**Income and expenses over time** live in `plans.inputs.posten`: each item has
+a kind (registry `CASH_KINDS` in `definitions.ts`), an amount per year, a start
+and end year and an optional growth rate. Optional wealth topics (kapitaal-
+verzekering, lijfrente, spaarrekening eigen woning, loans to and from the own
+BV, loans to others) are asset types marked `optional`: they appear only after
+"Onderwerp toevoegen". A BV can switch on its full balance sheet and P&L; equity
+and the result after Vpb are then derived in `src/lib/plan/bv.ts`.
 
 ### Security & privacy
 

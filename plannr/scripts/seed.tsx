@@ -163,6 +163,12 @@ async function main() {
           { id: "gift-1", kindId: "kind-1", soort: "jaarlijks", bedrag: 6_633, startjaar: new Date().getFullYear(), jaren: 8 },
           { id: "gift-2", kindId: "kind-2", soort: "eenmalig_verhoogd", bedrag: 31_813, startjaar: new Date().getFullYear(), jaren: 1 },
         ],
+        posten: [
+          { id: "post-1", soort: "studiekosten", persoon: null, omschrijving: "Studie Thomas", bedrag: 8_000, startjaar: new Date().getFullYear(), eindjaar: new Date().getFullYear() + 2, groei: null },
+          { id: "post-2", soort: "pensioen_uitkering", persoon: "partner", omschrijving: "Pensioen vorige werkgever", bedrag: 4_200, startjaar: null, eindjaar: null, groei: 0 },
+          { id: "post-3", soort: "eenmalige_uitgave", persoon: null, omschrijving: "Verbouwing keuken", bedrag: 60_000, startjaar: new Date().getFullYear() + 2, eindjaar: null, groei: null },
+          { id: "post-4", soort: "aftrekbare_gift", persoon: "client", omschrijving: "Giften goede doelen", bedrag: 2_500, startjaar: null, eindjaar: null, groei: null },
+        ],
         fromDocument: [],
       },
       created_by: ownerId,
@@ -200,7 +206,29 @@ async function main() {
       odv_waarde: 310_000,
       salaris_dga: 78_000,
       dividenduitkering: 90_000,
-    }),
+      aandelenkapitaal: 18_000,
+    }, 1),
+    // Werkmaatschappij under the holding, with the full balance sheet and P&L.
+    asset("zakelijk", "bv_aandelen", 2, "", null, {
+      eigenaar: "client",
+      bv_naam: "De Vries Advies B.V.",
+      gehouden_door: "holding",
+      aandelen_percentage: 100,
+      uitgebreid: "ja",
+      vaste_activa: 90_000,
+      liquide_middelen: 150_000,
+      overige_schulden: 60_000,
+      eigen_vermogen: 180_000,
+      opbrengsten: 380_000,
+      bedrijfskosten: 260_000,
+      afschrijvingen: 20_000,
+      resultaat_na_belasting: 81_000,
+      salaris_dga: 0,
+      dividenduitkering: 0,
+    }, 2),
+    asset("prive", "lijfrente", 1, "Lijfrente Nationale-Nederlanden", 85_000, { eigenaar: "client", start_uitkering: 2033, duur_jaren: 15, jaarlijkse_inleg: 4_000 }),
+    asset("prive", "kapitaalverzekering", 1, "KEW Aegon", 120_000, { eigenaar: "joint", uitkering_jaar: 2030, verwachte_uitkering: 135_000, fiscaal: "vrijgesteld" }),
+    asset("prive", "lening_dga", 3, "Rekening-courant holding", 180_000, { eigenaar: "client", rente: 4, eigen_woning: "nee" }),
   ]);
 
   await db.from("plans").insert({
@@ -209,7 +237,7 @@ async function main() {
     title: "Wat-als: stoppen op 60",
     status: "concept",
     config: { ...fullConfig, visitedSteps: ["configuratie"] },
-    inputs: { prive: { geboortejaar: 1968, pensioenleeftijd: 60 }, partner: {}, kinderen: [], schenkingen: [], fromDocument: [] },
+    inputs: { prive: { geboortejaar: 1968, pensioenleeftijd: 60 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
     created_by: ownerId,
   });
 
@@ -219,7 +247,7 @@ async function main() {
     title: "Plan 2026",
     status: "in_bewerking",
     config: { ...fullConfig, sections: { ...fullConfig.sections, partner: false, kinderen: false, bv: false, balans: false, resultaat: false, pensioen_eigen_beheer: false, dividend: false }, visitedSteps: ["configuratie", "documenten"] },
-    inputs: { prive: { geboortejaar: 1985, pensioenleeftijd: 67, bruto_inkomen: 68_000 }, partner: {}, kinderen: [], schenkingen: [], fromDocument: [] },
+    inputs: { prive: { geboortejaar: 1985, pensioenleeftijd: 67, bruto_inkomen: 68_000 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
     created_by: plannerId,
   });
 
