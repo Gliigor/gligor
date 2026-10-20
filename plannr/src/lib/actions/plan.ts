@@ -269,3 +269,21 @@ export async function createScenarioAction(planId: string): Promise<{ ok: false;
   revalidatePath(`/clienten/${base.client_id}`);
   redirect(`/clienten/${base.client_id}/plannen/${plan.id}/prive`);
 }
+
+/** Archives a plan (hidden from the plan list) or puts it back. */
+export async function setPlanArchived(planId: string, archived: boolean): Promise<{ ok: boolean; error?: string }> {
+  await requireMember();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("plans")
+    .update({ gearchiveerd_op: archived ? new Date().toISOString() : null })
+    .eq("id", planId)
+    .select("client_id")
+    .maybeSingle();
+  if (error || !data) {
+    return { ok: false, error: "Archiveren is niet gelukt. Is de database-update voor archiveren al uitgevoerd?" };
+  }
+  revalidatePath(`/clienten/${data.client_id}`);
+  revalidatePlan();
+  return { ok: true };
+}

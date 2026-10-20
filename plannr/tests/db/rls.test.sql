@@ -99,6 +99,11 @@ begin
   get diagnostics n = row_count;
   assert n = 0, 'planner cannot change the firm return defaults';
 
+  update public.plans set gearchiveerd_op = now() where id = '20000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  assert n = 1, 'planner can archive a plan of the own firm';
+  update public.plans set gearchiveerd_op = null where id = '20000000-0000-0000-0000-000000000001';
+
   -- A scenario of a plan in the same firm is allowed.
   insert into public.plans (firm_id, client_id, title, scenario_van, created_by)
   values (public.current_firm_id(), '10000000-0000-0000-0000-000000000001', 'Scenario: eerder stoppen',
@@ -153,6 +158,10 @@ begin
   assert (select count(*) from public.assets) = 0, 'firm B sees no firm A assets';
   assert (select count(*) from public.users) = 1, 'firm B sees only itself';
   assert (select count(*) from public.firms) = 1, 'firm B sees only own firm';
+
+  update public.plans set gearchiveerd_op = now() where id = '20000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  assert n = 0, 'firm B cannot archive a firm A plan';
 
   -- A scenario cannot point at another firm's plan.
   begin

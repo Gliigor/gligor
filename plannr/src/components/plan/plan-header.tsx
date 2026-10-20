@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Copy, GitCompare, Pencil, Trash2 } from "@/components/ui/icons";
+import { Copy, Pencil, Trash2 } from "@/components/ui/icons";
+import { ArchiveButton } from "./archive-button";
+import { ComparePicker, type PickablePlan } from "./compare-picker";
 import { createScenarioAction, deletePlanAction, updatePlanMeta } from "@/lib/actions/plan";
 import { PLAN_STATUS_LABELS, type PlanStatus } from "@/lib/plan/types";
 
@@ -12,6 +14,8 @@ export function PlanHeader({
   title,
   status,
   scenarioOf,
+  archivedAt,
+  clientPlans = [],
 }: {
   planId: string;
   clientId: string;
@@ -19,6 +23,9 @@ export function PlanHeader({
   status: PlanStatus;
   /** The base plan when this plan is a scenario. */
   scenarioOf?: { id: string; title: string } | null;
+  archivedAt?: string | null;
+  /** All plans of the client, for the compare picker. */
+  clientPlans?: PickablePlan[];
 }) {
   const [editing, setEditing] = useState(false);
   const [scenarioError, setScenarioError] = useState<string | null>(null);
@@ -85,6 +92,11 @@ export function PlanHeader({
         <Trash2 className="h-4 w-4" />
       </button>
     </div>
+      {archivedAt ? (
+        <div className="border-l-2 border-ink-400 bg-ink-100 px-4 py-2.5 text-sm text-ink-700">
+          Dit plan is gearchiveerd. Het staat niet meer in de lijst met plannen; zet het terug om er weer mee te werken.
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
         {scenarioOf ? (
           <span className="text-ink-500">
@@ -107,9 +119,8 @@ export function PlanHeader({
         >
           <Copy className="h-3.5 w-3.5" /> Maak scenario
         </button>
-        <Link href={`/clienten/${clientId}/vergelijken?plan=${planId}`} className="inline-flex items-center gap-1.5 font-semibold text-ink-800 hover:text-ink-900">
-          <GitCompare className="h-3.5 w-3.5" /> Vergelijken
-        </Link>
+        {clientPlans.length > 1 ? <ComparePicker clientId={clientId} plans={clientPlans} preselect={[planId]} /> : null}
+        <ArchiveButton planId={planId} archived={Boolean(archivedAt)} title={title} />
         {scenarioError ? <span className="text-danger-600">{scenarioError}</span> : null}
       </div>
     </div>

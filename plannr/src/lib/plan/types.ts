@@ -79,6 +79,8 @@ export interface PlanRow {
   title: string;
   /** The plan this plan is a scenario of (null for a base plan). */
   scenario_van?: string | null;
+  /** When the plan was archived (null: active). */
+  gearchiveerd_op?: string | null;
   status: PlanStatus;
   current_step: string;
   config: unknown;

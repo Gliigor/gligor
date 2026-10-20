@@ -24,7 +24,7 @@ export default async function ComparePage({ params, searchParams }: PageProps<"/
 
   // select("*"): scenario_van may not exist before the scenarios migration.
   const { data: plans } = await supabase.from("plans").select("*").eq("client_id", clientId).order("created_at");
-  const all = (plans ?? []) as { id: string; title: string; scenario_van?: string | null }[];
+  const all = (plans ?? []) as { id: string; title: string; scenario_van?: string | null; gearchiveerd_op?: string | null }[];
 
   // Selection: ?plannen=a,b,c, or ?plan=x (that plan with its base and sibling scenarios), or the first plans.
   const pick = (v: string | string[] | undefined) => (typeof v === "string" ? v.split(",") : Array.isArray(v) ? v : []);
@@ -35,7 +35,7 @@ export default async function ComparePage({ params, searchParams }: PageProps<"/
     const root = start?.scenario_van ?? start?.id;
     selected = all.filter((p) => p.id === root || p.scenario_van === root);
   }
-  if (selected.length === 0) selected = all;
+  // Nothing chosen: show the choice, don't guess.
   selected = selected.slice(0, MAX_COMPARE);
 
   const columns: ScenarioColumn[] = [];
@@ -60,7 +60,7 @@ export default async function ComparePage({ params, searchParams }: PageProps<"/
       <Card>
         <CardHeader title="Kies plannen" description={`Maximaal ${MAX_COMPARE} plannen naast elkaar.`} />
         <form className="flex flex-wrap items-center gap-x-5 gap-y-2 p-4 sm:p-5" action={`/clienten/${clientId}/vergelijken`}>
-          {all.map((p) => (
+          {all.filter((p) => !p.gearchiveerd_op || selected.some((x) => x.id === p.id)).map((p) => (
             <label key={p.id} className="inline-flex items-center gap-2 text-sm text-ink-800">
               <input
                 type="checkbox"
@@ -71,6 +71,7 @@ export default async function ComparePage({ params, searchParams }: PageProps<"/
               />
               {p.title}
               {p.scenario_van ? <span className="text-xs text-ink-400">scenario</span> : null}
+              {p.gearchiveerd_op ? <span className="text-xs text-ink-400">gearchiveerd</span> : null}
             </label>
           ))}
           <SelectionSubmit />
@@ -79,7 +80,8 @@ export default async function ComparePage({ params, searchParams }: PageProps<"/
 
       {columns.length < 2 ? (
         <Card className="p-6 text-sm text-ink-600">
-          Kies minstens twee plannen. Een scenario maakt u in een plan met de knop <strong>Maak scenario</strong>.{" "}
+          Vink minstens twee plannen aan en klik op <strong>Vergelijken</strong>. Een scenario maakt u in een plan met de knop{" "}
+          <strong>Maak scenario</strong>.{" "}
           <Link href={`/clienten/${clientId}`} className="underline decoration-gold-500 underline-offset-4">
             Terug naar de cliënt
           </Link>
