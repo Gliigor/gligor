@@ -19,14 +19,16 @@ import {
   type Side,
 } from "@/lib/plan/definitions";
 import { findMissingFields, isFieldVisible } from "@/lib/plan/status";
-import type { AssetRow, PlanConfig, PlanInputs } from "@/lib/plan/types";
+import type { AssetRow, PlanConfig, PlanInputs, ReturnPercents } from "@/lib/plan/types";
 import { formatEuro } from "@/lib/format";
 import { FieldInput, FieldShell, NumberInput } from "../fields";
 import { ownerOf } from "@/lib/plan/to-engine-input";
 import { inputClass } from "@/components/ui/form";
 import { ChildrenCard, PartnerCard } from "./household-cards";
 import { AddMenu, CashItemsCard } from "./cash-items-card";
+import { AssumptionsCard } from "./assumptions-card";
 import { deriveBv, isExtended } from "@/lib/plan/bv";
+import { taxableBusinessProfit } from "@/lib/engine/mock-engine";
 import { SaveIndicator, useAutosave } from "../use-autosave";
 
 const domId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -37,12 +39,14 @@ export function ControlStep({
   config,
   initialInputs,
   initialAssets,
+  firmReturns,
 }: {
   side: Side;
   planId: string;
   config: PlanConfig;
   initialInputs: PlanInputs;
   initialAssets: AssetRow[];
+  firmReturns?: ReturnPercents | null;
 }) {
   const [inputs, setInputs] = useState(initialInputs);
   const [assets, setAssets] = useState(initialAssets);
@@ -115,9 +119,9 @@ export function ControlStep({
     );
   }
 
-  const ownerSelect = (row: AssetRow, bv = false) =>
+  const ownerSelect = (row: AssetRow, bv = false, label?: string) =>
     config.sections.partner ? (
-      <FieldShell id={domId(`asset.${row.id}.eigenaar`)} label={bv ? "Aandelen van" : "Eigenaar"}>
+      <FieldShell id={domId(`asset.${row.id}.eigenaar`)} label={label ?? (bv ? "Aandelen van" : "Eigenaar")}>
         <select
           id={domId(`asset.${row.id}.eigenaar`)}
           className={inputClass}
@@ -219,6 +223,7 @@ export function ControlStep({
                 .filter((f) => (f.section === section || f.section === "algemeen") && isFieldVisible(f, config))
                 .map((f) => metaField(row, f))}
               {def.side === "prive" && def.type !== "hypotheek" ? ownerSelect(row) : null}
+              {def.type === "eenmanszaak" ? ownerSelect(row, true, "Ondernemer") : null}
             </div>
             {def.multiple ? (
               <div className="mt-2 flex justify-end">
@@ -303,7 +308,7 @@ export function ControlStep({
               </span>
             </label>
           ) : null}
-          {sections.map((section) => {
+          {bvSections.map((section) => {
             const fields = def.metadataFields.filter((f) => f.section === section.key && (!f.extended || extended));
             if (fields.length === 0) return null;
             return (
@@ -334,10 +339,45 @@ export function ControlStep({
     );
   };
 
+  const bvSections = sections.filter((x) => x.key !== "eenmanszaak");
+
+  const soleTraderCard = () => {
+    const def = getAssetType("eenmanszaak")!;
+    const rows = assets.filter((a) => a.type === def.type);
+    return (
+      <Card>
+        <CardHeader
+          title="Eenmanszaak / IB-ondernemer"
+          description="Winst uit onderneming valt in box 1 van de ondernemer, na zelfstandigenaftrek en MKB-winstvrijstelling."
+        />
+        <div className="space-y-4 p-4 sm:p-5">
+          {assetBlock(def, "eenmanszaak")}
+          {rows.map((row) => {
+            const winst = typeof row.metadata.winst === "number" ? row.metadata.winst : null;
+            if (winst === null) return null;
+            const taxable = taxableBusinessProfit(winst, {
+              hoursCriterion: row.metadata.urencriterium !== "nee",
+              starter: row.metadata.starter === "ja",
+              yearIndex: 0,
+            });
+            return (
+              <p key={row.id} className="border-l-2 border-gold-500 bg-ink-50 px-3 py-2 text-sm text-ink-700">
+                {typeof row.metadata.naam === "string" && row.metadata.naam ? `${row.metadata.naam}: ` : ""}belastbare winst na
+                ondernemersaftrek en MKB-winstvrijstelling{" "}
+                <span className="font-semibold tabular">{formatEuro(taxable, { whole: true })}</span> per jaar (indicatief).
+              </p>
+            );
+          })}
+        </div>
+      </Card>
+    );
+  };
+
   const bvList = () => {
+    if (bvSections.length === 0) return null;
     const def = getAssetType("bv_aandelen")!;
     const rows = assets.filter((a) => a.type === def.type);
-    if (rows.length === 0) return <Card className="p-5">{assetBlock(def, sections[0].key)}</Card>;
+    if (rows.length === 0) return <Card className="p-5">{assetBlock(def, bvSections[0].key)}</Card>;
     return (
       <>
         {rows.map((row) => bvCard(def, row, rows.length))}
@@ -401,11 +441,18 @@ export function ControlStep({
               </Card>
             );
           })
-        : bvList()}
+        : (
+          <>
+            {bvList()}
+            {config.sections.eenmanszaak ? soleTraderCard() : null}
+          </>
+        )}
 
       {side === "prive" && (config.sections.inkomen || config.sections.pensioen) ? (
         <CashItemsCard config={config} inputs={inputs} missingIds={missingIds} onChange={saveInputs} />
       ) : null}
+
+      {side === "prive" ? <AssumptionsCard inputs={inputs} firmReturns={firmReturns} onChange={saveInputs} /> : null}
 
       {side === "prive" && config.sections.kinderen ? (
         <ChildrenCard inputs={inputs} missingIds={missingIds} referenceYear={new Date().getFullYear()} onChange={saveInputs} />

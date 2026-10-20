@@ -11,7 +11,7 @@ function asset(type: string, value: number | null, metadata: Record<string, unkn
 
 const dgaConfig: PlanConfig = {
   ...DEFAULT_PLAN_CONFIG,
-  sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, partner: false, kinderen: false, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: true, dividend: true },
+  sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, partner: false, kinderen: false, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: true, dividend: true, eenmanszaak: false },
 };
 
 const dgaAssets = [
@@ -25,7 +25,7 @@ const dgaAssets = [
 const dgaInput = () =>
   toEngineInput({
     config: dgaConfig,
-    inputs: { prive: { geboortejaar: 1972, pensioenleeftijd: 67, bruto_inkomen: 0, jaarlijkse_uitgaven: 70_000, pensioen_per_jaar: 20_000 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
+    inputs: { uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: null, laterLeeftijd: null, laterPct: null } }, prive: { geboortejaar: 1972, pensioenleeftijd: 67, bruto_inkomen: 0, jaarlijkse_uitgaven: 70_000, pensioen_per_jaar: 20_000 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
     assets: dgaAssets,
     referenceYear: 2026,
   });

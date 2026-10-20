@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -9,6 +11,7 @@ import {
   LabelList,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,6 +29,35 @@ const SINGLE = "#2B5FA3";
 const NEGATIVE = "#A8261D";
 const GRID = "#ECE7DC";
 const AXIS = "#98938A";
+// Five categorical slots for the wealth composition (validated with the dataviz palette checker;
+// orange and magenta are below 3:1 on white, so the card also offers a table view).
+const PARTS = [
+  { key: "woning", label: "Eigen woning (netto)", color: "#2B5FA3" },
+  { key: "box3", label: "Box 3", color: "#C9871A" },
+  { key: "bv", label: "BV", color: "#1D9B7C" },
+  { key: "polissen", label: "Polissen en leningen", color: "#6250D6" },
+  { key: "onderneming", label: "Eenmanszaak", color: "#E87BA4" },
+] as const;
+
+/** Vertical markers for retirement and AOW, labelled at the top. */
+function eventMarkers(result: PlanResult) {
+  return result.projection.events.map((e, i) => (
+    <ReferenceLine
+      key={`${e.year}-${e.label}`}
+      x={e.year}
+      stroke="#98938A"
+      strokeDasharray="3 3"
+      label={{ value: e.shortLabel, position: "insideTopLeft", fill: "#4a4e55", fontSize: 10, dy: (i % 3) * 12 }}
+    />
+  ));
+}
+
+function yearLabel(points: PlanResult["projection"]["points"], year: unknown) {
+  const p = points.find((x) => x.year === year);
+  if (!p) return String(year);
+  const ages = [p.age !== null ? `cliënt ${p.age}` : null, p.partnerAge !== null ? `partner ${p.partnerAge}` : null].filter(Boolean);
+  return ages.length ? `${year} · ${ages.join(", ")}` : String(year);
+}
 
 export function ResultsView({
   result,
@@ -91,6 +123,8 @@ export function ResultsView({
       {insightsSlot}
 
       <ProjectionCard result={result} />
+
+      <CompositionCard result={result} />
 
       <CashFlowCard result={result} />
 
@@ -204,6 +238,7 @@ function ProjectionCard({ result }: { result: PlanResult }) {
               <tr>
                 <th className="px-4 py-2 font-medium">Jaar</th>
                 <th className="px-4 py-2 font-medium">Leeftijd</th>
+                {points.some((p) => p.partnerAge !== null) ? <th className="px-4 py-2 font-medium">Partner</th> : null}
                 {series.map((s) => (
                   <th key={s.key} className="px-4 py-2 text-right font-medium">
                     {sc[s.key].label}
@@ -216,6 +251,7 @@ function ProjectionCard({ result }: { result: PlanResult }) {
                 <tr key={p.year}>
                   <td className="px-4 py-1.5">{p.year}</td>
                   <td className="px-4 py-1.5">{p.age ?? "—"}</td>
+                  {points.some((x) => x.partnerAge !== null) ? <td className="px-4 py-1.5">{p.partnerAge ?? "—"}</td> : null}
                   {series.map((s) => (
                     <td key={s.key} className="px-4 py-1.5 text-right">
                       {formatEuro(p[s.key], { whole: true })}
@@ -235,8 +271,10 @@ function ProjectionCard({ result }: { result: PlanResult }) {
                 {s.label}
               </li>
             ))}
-            {result.retirement.retirementYear ? (
-              <li className="text-ink-500">Pensioen in {result.retirement.retirementYear}</li>
+            {result.projection.events.length > 0 ? (
+              <li className="w-full text-ink-500">
+                Stippellijnen: {result.projection.events.map((e) => `${e.label} in ${e.year}`).join(" · ")}
+              </li>
             ) : null}
           </ul>
           <ResponsiveContainer width="100%" height={300}>
@@ -252,12 +290,10 @@ function ProjectionCard({ result }: { result: PlanResult }) {
               />
               <Tooltip
                 formatter={(v, name) => [formatEuro(Number(v), { whole: true }), sc[name as keyof typeof sc]?.label ?? String(name)]}
-                labelFormatter={(year) => {
-                  const p = points.find((x) => x.year === year);
-                  return p?.age ? `${year} · leeftijd ${p.age}` : String(year);
-                }}
+                labelFormatter={(year) => yearLabel(points, year)}
                 contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
               />
+              {eventMarkers(result)}
               {series.map((s) => (
                 <Line
                   key={s.key}
@@ -326,7 +362,7 @@ function HouseholdCard({ result }: { result: PlanResult }) {
                       {p.retirementYear ? `stopt ${p.retirementYear}` : "stopmoment onbekend"} · AOW {p.aowYear ?? "—"}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-right">{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived + p.otherIncome + p.taxFreeIncome, { whole: true })}</td>
+                  <td className="px-3 py-2.5 text-right">{formatEuro(p.grossEmployment + p.dgaSalary + p.businessProfit + p.dividendReceived + p.otherIncome + p.taxFreeIncome, { whole: true })}</td>
                   <td className="px-3 py-2.5 text-right">{formatEuro(p.box1Tax + p.box2Tax + p.box3Tax, { whole: true })}</td>
                   <td className="px-5 py-2.5 text-right font-semibold">{formatEuro(p.net, { whole: true })}</td>
                 </tr>
@@ -437,12 +473,10 @@ function CashFlowCard({ result }: { result: PlanResult }) {
               <YAxis tickFormatter={(v) => formatEuroCompact(Number(v))} tickLine={false} axisLine={false} tick={{ fill: AXIS, fontSize: 12 }} width={72} />
               <Tooltip
                 formatter={(v, name) => [formatEuro(Number(v), { whole: true }), series.find((x) => x.key === name)?.label ?? String(name)]}
-                labelFormatter={(year) => {
-                  const p = points.find((x) => x.year === year);
-                  return p?.age ? `${year} · leeftijd ${p.age}` : String(year);
-                }}
+                labelFormatter={(year) => yearLabel(points, year)}
                 contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
               />
+              {eventMarkers(result)}
               {series.map((x) => (
                 <Line key={x.key} type="stepAfter" dataKey={x.key} stroke={x.color} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
               ))}
@@ -450,6 +484,122 @@ function CashFlowCard({ result }: { result: PlanResult }) {
           </ResponsiveContainer>
         </div>
       )}
+    </Card>
+  );
+}
+
+/** What the total is made of over time (neutral scenario), with how much each part grows. */
+function CompositionCard({ result }: { result: PlanResult }) {
+  const [showTable, setShowTable] = useState(false);
+  const points = result.projection.points;
+  const parts = PARTS.filter((part) => points.some((p) => Math.abs(p.components[part.key]) > 0.5));
+  const data = points.map((p) => ({ year: p.year, totaal: p.neutraal, ...p.components }));
+  const first = points[0];
+  const last = points[points.length - 1];
+  const retYear = result.retirement.retirementYear;
+  const atRet = retYear !== null ? points.find((p) => p.year === retYear) : undefined;
+  if (!first || !last || parts.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader
+        title="Samenstelling van het vermogen"
+        description={`Neutraal scenario, nominaal, ${first.year}–${last.year}. De lijn is het totaal.`}
+        action={
+          <button type="button" onClick={() => setShowTable((x) => !x)} className="text-sm font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2">
+            {showTable ? "Toon grafiek" : "Toon als tabel"}
+          </button>
+        }
+      />
+      {showTable ? null : (
+        <div className="px-2 pb-1 pt-4 sm:px-4">
+          <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 px-2 text-xs text-ink-600">
+            {parts.map((part) => (
+              <li key={part.key} className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: part.color }} />
+                {part.label}
+              </li>
+            ))}
+            <li className="inline-flex items-center gap-1.5">
+              <span className="h-0.5 w-4 rounded bg-ink-900" />
+              Totaal
+            </li>
+          </ul>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={data} margin={{ top: 8, right: 24, bottom: 0, left: 0 }} stackOffset="sign">
+              <CartesianGrid vertical={false} stroke={GRID} />
+              <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: GRID }} tick={{ fill: AXIS, fontSize: 12 }} minTickGap={24} />
+              <YAxis tickFormatter={(v) => formatEuroCompact(Number(v))} tickLine={false} axisLine={false} tick={{ fill: AXIS, fontSize: 12 }} width={72} />
+              <Tooltip
+                formatter={(v, name) => [
+                  formatEuro(Number(v), { whole: true }),
+                  name === "totaal" ? "Totaal" : (PARTS.find((x) => x.key === name)?.label ?? String(name)),
+                ]}
+                labelFormatter={(year) => yearLabel(points, year)}
+                contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
+              />
+              {eventMarkers(result)}
+              {parts.map((part) => (
+                <Area
+                  key={part.key}
+                  type="monotone"
+                  dataKey={part.key}
+                  stackId="v"
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                  fill={part.color}
+                  fillOpacity={0.9}
+                  isAnimationActive={false}
+                />
+              ))}
+              <Area type="monotone" dataKey="totaal" stroke="#1f2328" strokeWidth={2} fill="none" isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm tabular">
+          <thead>
+            <tr className="border-y border-ink-100 bg-ink-50 text-left text-xs text-ink-500">
+              <th className="px-4 py-2 font-medium sm:px-5">Onderdeel</th>
+              <th className="px-4 py-2 text-right font-medium">{first.year}</th>
+              {atRet ? <th className="px-4 py-2 text-right font-medium">Bij pensioen ({atRet.year})</th> : null}
+              <th className="px-4 py-2 text-right font-medium">{last.year}</th>
+              <th className="px-4 py-2 text-right font-medium sm:px-5">Verandering</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            {parts.map((part) => {
+              const change = last.components[part.key] - first.components[part.key];
+              return (
+                <tr key={part.key}>
+                  <td className="px-4 py-2 sm:px-5">
+                    <span className="mr-2 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: part.color }} />
+                    {part.label}
+                  </td>
+                  <td className="px-4 py-2 text-right">{formatEuro(first.components[part.key], { whole: true })}</td>
+                  {atRet ? <td className="px-4 py-2 text-right">{formatEuro(atRet.components[part.key], { whole: true })}</td> : null}
+                  <td className="px-4 py-2 text-right">{formatEuro(last.components[part.key], { whole: true })}</td>
+                  <td className={`px-4 py-2 text-right sm:px-5 ${change < 0 ? "text-danger-600" : ""}`}>
+                    {change >= 0 ? "+" : ""}
+                    {formatEuro(change, { whole: true })}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr className="border-t border-ink-900 font-semibold">
+              <td className="px-4 py-2 sm:px-5">Totaal</td>
+              <td className="px-4 py-2 text-right">{formatEuro(first.neutraal, { whole: true })}</td>
+              {atRet ? <td className="px-4 py-2 text-right">{formatEuro(atRet.neutraal, { whole: true })}</td> : null}
+              <td className="px-4 py-2 text-right">{formatEuro(last.neutraal, { whole: true })}</td>
+              <td className="px-4 py-2 text-right sm:px-5">
+                {last.neutraal - first.neutraal >= 0 ? "+" : ""}
+                {formatEuro(last.neutraal - first.neutraal, { whole: true })}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </Card>
   );
 }

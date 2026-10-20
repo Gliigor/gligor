@@ -18,6 +18,17 @@ export const ASSUMPTIONS = {
     optimistisch: { label: "Optimistisch", returnRate: 0.06 },
   },
 
+  /**
+   * Realistisch verwacht rendement (RVR) per kind of wealth: the neutral scenario.
+   * A firm can set its own defaults and a plan can override them.
+   */
+  rvr: { savings: 0.015, investments: 0.04, realEstate: 0.04, bv: 0.04, house: 0.02 },
+  /** Pessimistic and optimistic scenarios: RVR plus this spread (investments and BV; half for real estate). */
+  scenarioSpread: { pessimistisch: -0.025, neutraal: 0, optimistisch: 0.02 },
+
+  /** Default spending pattern: share of today's household expenses per life phase. */
+  spendingPattern: { retiredPct: 1, laterAge: 75, laterPct: 1 },
+
   box1: {
     /** Brackets for people below AOW age: upper bound (null = no upper bound) and rate. */
     brackets: [
@@ -53,6 +64,26 @@ export const ASSUMPTIONS = {
     alleenstaand: 20_400,
     samenwonend: 14_000,
     age: 67,
+    /**
+     * Estimated AOW age by birth year (years, months). Set by law five years ahead
+     * and linked to life expectancy, so later cohorts are estimates.
+     */
+    byBirthYear: [
+      { bornUpTo: 1960, years: 67, months: 0 },
+      { bornUpTo: 1964, years: 67, months: 3 },
+      { bornUpTo: 1969, years: 67, months: 6 },
+      { bornUpTo: 1975, years: 67, months: 9 },
+      { bornUpTo: null, years: 68, months: 0 },
+    ],
+  },
+
+  /** IB-ondernemer (eenmanszaak), 2025. */
+  ondernemer: {
+    zelfstandigenaftrek: 2_470,
+    startersaftrek: 2_123,
+    /** Startersaftrek applies in the first years of the business. */
+    starterJaren: 3,
+    mkbWinstvrijstelling: 0.127,
   },
 
   schenking: {

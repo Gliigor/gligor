@@ -74,8 +74,35 @@ export interface LoanInput {
   forHome: boolean;
 }
 
+export interface ReturnRates {
+  savings: number;
+  investments: number;
+  realEstate: number;
+  bv: number;
+  house: number;
+}
+
+export interface SoleTraderInput {
+  name: string;
+  owner: "client" | "partner";
+  /** Expected profit per year before entrepreneur deductions, in money of the reference year. */
+  profit: number;
+  /** Ondernemingsvermogen (business equity). */
+  businessAssets: number;
+  /** Meets the 1.225-hour criterion: zelfstandigenaftrek applies. */
+  hoursCriterion: boolean;
+  /** Recently started: startersaftrek applies in the first years. */
+  starter: boolean;
+  /** Last year of the business; null: until the owner's retirement. */
+  endYear: number | null;
+}
+
 export interface PlanInput {
   referenceYear: number;
+  /** Realistisch verwacht rendement per kind of wealth (fractions). Default: ASSUMPTIONS.rvr. */
+  returns?: Partial<ReturnRates>;
+  /** Household expenses per life phase, as a share of today's expenses. */
+  spendingPattern?: { retiredPct: number; laterAge: number; laterPct: number };
   household: {
     client: PersonInput;
     partner: PersonInput | null;
@@ -96,6 +123,7 @@ export interface PlanInput {
     resultaat: boolean;
     pensioenEigenBeheer: boolean;
     dividend: boolean;
+    eenmanszaak: boolean;
   };
   prive: {
     /** Household expenses per year (shared by client and partner). */
@@ -124,6 +152,7 @@ export interface PlanInput {
       /** Share capital plus agio: can be repaid without box 2 tax. */
       paidInCapital: number;
     }[];
+    soleTraders: SoleTraderInput[];
   };
   /** Choices that change how the future is modelled (used by the comparisons). */
   strategy?: {
@@ -154,6 +183,18 @@ export interface ProjectionPoint {
   /** Household net income and spending this year (nominal, incl. gifts to children). */
   netIncome: number;
   spending: number;
+  partnerAge: number | null;
+  /** Neutral scenario, nominal: what the total is made of. */
+  components: { woning: number; box3: number; polissen: number; bv: number; onderneming: number };
+}
+
+export interface LifeEvent {
+  year: number;
+  kind: "pensioen" | "aow";
+  role: "client" | "partner";
+  label: string;
+  /** Short form for chart markers, e.g. "AOW Jan". */
+  shortLabel: string;
 }
 
 export interface PersonResult {
@@ -162,7 +203,11 @@ export interface PersonResult {
   birthYear: number | null;
   retirementYear: number | null;
   aowYear: number | null;
+  /** Estimated AOW age, e.g. "67 jaar en 3 maanden". */
+  aowAgeLabel: string | null;
   grossEmployment: number;
+  /** Profit from an eenmanszaak before deductions. */
+  businessProfit: number;
   dgaSalary: number;
   dividendReceived: number;
   /** Other box 1 income: items, lijfrente and TBS interest. */
@@ -207,6 +252,8 @@ export interface PlanResult {
     };
     zakelijk: {
       shareValue: number;
+      /** Ondernemingsvermogen of eenmanszaken (box 1). */
+      soleTraders: { name: string; owner: "client" | "partner"; profit: number; taxableProfit: number; businessAssets: number }[];
       equity: number;
       liquidAssets: number;
       pensionObligation: number;
@@ -234,6 +281,7 @@ export interface PlanResult {
     dividendReceived: number;
     otherIncome: number;
     taxFreeIncome: number;
+    businessProfit: number;
     grossTotal: number;
     taxTotal: number;
     net: number;
@@ -267,6 +315,9 @@ export interface PlanResult {
 
   projection: {
     scenarios: Record<ScenarioKey, { label: string; returnRate: number }>;
+    /** The neutral rates per kind of wealth that were used. */
+    returns: ReturnRates;
+    events: LifeEvent[];
     points: ProjectionPoint[];
     /** Totals over the whole projection, neutral scenario (nominal). */
     summary: {

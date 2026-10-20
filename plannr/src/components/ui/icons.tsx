@@ -21,4 +21,6 @@ export {
   ChevronRight,
   History,
   StickyNote,
+  Copy,
+  GitCompare,
 } from "lucide-react";

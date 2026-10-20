@@ -7,7 +7,8 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { ChevronRight } from "@/components/ui/icons";
 import { formatDateTime } from "@/lib/format";
 import { EU_REGIONS, getAiReaderStatus } from "@/lib/extraction/ai/config";
-import { AiReaderSwitch, FirmForm, InviteForm, RevokeButton } from "./settings-forms";
+import { AiReaderSwitch, FirmForm, FirmReturnsForm, InviteForm, RevokeButton } from "./settings-forms";
+import { parseReturns } from "@/lib/plan/types";
 
 export const metadata = { title: "Instellingen" };
 
@@ -39,6 +40,16 @@ export default async function SettingsPage() {
         <CardHeader title="Kantoor" />
         <div className="p-4 sm:p-5">
           <FirmForm name={member.firm.name} />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Verwacht rendement (RVR)"
+          description="Realistisch verwacht rendement per soort vermogen, per jaar. Dit is de startwaarde voor alle plannen van het kantoor; per plan aan te passen. Leeg laten: de waarde die grijs staat."
+        />
+        <div className="p-4 sm:p-5">
+          <FirmReturnsForm initial={parseReturns(member.firm.rendement_standaard)} />
         </div>
       </Card>
 

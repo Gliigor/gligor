@@ -46,7 +46,13 @@ export function sanitizePlanInputs(raw: unknown): PlanInputs {
   const obj = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
   const parsed = parsePlanInputs(obj);
   const allowedDocKeys = [...PRIVE_INPUT_FIELDS.map((f) => f.key), ...PARTNER_FIELDS.map((f) => `partner.${f.key}`)];
+  const pat = parsed.uitgangspunten.uitgavenpatroon;
+  const pct = (v: number | null) => (v === null ? null : Math.min(200, Math.max(0, Math.round(v))));
   return {
+    uitgangspunten: {
+      rendement: parsed.uitgangspunten.rendement,
+      uitgavenpatroon: { pensioenPct: pct(pat.pensioenPct), laterLeeftijd: clamp(pat.laterLeeftijd, 50, 110), laterPct: pct(pat.laterPct) },
+    },
     prive: sanitizePriveInputs(obj.prive),
     partner: sanitizePartnerInputs(obj.partner),
     kinderen: parsed.kinderen.map((k) => ({ ...k, naam: k.naam.trim(), geboortejaar: clamp(k.geboortejaar, 1900, 2100) })),

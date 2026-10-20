@@ -20,6 +20,7 @@ export const SECTION_KEYS = [
   "resultaat",
   "pensioen_eigen_beheer",
   "dividend",
+  "eenmanszaak",
 ] as const;
 export type SectionKey = (typeof SECTION_KEYS)[number];
 
@@ -42,6 +43,12 @@ export const SECTIONS: SectionDef[] = [
   { key: "resultaat", side: "zakelijk", label: "Resultaat BV", description: "Resultaat na belasting" },
   { key: "pensioen_eigen_beheer", side: "zakelijk", label: "Pensioen in eigen beheer / ODV", description: "Waarde van de pensioen- of oudedagsverplichting" },
   { key: "dividend", side: "zakelijk", label: "Dividend", description: "Jaarlijkse dividenduitkering" },
+  {
+    key: "eenmanszaak",
+    side: "zakelijk",
+    label: "Eenmanszaak / IB-ondernemer",
+    description: "Winst uit onderneming in box 1, met ondernemersaftrek en MKB-winstvrijstelling",
+  },
 ];
 
 export const STEP_KEYS = ["configuratie", "documenten", "prive", "zakelijk", "resultaten", "rapport"] as const;
@@ -68,6 +75,7 @@ export const REPORT_SECTION_KEYS = [
   "rendementsscenarios",
   "zakelijk_overzicht",
   "schenkingen",
+  "scenarios",
   "aandachtspunten",
   "toelichting",
 ] as const;
@@ -81,6 +89,7 @@ export const REPORT_SECTIONS: { key: ReportSectionKey; label: string; descriptio
   { key: "rendementsscenarios", label: "Rendementsscenario's", description: "Verwachte vermogensontwikkeling in drie scenario's" },
   { key: "zakelijk_overzicht", label: "Zakelijk overzicht", description: "BV, balans, resultaat en dividend" },
   { key: "schenkingen", label: "Gezin & schenkingen", description: "Partner, kinderen en geplande schenkingen" },
+  { key: "scenarios", label: "Scenariovergelijking", description: "Dit plan naast de scenario's die ervan zijn gemaakt" },
   { key: "aandachtspunten", label: "Aandachtspunten", description: "Kansen en risico's om te bespreken" },
   { key: "toelichting", label: "Toelichting & uitgangspunten", description: "Aannames en disclaimer" },
 ];
@@ -322,6 +331,56 @@ export const ASSET_TYPES: AssetTypeDef[] = [
     showLabel: true,
     metadataFields: [],
   },
+  {
+    // An IB-ondernemer: profit is box 1 income of the owner; the business equity is box 1 wealth.
+    type: "eenmanszaak",
+    side: "zakelijk",
+    taxBox: 1,
+    kind: "bezitting",
+    sections: ["eenmanszaak"],
+    label: "Eenmanszaak",
+    itemLabel: "Onderneming",
+    multiple: true,
+    requiredRow: true,
+    valueField: { label: "Ondernemingsvermogen", required: true, help: "Eigen vermogen volgens de balans van de onderneming." },
+    showLabel: false,
+    defaults: { urencriterium: "ja", starter: "nee" },
+    metadataFields: [
+      { key: "naam", label: "Naam onderneming", kind: "text", section: "eenmanszaak", required: true },
+      { key: "winst", label: "Verwachte winst per jaar (vóór ondernemersaftrek)", kind: "money", section: "eenmanszaak", required: true },
+      {
+        key: "urencriterium",
+        label: "Voldoet aan het urencriterium (1.225 uur)",
+        kind: "select",
+        section: "eenmanszaak",
+        required: true,
+        help: "Dan geldt de zelfstandigenaftrek.",
+        options: [
+          { value: "ja", label: "Ja" },
+          { value: "nee", label: "Nee" },
+        ],
+      },
+      {
+        key: "starter",
+        label: "Startende ondernemer",
+        kind: "select",
+        section: "eenmanszaak",
+        help: "Startersaftrek in de eerste drie jaar (met urencriterium).",
+        options: [
+          { value: "nee", label: "Nee" },
+          { value: "ja", label: "Ja" },
+        ],
+      },
+      {
+        key: "eindjaar",
+        label: "Stopt in jaar",
+        kind: "integer",
+        section: "eenmanszaak",
+        help: "Leeg laten: tot de pensioenleeftijd van de eigenaar.",
+      },
+    ],
+  },
+
   // --- Optional privé topics (added when the client has them) ---------------------
   {
     type: "kapitaalverzekering",

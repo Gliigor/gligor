@@ -41,7 +41,8 @@ export default async function ClientPage({ params }: PageProps<"/clienten/[clien
       .order("created_at", { ascending: false }),
     supabase
       .from("plans")
-      .select("id, title, status, created_at, updated_at, exports(id, created_at, sections_included)")
+      // "*": scenario_van may not exist before the scenarios migration.
+      .select("*, exports(id, created_at, sections_included)")
       .eq("client_id", clientId)
       .order("updated_at", { ascending: false }),
     supabase.from("users").select("id, name, email"),
@@ -82,7 +83,16 @@ export default async function ClientPage({ params }: PageProps<"/clienten/[clien
             <CardHeader
               title="Plannen"
               description="Elk plan blijft altijd bewerkbaar."
-              action={<PlusLink href={`/clienten/${clientId}/plannen/nieuw`} label="Nieuw plan" compact />}
+              action={
+                <div className="flex items-center gap-3">
+                  {plans && plans.length > 1 ? (
+                    <Link href={`/clienten/${clientId}/vergelijken`} className="text-[13px] font-semibold text-ink-800 underline decoration-gold-500 underline-offset-4">
+                      Vergelijken
+                    </Link>
+                  ) : null}
+                  <PlusLink href={`/clienten/${clientId}/plannen/nieuw`} label="Nieuw plan" compact />
+                </div>
+              }
             />
             {plans && plans.length > 0 ? (
               <ul className="divide-y divide-ink-100">
@@ -93,7 +103,10 @@ export default async function ClientPage({ params }: PageProps<"/clienten/[clien
                       className="flex items-center gap-4 px-4 py-3.5 hover:bg-ink-50 sm:px-5"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{p.title}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium">{p.title}</span>
+                          {p.scenario_van ? <Badge>scenario</Badge> : null}
+                        </div>
                         <div className="text-xs text-ink-500 tabular">Gewijzigd {formatDateTime(p.updated_at)}</div>
                       </div>
                       <Badge tone={STATUS_TONE[p.status as PlanStatus]}>{PLAN_STATUS_LABELS[p.status as PlanStatus]}</Badge>

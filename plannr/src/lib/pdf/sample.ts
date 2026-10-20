@@ -33,6 +33,7 @@ export const SAMPLE_INPUT: PlanInput = {
     resultaat: true,
     pensioenEigenBeheer: true,
     dividend: true,
+    eenmanszaak: false,
   },
   prive: {
     yearlyExpenses: 96_000,
@@ -66,6 +67,7 @@ export const SAMPLE_INPUT: PlanInput = {
         dividend: 60_000,
       },
     ],
+    soleTraders: [],
   },
 };
 
