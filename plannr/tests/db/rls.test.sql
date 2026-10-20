@@ -95,6 +95,15 @@ begin
   get diagnostics n = row_count;
   assert n = 0, 'planner cannot switch on the AI reader';
 
+  update public.firms set rendement_standaard = '{"beleggingen": 9}';
+  get diagnostics n = row_count;
+  assert n = 0, 'planner cannot change the firm return defaults';
+
+  -- A scenario of a plan in the same firm is allowed.
+  insert into public.plans (firm_id, client_id, title, scenario_van, created_by)
+  values (public.current_firm_id(), '10000000-0000-0000-0000-000000000001', 'Scenario: eerder stoppen',
+          '20000000-0000-0000-0000-000000000001', auth.uid());
+
   begin
     insert into public.invitations (firm_id, email, invited_by) values (public.current_firm_id(), 'x@a.nl', auth.uid());
     assert false, 'planner must not invite';
@@ -144,6 +153,16 @@ begin
   assert (select count(*) from public.assets) = 0, 'firm B sees no firm A assets';
   assert (select count(*) from public.users) = 1, 'firm B sees only itself';
   assert (select count(*) from public.firms) = 1, 'firm B sees only own firm';
+
+  -- A scenario cannot point at another firm's plan.
+  begin
+    insert into public.clients (id, firm_id, first_name, last_name, created_by)
+    values ('10000000-0000-0000-0000-0000000000b1', public.current_firm_id(), 'Bea', 'B', auth.uid());
+    insert into public.plans (firm_id, client_id, title, scenario_van, created_by)
+    values (public.current_firm_id(), '10000000-0000-0000-0000-0000000000b1', 'Stiekem', '20000000-0000-0000-0000-000000000001', auth.uid());
+    assert false, 'scenario must not reference another firm''s plan';
+  exception when foreign_key_violation then null;
+  end;
 
   -- Composite FK: a firm B note cannot point at a firm A client.
   begin

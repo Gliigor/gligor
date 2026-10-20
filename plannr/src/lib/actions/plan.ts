@@ -61,7 +61,7 @@ export async function createPlanAction(clientId: string, _prev: { error?: string
       client_id: clientId,
       title,
       config: DEFAULT_PLAN_CONFIG,
-      inputs: { prive: {}, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
+      inputs: { uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: null, laterLeeftijd: null, laterPct: null } }, prive: {}, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
       created_by: member.userId,
     })
     .select("id")
@@ -215,4 +215,57 @@ export async function deleteAsset(assetId: string) {
 
 export async function goToStep(clientId: string, planId: string, step: string) {
   redirect(`/clienten/${clientId}/plannen/${planId}/${isStepKey(step) ? step : "configuratie"}`);
+}
+
+/**
+ * Copies a plan (configuration, inputs and all rows) into a new scenario of the
+ * same client. A scenario of a scenario hangs under the same base plan.
+ */
+export async function createScenarioAction(planId: string): Promise<{ ok: false; error: string }> {
+  const member = await requireMember();
+  const supabase = await createClient();
+  const { data: base } = await supabase.from("plans").select("*").eq("id", planId).maybeSingle();
+  if (!base) return { ok: false, error: "Plan niet gevonden." };
+
+  const root = (base.scenario_van as string | null | undefined) ?? base.id;
+  const { count } = await supabase.from("plans").select("id", { count: "exact", head: true }).eq("scenario_van", root);
+  const { data: plan, error } = await supabase
+    .from("plans")
+    .insert({
+      firm_id: member.firm.id,
+      client_id: base.client_id,
+      title: `Scenario ${(count ?? 0) + 1}: ${String(base.title).replace(/^Scenario \d+: /, "")}`.slice(0, 200),
+      scenario_van: root,
+      status: "concept",
+      current_step: "prive",
+      config: { ...parsePlanConfig(base.config), visitedSteps: parsePlanConfig(base.config).visitedSteps },
+      inputs: sanitizePlanInputs(base.inputs),
+      created_by: member.userId,
+    })
+    .select("id")
+    .single();
+  if (error || !plan) {
+    // Most likely the scenarios migration has not been run yet.
+    return { ok: false, error: "Het scenario kon niet worden gemaakt. Is de database-update voor scenario's al uitgevoerd?" };
+  }
+
+  const { data: rows } = await supabase.from("assets").select("*").eq("plan_id", planId);
+  if (rows && rows.length > 0) {
+    await supabase.from("assets").insert(
+      rows.map((r) => ({
+        firm_id: member.firm.id,
+        plan_id: plan.id,
+        side: r.side,
+        type: r.type,
+        tax_box: r.tax_box,
+        label: r.label,
+        value: r.value,
+        metadata: r.metadata,
+        source: r.source,
+        sort_order: r.sort_order,
+      })),
+    );
+  }
+  revalidatePath(`/clienten/${base.client_id}`);
+  redirect(`/clienten/${base.client_id}/plannen/${plan.id}/prive`);
 }

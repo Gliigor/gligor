@@ -78,7 +78,7 @@ Run it **once**. Running it a second time fails with "already exists" — that i
 harmless and means it is already done.
 
 Later migrations are separate, smaller files in the same folder (for example
-`20261014000000_ai_reader_switch.sql`). Run each new file once, in date order,
+`20261014000000_ai_reader_switch.sql` and `20261020000000_scenarios_rendement.sql`). Run each new file once, in date order,
 the same way. They use `if not exists`, so running one twice is harmless.
 
 **Option B — Supabase CLI:**
@@ -250,6 +250,22 @@ verzekering, lijfrente, spaarrekening eigen woning, loans to and from the own
 BV, loans to others) are asset types marked `optional`: they appear only after
 "Onderwerp toevoegen". A BV can switch on its full balance sheet and P&L; equity
 and the result after Vpb are then derived in `src/lib/plan/bv.ts`.
+
+**Eenmanszaken** (IB-ondernemers) are `eenmanszaak` rows on the zakelijk side:
+profit is box 1 income of the owner after zelfstandigenaftrek, startersaftrek
+and MKB-winstvrijstelling (rates in `assumptions.ts`), until the end year or the
+owner's retirement; the business equity counts as zakelijk wealth.
+
+**Projection assumptions** per plan live in `plans.inputs.uitgangspunten`: the
+realistic expected return (RVR) per kind of wealth and the spending pattern per
+life phase. A firm can set default returns (`firms.rendement_standaard`, under
+Instellingen); a plan overrides them. The pessimistic and optimistic scenarios
+add a fixed spread to the RVR.
+
+**Scenarios**: "Maak scenario" copies a plan (inputs and rows) into a new plan
+with `plans.scenario_van` pointing at the base plan. `/clienten/[id]/vergelijken`
+puts up to three plans side by side (`src/lib/scenarios.ts`), and the report has
+an optional "Scenariovergelijking" section.
 
 ### Security & privacy
 

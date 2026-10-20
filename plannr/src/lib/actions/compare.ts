@@ -10,7 +10,7 @@ const KINDS: ComparisonKind[] = ["pensioen_financiering", "aflossen", "salaris_d
 
 /** Runs one comparison for a plan. Every variant is calculated with calculatePlan(). */
 export async function compareChoices(planId: string, kind: ComparisonKind, rawParams: ComparisonParams | null): Promise<ComparisonOutcome> {
-  await requireMember();
+  const member = await requireMember();
   if (!KINDS.includes(kind)) throw new Error("Onbekende vergelijking");
   const bundle = await loadPlan(planId);
   if (!bundle) throw new Error("Plan niet gevonden");
@@ -21,6 +21,7 @@ export async function compareChoices(planId: string, kind: ComparisonKind, rawPa
     assets: bundle.assets,
     referenceYear: new Date().getFullYear(),
     clientName: bundle.client.first_name,
+    firmReturns: member.firm.rendement_standaard,
   });
   const defaults = defaultParams(kind, input);
   const params: ComparisonParams = {

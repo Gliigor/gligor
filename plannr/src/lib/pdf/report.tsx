@@ -8,6 +8,7 @@
 
 import { Circle, Document, Image, Page, Polyline, StyleSheet, Svg, Line as SvgLine, Text, View } from "@react-pdf/renderer";
 import type { CashFlowItem, PlanResult } from "@/lib/engine/types";
+import { bestColumn, SCENARIO_METRICS, type ScenarioColumn } from "@/lib/scenarios";
 import type { HouseStyle } from "@/lib/house-style/types";
 import { INSIGHT_TONE_LABELS, type Insight, type InsightTone } from "@/lib/insights";
 import { REPORT_SECTIONS, type ReportSectionKey } from "@/lib/plan/definitions";
@@ -26,6 +27,8 @@ export interface ReportData {
   insights: Insight[];
   /** Income and expense items with a period, as entered. */
   items?: CashFlowItem[];
+  /** This plan and its scenarios, for the scenario comparison section. */
+  scenarios?: ScenarioColumn[];
 }
 
 function periodOf(it: CashFlowItem): string {
@@ -587,9 +590,99 @@ const SECTION_INTRO: Partial<Record<ReportSectionKey, string>> = {
   rendementsscenarios: "Hoe uw vermogen zich de komende jaren kan ontwikkelen bij drie verschillende rendementen.",
   zakelijk_overzicht: "De kerncijfers van uw onderneming en hoe die doorwerken in uw privévermogen.",
   schenkingen: "Uw huishouden, de momenten van stoppen met werken en AOW, en de schenkingen aan uw kinderen.",
+  scenarios: "Wat er verandert als u andere keuzes maakt: dit plan naast de scenario's die ervan zijn gemaakt.",
   aandachtspunten: "Op basis van uw situatie zien wij de volgende kansen en aandachtspunten. Bedragen zijn indicatief en bedoeld als vertrekpunt voor het gesprek.",
   toelichting: "De uitgangspunten achter de berekeningen in dit rapport.",
 };
+
+const PART_LABELS: [keyof PlanResult["projection"]["points"][number]["components"], string][] = [
+  ["woning", "Eigen woning (netto)"],
+  ["box3", "Box 3"],
+  ["bv", "BV"],
+  ["polissen", "Polissen en leningen"],
+  ["onderneming", "Eenmanszaak"],
+];
+
+/** What the neutral total is made of: now, at retirement and at the end. */
+function CompositionTable({ r, s }: { r: PlanResult; s: Styles }) {
+  const pts = r.projection.points;
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  const ret = r.retirement.retirementYear !== null ? pts.find((p) => p.year === r.retirement.retirementYear) : undefined;
+  const parts = PART_LABELS.filter(([k]) => pts.some((p) => Math.abs(p.components[k]) > 0.5));
+  if (!first || !last || parts.length === 0) return null;
+  const cols = [first, ...(ret ? [ret] : []), last];
+  return (
+    <View style={{ marginTop: 14 }} wrap={false}>
+      <Text style={s.h3}>Samenstelling van het vermogen (neutraal)</Text>
+      <View style={[s.row, { borderBottomColor: TEXT }]}>
+        <Text style={[s.cellLabel, s.bold]}>Onderdeel</Text>
+        {cols.map((p) => (
+          <Text key={p.year} style={[s.cellValue, s.bold]}>
+            {p.year}
+          </Text>
+        ))}
+        <Text style={[s.cellValue, s.bold]}>Verandering</Text>
+      </View>
+      {parts.map(([k, label]) => (
+        <View key={k} style={s.row}>
+          <Text style={s.cellLabel}>{label}</Text>
+          {cols.map((p) => (
+            <Text key={p.year} style={s.cellValue}>
+              {formatEuro(p.components[k], { whole: true })}
+            </Text>
+          ))}
+          <Text style={s.cellValue}>{formatEuro(last.components[k] - first.components[k], { whole: true })}</Text>
+        </View>
+      ))}
+      <View style={s.rowTotal}>
+        <Text style={[s.cellLabel, s.bold]}>Totaal</Text>
+        {cols.map((p) => (
+          <Text key={p.year} style={[s.cellValue, s.bold]}>
+            {formatEuro(p.neutraal, { whole: true })}
+          </Text>
+        ))}
+        <Text style={[s.cellValue, s.bold]}>{formatEuro(last.neutraal - first.neutraal, { whole: true })}</Text>
+      </View>
+    </View>
+  );
+}
+
+function ScenarioSection({ columns, s }: { columns: ScenarioColumn[]; s: Styles }) {
+  if (columns.length < 2) return <Text style={s.lead}>Er zijn geen scenario&apos;s van dit plan.</Text>;
+  return (
+    <View>
+      <View style={[s.row, { borderBottomColor: TEXT }]}>
+        <Text style={[s.cellLabel, s.bold]} />
+        {columns.map((c) => (
+          <Text key={c.planId} style={[s.cellValue, s.bold]}>
+            {c.title}
+          </Text>
+        ))}
+      </View>
+      {SCENARIO_METRICS.map((m) => {
+        const best = bestColumn(columns, m.key);
+        return (
+          <View key={m.key} style={s.row} wrap={false}>
+            <Text style={s.cellLabel}>{m.label}</Text>
+            {columns.map((c, i) => {
+              const v = c.metrics[m.key];
+              return (
+                <Text key={c.planId} style={[s.cellValue, best === i ? s.bold : {}]}>
+                  {m.kind === "year" ? String(v ?? "niet") : v === null ? "—" : formatEuro(v, { whole: true })}
+                </Text>
+              );
+            })}
+          </View>
+        );
+      })}
+      <Text style={{ color: MUTED, fontSize: 8.5, marginTop: 8 }}>
+        Vetgedrukt: de gunstigste uitkomst per regel. Elk scenario is volledig doorgerekend met dezelfde uitgangspunten, behalve wat in
+        dat scenario is aangepast.
+      </Text>
+    </View>
+  );
+}
 
 function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData; hs: HouseStyle; s: Styles }) {
   const r = data.result;
@@ -651,10 +744,17 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
               {w.prive.bvLoans.excess > 0 ? `, waarvan ${formatEuro(w.prive.bvLoans.excess, { whole: true })} boven de grens van de Wet excessief lenen.` : "."}
             </Text>
           ) : null}
-          {w.zakelijk.total !== 0 || w.zakelijk.companies.length > 0 ? (
+          {w.zakelijk.total !== 0 || w.zakelijk.companies.length > 0 || w.zakelijk.soleTraders.length > 0 ? (
             <View style={{ marginTop: 14 }}>
               <Text style={s.h3}>Zakelijk</Text>
-              <Table s={s} rows={[["Aandelen BV (indicatieve waarde)", w.zakelijk.shareValue]]} total={["Netto vermogen zakelijk", w.zakelijk.total]} />
+              <Table
+                s={s}
+                rows={[
+                  ["Aandelen BV (indicatieve waarde)", w.zakelijk.shareValue],
+                  ...w.zakelijk.soleTraders.map((t): [string, number] => [`${t.name} (ondernemingsvermogen)`, t.businessAssets]),
+                ]}
+                total={["Netto vermogen zakelijk", w.zakelijk.total]}
+              />
             </View>
           ) : null}
           <View style={{ marginTop: 14, flexDirection: "row", justifyContent: "space-between", backgroundColor: PAPER, paddingVertical: 10, paddingHorizontal: 12 }} wrap={false}>
@@ -682,6 +782,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
             rows={[
               [r.household.persons.length > 1 ? "Bruto inkomen uit arbeid (samen)" : "Bruto inkomen uit arbeid", r.income.grossEmployment],
               ["Salaris uit eigen BV", r.income.dgaSalary],
+              ...(r.income.businessProfit ? [["Winst uit onderneming", r.income.businessProfit] as [string, number]] : []),
               ["Ontvangen dividend", r.income.dividendReceived],
               ...(r.income.otherIncome ? [["Overig belastbaar inkomen", r.income.otherIncome] as [string, number]] : []),
               ...(r.income.taxFreeIncome ? [["Onbelast inkomen", r.income.taxFreeIncome] as [string, number]] : []),
@@ -703,7 +804,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
               {r.household.persons.map((p) => (
                 <View key={p.role} style={s.row}>
                   <Text style={s.cellLabel}>{p.name}</Text>
-                  <Text style={s.cellValue}>{formatEuro(p.grossEmployment + p.dgaSalary + p.dividendReceived + p.otherIncome + p.taxFreeIncome, { whole: true })}</Text>
+                  <Text style={s.cellValue}>{formatEuro(p.grossEmployment + p.dgaSalary + p.businessProfit + p.dividendReceived + p.otherIncome + p.taxFreeIncome, { whole: true })}</Text>
                   <Text style={s.cellValue}>{formatEuro(p.box1Tax + p.box2Tax + p.box3Tax, { whole: true })}</Text>
                   <Text style={[s.cellValue, s.bold]}>{formatEuro(p.net, { whole: true })}</Text>
                 </View>
@@ -765,6 +866,12 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
       return (
         <View>
           <ProjectionChart result={r} hs={hs} />
+          {r.projection.events.length > 0 ? (
+            <Text style={{ color: MUTED, fontSize: 8.5, marginTop: 6 }}>
+              {r.projection.events.map((e) => `${e.label}: ${e.year}`).join("  ·  ")}
+            </Text>
+          ) : null}
+          <CompositionTable r={r} s={s} />
           <View style={{ marginTop: 14 }}>
             <View style={[s.row, { borderBottomColor: TEXT }]}>
               <Text style={[s.cellLabel, s.bold]}>Jaar</Text>
@@ -789,7 +896,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
         </View>
       );
     case "zakelijk_overzicht":
-      return w.zakelijk.companies.length === 0 ? (
+      return w.zakelijk.companies.length === 0 && w.zakelijk.soleTraders.length === 0 ? (
         <Text style={s.lead}>Dit plan bevat geen zakelijke onderdelen.</Text>
       ) : (
         <View>
@@ -820,10 +927,25 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
           {w.zakelijk.companies.length > 1 ? (
             <Table s={s} rows={[]} total={["Waarde aandelen in box 2 (totaal)", w.zakelijk.shareValue]} />
           ) : null}
+          {w.zakelijk.soleTraders.map((t, i) => (
+            <View key={`ez-${i}`} style={s.section} wrap={false}>
+              <Text style={s.h3}>{t.name} · eenmanszaak</Text>
+              <Table
+                s={s}
+                rows={[
+                  ["Verwachte winst per jaar", t.profit],
+                  ["Belastbare winst na ondernemersaftrek en MKB-winstvrijstelling", t.taxableProfit],
+                ]}
+                total={["Ondernemingsvermogen", t.businessAssets]}
+              />
+            </View>
+          ))}
         </View>
       );
     case "schenkingen":
       return <FamilySection r={r} s={s} hs={hs} />;
+    case "scenarios":
+      return <ScenarioSection columns={data.scenarios ?? []} s={s} />;
     case "aandachtspunten":
       return data.insights.length === 0 ? (
         <Text style={s.lead}>Op basis van de ingevulde gegevens zijn er geen bijzondere aandachtspunten.</Text>
@@ -845,6 +967,12 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
             Inflatie, rendementen en belastingtarieven zijn vereenvoudigd ({r.engine.assumptionsLabel}). Er is geen rekening
             gehouden met heffingskortingen, toeslagen en persoonlijke aftrekposten. De scenario&apos;s zijn geen voorspelling:
             werkelijke rendementen kunnen hoger of lager uitvallen.
+          </Text>
+          <Text style={{ marginBottom: 7 }}>
+            Realistisch verwacht rendement per jaar (neutraal scenario): spaargeld {formatPercent(r.projection.returns.savings)},
+            beleggingen {formatPercent(r.projection.returns.investments)}, overig vastgoed {formatPercent(r.projection.returns.realEstate)},
+            liquide middelen in de BV {formatPercent(r.projection.returns.bv)} (vóór vennootschapsbelasting), waardestijging eigen
+            woning {formatPercent(r.projection.returns.house)}.
           </Text>
           <Text style={{ color: MUTED, fontSize: 8.5 }}>
             Deze berekening is gemaakt met een prototype-rekenkern ({r.engine.name} v{r.engine.version}) en is niet geschikt als

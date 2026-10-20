@@ -4,10 +4,13 @@ import { useActionState, useState, useTransition } from "react";
 import { FormError, FormSuccess, Input, Label } from "@/components/ui/form";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { cn } from "@/components/ui/cn";
+import { ReturnsFields } from "@/components/plan/returns-fields";
+import type { ReturnPercents } from "@/lib/plan/types";
 import {
   invitePlannerAction,
   revokeInvitationAction,
   setAiReaderAction,
+  setFirmReturnsAction,
   updateFirmAction,
   type ActionResult,
 } from "@/lib/actions/settings";
@@ -111,6 +114,29 @@ export function AiReaderSwitch({ enabled, available, unavailableReason }: { enab
       </div>
       {!available ? <p className="text-sm text-warn-600">Nog niet beschikbaar. {unavailableReason}</p> : null}
       {result?.error ? <FormError message={result.error} /> : null}
+    </div>
+  );
+}
+
+export function FirmReturnsForm({ initial }: { initial: ReturnPercents }) {
+  const [value, setValue] = useState<ReturnPercents>(initial);
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, start] = useTransition();
+  return (
+    <div className="space-y-4">
+      <ReturnsFields idPrefix="kantoor-rvr" value={value} onChange={setValue} />
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => start(async () => setResult(await setFirmReturnsAction(value)))}
+          className="h-9 rounded-sm bg-night px-4 text-[13px] font-semibold text-white hover:bg-ink-800 disabled:opacity-50"
+        >
+          Opslaan
+        </button>
+        {result?.message ? <span className="text-sm text-ok-600">{result.message}</span> : null}
+      </div>
+      <FormError message={result?.error} />
     </div>
   );
 }

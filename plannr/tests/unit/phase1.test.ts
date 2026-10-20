@@ -15,7 +15,7 @@ function asset(type: string, value: number | null, metadata: Record<string, unkn
 
 const config: PlanConfig = {
   ...DEFAULT_PLAN_CONFIG,
-  sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, partner: false, kinderen: false, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: false, dividend: true },
+  sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, partner: false, kinderen: false, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: false, dividend: true, eenmanszaak: false },
 };
 
 const baseAssets = () => [

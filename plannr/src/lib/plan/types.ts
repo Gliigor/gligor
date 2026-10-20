@@ -20,11 +20,23 @@ export type ValueSource = "handmatig" | "document";
 export type DocumentType = "ib_aangifte" | "jaarrekening";
 export type LayoutVariant = "klassiek" | "modern" | "minimalistisch";
 
+/** Realistisch verwacht rendement per kind of wealth, in percent (4 = 4%). */
+export interface ReturnPercents {
+  sparen?: number | null;
+  beleggingen?: number | null;
+  vastgoed?: number | null;
+  bv?: number | null;
+  woning?: number | null;
+}
+export const RETURN_KEYS = ["sparen", "beleggingen", "vastgoed", "bv", "woning"] as const;
+
 export interface FirmRow {
   id: string;
   name: string;
   website_url: string | null;
   created_at: string;
+  /** Firm defaults for the realistic expected returns (null: Plannr defaults). */
+  rendement_standaard?: ReturnPercents | null;
   ai_extraction_enabled: boolean;
   ai_extraction_changed_at: string | null;
 }
@@ -65,6 +77,8 @@ export interface PlanRow {
   firm_id: string;
   client_id: string;
   title: string;
+  /** The plan this plan is a scenario of (null for a base plan). */
+  scenario_van?: string | null;
   status: PlanStatus;
   current_step: string;
   config: unknown;
@@ -197,7 +211,15 @@ export interface CashItem {
   groei: number | null;
 }
 
+/** Plan-level assumptions that override the firm defaults. */
+export interface PlanAssumptions {
+  rendement: ReturnPercents;
+  /** Household expenses per life phase, in percent of today's expenses. Null: 100%. */
+  uitgavenpatroon: { pensioenPct: number | null; laterLeeftijd: number | null; laterPct: number | null };
+}
+
 export interface PlanInputs {
+  uitgangspunten: PlanAssumptions;
   prive: PriveInputs;
   partner: PartnerInputs;
   kinderen: ChildInput[];
@@ -220,8 +242,9 @@ export const DEFAULT_PLAN_CONFIG: PlanConfig = {
     resultaat: false,
     pensioen_eigen_beheer: false,
     dividend: false,
+    eenmanszaak: false,
   },
-  reportSections: ["samenvatting", "vermogensoverzicht", "inkomsten_uitgaven", "belastingdruk", "rendementsscenarios", "schenkingen", "aandachtspunten", "toelichting"],
+  reportSections: ["samenvatting", "vermogensoverzicht", "inkomsten_uitgaven", "belastingdruk", "rendementsscenarios", "schenkingen", "scenarios", "aandachtspunten", "toelichting"],
   visitedSteps: [],
   hiddenInsights: [],
 };
@@ -308,7 +331,26 @@ export function parsePlanInputs(raw: unknown): PlanInputs {
   const fromDocument = Array.isArray(obj.fromDocument)
     ? (obj.fromDocument as unknown[]).filter((k): k is string => typeof k === "string")
     : [];
-  return { prive, partner, kinderen, schenkingen, posten, fromDocument };
+  const rawU = isRecord(obj.uitgangspunten) ? obj.uitgangspunten : {};
+  const uitgangspunten: PlanAssumptions = {
+    rendement: parseReturns(rawU.rendement),
+    uitgavenpatroon: (() => {
+      const r = isRecord(rawU.uitgavenpatroon) ? rawU.uitgavenpatroon : {};
+      return { pensioenPct: num(r.pensioenPct), laterLeeftijd: num(r.laterLeeftijd), laterPct: num(r.laterPct) };
+    })(),
+  };
+  return { uitgangspunten, prive, partner, kinderen, schenkingen, posten, fromDocument };
+}
+
+/** Reads return percentages; out-of-range values are dropped. */
+export function parseReturns(raw: unknown): ReturnPercents {
+  const obj = isRecord(raw) ? raw : {};
+  const out: ReturnPercents = {};
+  for (const k of RETURN_KEYS) {
+    const v = num(obj[k]);
+    out[k] = v !== null && v >= -10 && v <= 20 ? Math.round(v * 100) / 100 : null;
+  }
+  return out;
 }
 
 export function parseReportSections(raw: unknown): ReportSectionKey[] {

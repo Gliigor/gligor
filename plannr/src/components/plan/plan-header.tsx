@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pencil, Trash2 } from "@/components/ui/icons";
-import { deletePlanAction, updatePlanMeta } from "@/lib/actions/plan";
+import Link from "next/link";
+import { Copy, GitCompare, Pencil, Trash2 } from "@/components/ui/icons";
+import { createScenarioAction, deletePlanAction, updatePlanMeta } from "@/lib/actions/plan";
 import { PLAN_STATUS_LABELS, type PlanStatus } from "@/lib/plan/types";
 
 export function PlanHeader({
@@ -10,13 +11,17 @@ export function PlanHeader({
   clientId,
   title,
   status,
+  scenarioOf,
 }: {
   planId: string;
   clientId: string;
   title: string;
   status: PlanStatus;
+  /** The base plan when this plan is a scenario. */
+  scenarioOf?: { id: string; title: string } | null;
 }) {
   const [editing, setEditing] = useState(false);
+  const [scenarioError, setScenarioError] = useState<string | null>(null);
   const [draft, setDraft] = useState(title);
   const [pending, startTransition] = useTransition();
 
@@ -27,6 +32,7 @@ export function PlanHeader({
   }
 
   return (
+    <div className="space-y-3">
     <div className="flex items-end gap-2 sm:gap-3">
       <div className="min-w-0 flex-1">
         {editing ? (
@@ -78,6 +84,34 @@ export function PlanHeader({
       >
         <Trash2 className="h-4 w-4" />
       </button>
+    </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
+        {scenarioOf ? (
+          <span className="text-ink-500">
+            Scenario van{" "}
+            <Link href={`/clienten/${clientId}/plannen/${scenarioOf.id}`} className="font-medium text-ink-800 underline decoration-gold-500 underline-offset-4">
+              {scenarioOf.title}
+            </Link>
+          </span>
+        ) : null}
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const res = await createScenarioAction(planId);
+              if (res && !res.ok) setScenarioError(res.error);
+            })
+          }
+          className="inline-flex items-center gap-1.5 font-semibold text-ink-800 hover:text-ink-900 disabled:opacity-50"
+        >
+          <Copy className="h-3.5 w-3.5" /> Maak scenario
+        </button>
+        <Link href={`/clienten/${clientId}/vergelijken?plan=${planId}`} className="inline-flex items-center gap-1.5 font-semibold text-ink-800 hover:text-ink-900">
+          <GitCompare className="h-3.5 w-3.5" /> Vergelijken
+        </Link>
+        {scenarioError ? <span className="text-danger-600">{scenarioError}</span> : null}
+      </div>
     </div>
   );
 }

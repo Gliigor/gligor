@@ -138,7 +138,7 @@ async function main() {
   // 5. The complete DGA plan.
   console.log("• Volledig DGA-plan aanmaken…");
   const fullConfig: PlanConfig = {
-    sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, partner: true, kinderen: true, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: true, dividend: true },
+    sections: { eigen_woning: true, inkomen: true, box3: true, pensioen: true, partner: true, kinderen: true, bv: true, balans: true, resultaat: true, pensioen_eigen_beheer: true, dividend: true, eenmanszaak: true },
     reportSections: [...REPORT_SECTION_KEYS],
     visitedSteps: [...STEP_KEYS],
     hiddenInsights: [],
@@ -153,6 +153,7 @@ async function main() {
       current_step: "rapport",
       config: fullConfig,
       inputs: {
+        uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: 90, laterLeeftijd: 75, laterPct: 80 } },
         prive: { geboortejaar: 1968, pensioenleeftijd: 65, bruto_inkomen: 0, jaarlijkse_uitgaven: 96_000, pensioen_per_jaar: 12_000 },
         partner: { naam: "Marieke", relatie: "gehuwd", geboortejaar: 1970, pensioenleeftijd: 67, bruto_inkomen: 52_000, pensioen_per_jaar: 16_000 },
         kinderen: [
@@ -229,25 +230,55 @@ async function main() {
     asset("prive", "lijfrente", 1, "Lijfrente Nationale-Nederlanden", 85_000, { eigenaar: "client", start_uitkering: 2033, duur_jaren: 15, jaarlijkse_inleg: 4_000 }),
     asset("prive", "kapitaalverzekering", 1, "KEW Aegon", 120_000, { eigenaar: "joint", uitkering_jaar: 2030, verwachte_uitkering: 135_000, fiscaal: "vrijgesteld" }),
     asset("prive", "lening_dga", 3, "Rekening-courant holding", 180_000, { eigenaar: "client", rente: 4, eigen_woning: "nee" }),
+    asset("zakelijk", "eenmanszaak", 1, "", 45_000, { eigenaar: "partner", naam: "Praktijk Marieke", winst: 32_000, urencriterium: "nee", starter: "nee" }, 3),
   ]);
 
-  await db.from("plans").insert({
-    firm_id: firmId,
-    client_id: ids["de Vries"],
-    title: "Wat-als: stoppen op 60",
-    status: "concept",
-    config: { ...fullConfig, visitedSteps: ["configuratie"] },
-    inputs: { prive: { geboortejaar: 1968, pensioenleeftijd: 60 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
-    created_by: ownerId,
-  });
+  // A scenario of Plan 2026: stop at 62 and spend a little less after retirement.
+  const { data: base } = await db.from("plans").select("inputs").eq("id", plan.id).single();
+  const baseInputs = base!.inputs as Record<string, Record<string, unknown>>;
+  const { data: scenario, error: scenarioError } = await db
+    .from("plans")
+    .insert({
+      firm_id: firmId,
+      client_id: ids["de Vries"],
+      title: "Scenario 1: stoppen op 62",
+      scenario_van: plan.id,
+      status: "concept",
+      current_step: "resultaten",
+      config: fullConfig,
+      inputs: {
+        ...baseInputs,
+        prive: { ...baseInputs.prive, pensioenleeftijd: 62 },
+        uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: 85, laterLeeftijd: 75, laterPct: 75 } },
+      },
+      created_by: ownerId,
+    })
+    .select("id")
+    .single();
+  if (scenarioError || !scenario) throw scenarioError;
+  const { data: baseAssets } = await db.from("assets").select("*").eq("plan_id", plan.id);
+  await db.from("assets").insert(
+    (baseAssets ?? []).map((a) => ({
+      firm_id: a.firm_id,
+      plan_id: scenario.id,
+      side: a.side,
+      type: a.type,
+      tax_box: a.tax_box,
+      label: a.label,
+      value: a.value,
+      metadata: a.metadata,
+      source: a.source,
+      sort_order: a.sort_order,
+    })),
+  );
 
   await db.from("plans").insert({
     firm_id: firmId,
     client_id: ids["Bakker"],
     title: "Plan 2026",
     status: "in_bewerking",
-    config: { ...fullConfig, sections: { ...fullConfig.sections, partner: false, kinderen: false, bv: false, balans: false, resultaat: false, pensioen_eigen_beheer: false, dividend: false }, visitedSteps: ["configuratie", "documenten"] },
-    inputs: { prive: { geboortejaar: 1985, pensioenleeftijd: 67, bruto_inkomen: 68_000 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
+    config: { ...fullConfig, sections: { ...fullConfig.sections, partner: false, kinderen: false, bv: false, balans: false, resultaat: false, pensioen_eigen_beheer: false, dividend: false, eenmanszaak: false }, visitedSteps: ["configuratie", "documenten"] },
+    inputs: { uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: null, laterLeeftijd: null, laterPct: null } }, prive: { geboortejaar: 1985, pensioenleeftijd: 67, bruto_inkomen: 68_000 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
     created_by: plannerId,
   });
 

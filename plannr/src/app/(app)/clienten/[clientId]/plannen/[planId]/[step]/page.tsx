@@ -83,6 +83,7 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
           config={config}
           initialInputs={inputs}
           initialAssets={assets}
+          firmReturns={member.firm.rendement_standaard}
         />
       );
       break;
@@ -93,6 +94,7 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
         assets,
         referenceYear: new Date().getFullYear(),
         clientName: bundle.client.first_name,
+        firmReturns: member.firm.rendement_standaard,
       });
       const result = await calculatePlan(engineInput);
       const insights = deriveInsights(engineInput, result);

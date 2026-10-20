@@ -8,8 +8,9 @@ import { deriveInsights } from "@/lib/insights";
 import { toHouseStyle, type HouseStyle } from "@/lib/house-style/types";
 import type { ReportSectionKey } from "@/lib/plan/definitions";
 import { toEngineInput } from "@/lib/plan/to-engine-input";
-import { normalizeAsset, parsePlanConfig, parsePlanInputs, type ClientRow, type PlanRow } from "@/lib/plan/types";
+import { normalizeAsset, parsePlanConfig, parsePlanInputs, type ClientRow, type PlanRow, type ReturnPercents } from "@/lib/plan/types";
 import { fullName } from "@/lib/format";
+import { MAX_COMPARE, toColumn, type ScenarioColumn } from "@/lib/scenarios";
 import { toReportLogo } from "@/lib/pdf/render";
 import type { ReportData, ReportLogo } from "@/lib/pdf/report";
 
@@ -37,7 +38,8 @@ export async function buildReport(
   const [{ data: client }, { data: assets }, { data: firm }, { data: hs }] = await Promise.all([
     supabase.from("clients").select("*").eq("id", plan.client_id).single<ClientRow>(),
     supabase.from("assets").select("*").eq("plan_id", planId),
-    supabase.from("firms").select("name").eq("id", plan.firm_id).single(),
+    // select("*"): optional columns (e.g. rendement_standaard) may not exist before a migration.
+    supabase.from("firms").select("*").eq("id", plan.firm_id).single(),
     supabase.from("house_styles").select("*").eq("firm_id", plan.firm_id).eq("is_active", true).maybeSingle(),
   ]);
   if (!client || !firm) return null;
@@ -50,8 +52,36 @@ export async function buildReport(
     assets: (assets ?? []).map((a) => normalizeAsset(a)),
     referenceYear: now.getFullYear(),
     clientName: client.first_name,
+    firmReturns: (firm as { rendement_standaard?: ReturnPercents | null }).rendement_standaard,
   });
   const result = await calculatePlan(engineInput);
+
+  // Scenario comparison: this plan's family (base plan and its scenarios), at most MAX_COMPARE.
+  const firmReturns = (firm as { rendement_standaard?: ReturnPercents | null }).rendement_standaard;
+  const root = (plan as { scenario_van?: string | null }).scenario_van ?? plan.id;
+  const { data: family } = await supabase.from("plans").select("*").eq("client_id", plan.client_id).order("created_at");
+  const members = ((family ?? []) as (PlanRow & { scenario_van?: string | null })[])
+    .filter((p) => p.id === root || p.scenario_van === root)
+    .slice(0, MAX_COMPARE);
+  const scenarios: ScenarioColumn[] = [];
+  if (members.length > 1) {
+    for (const p of members) {
+      if (p.id === plan.id) {
+        scenarios.push(toColumn(p, engineInput, result));
+        continue;
+      }
+      const { data: rows } = await supabase.from("assets").select("*").eq("plan_id", p.id);
+      const input = toEngineInput({
+        config: parsePlanConfig(p.config),
+        inputs: parsePlanInputs(p.inputs),
+        assets: (rows ?? []).map((a) => normalizeAsset(a)),
+        referenceYear: now.getFullYear(),
+        clientName: client.first_name,
+        firmReturns,
+      });
+      scenarios.push(toColumn(p, input, await calculatePlan(input)));
+    }
+  }
   const hidden = new Set(config.hiddenInsights);
   const insights = deriveInsights(engineInput, result).filter((i) => !hidden.has(i.id));
   const style = toHouseStyle(hs);
@@ -73,10 +103,13 @@ export async function buildReport(
       result,
       // A family section only makes sense with a partner or children.
       sections: (opts.sections ?? config.reportSections).filter(
-        (k) => k !== "schenkingen" || result.household.persons.length > 1 || result.gifts !== null,
+        (k) =>
+          (k !== "schenkingen" || result.household.persons.length > 1 || result.gifts !== null) &&
+          (k !== "scenarios" || scenarios.length > 1),
       ),
       insights,
       items: engineInput.prive.cashItems,
+      scenarios,
     },
   };
 }
