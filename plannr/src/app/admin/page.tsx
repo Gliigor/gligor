@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, EmptyState } from "@/components/ui/card";
 import { LogOut } from "@/components/ui/icons";
 import { formatDate, formatDateTime, formatMonth, formatNumber } from "@/lib/format";
-import { adminSignOut } from "./actions";
+import { addDesignAttemptsAction, adminSignOut } from "./actions";
 import { MonthlyChart } from "./monthly-chart";
 
 export const metadata = { title: "Dashboard" };
@@ -42,11 +42,14 @@ function activity(lastActivity: string | null): { label: string; tone: "ok" | "w
 export default async function AdminDashboard() {
   if (!(await getAuthUserId()) || !(await isSuperAdmin())) redirect("/admin/inloggen");
   const supabase = await createClient();
-  const [{ data: totals }, { data: firms }, { data: monthly }] = await Promise.all([
+  const [{ data: totals }, { data: firms }, { data: monthly }, { data: attempts }] = await Promise.all([
     supabase.rpc("admin_totals").single<{ firms: number; planners: number; clients: number; plans: number; exports: number }>(),
     supabase.rpc("admin_firm_stats"),
     supabase.rpc("admin_monthly_stats", { p_months: 12 }),
+    // Absent before the reports migration; the column then shows a dash.
+    supabase.rpc("admin_design_attempts"),
   ]);
+  const attemptsByFirm = new Map(((attempts ?? []) as { firm_id: string; pogingen: number }[]).map((a) => [a.firm_id, a.pogingen]));
   const firmStats = (firms ?? []) as FirmStat[];
   const months = ((monthly ?? []) as { month: string; new_firms: number; active_firms: number; exports: number }[]).map((m) => ({
     label: formatMonth(m.month),
@@ -106,7 +109,7 @@ export default async function AdminDashboard() {
             <EmptyState title="Nog geen kantoren" />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
+              <table className="w-full min-w-[860px] text-sm">
                 <thead className="bg-ink-50 text-left text-xs text-ink-500">
                   <tr>
                     <th className="px-4 py-2 font-medium">Kantoor</th>
@@ -118,6 +121,7 @@ export default async function AdminDashboard() {
                     <th className="px-4 py-2 font-medium">Laatste login</th>
                     <th className="px-4 py-2 font-medium">Laatste activiteit</th>
                     <th className="px-4 py-2 font-medium">Aangemeld</th>
+                    <th className="px-4 py-2 font-medium">AI-ontwerpen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-100 tabular">
@@ -136,6 +140,21 @@ export default async function AdminDashboard() {
                         <td className="px-4 py-2.5">{f.last_login_at ? formatDateTime(f.last_login_at) : "—"}</td>
                         <td className="px-4 py-2.5">{f.last_activity_at ? formatDateTime(f.last_activity_at) : "—"}</td>
                         <td className="px-4 py-2.5">{formatDate(f.signed_up_at)}</td>
+                        <td className="px-4 py-2.5">
+                          {attemptsByFirm.has(f.firm_id) ? (
+                            <form action={addDesignAttemptsAction.bind(null, f.firm_id)} className="flex items-center gap-2">
+                              <span title="Pogingen over">{attemptsByFirm.get(f.firm_id)}</span>
+                              <button
+                                className="h-7 rounded-sm border border-ink-200 px-2 text-xs font-semibold text-ink-800 hover:border-ink-400"
+                                aria-label={`3 ontwerppogingen erbij voor ${f.firm_name}`}
+                              >
+                                +3
+                              </button>
+                            </form>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

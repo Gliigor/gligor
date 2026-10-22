@@ -76,6 +76,23 @@ begin
   update public.firms set rapport_secties_standaard = array['samenvatting', 'toelichting'];
   get diagnostics n = row_count;
   assert n = 1, 'owner can set the default report sections';
+
+  assert (select ontwerp_pogingen from public.firms) = 3, 'three design attempts to start with';
+  assert public.take_design_attempt() = 2, 'owner uses one design attempt';
+  begin
+    update public.firms set ontwerp_pogingen = 99;
+    assert false, 'owner must not reset the design attempts';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.admin_add_design_attempts(public.current_firm_id(), 3);
+    assert false, 'owner must not add design attempts';
+  exception when insufficient_privilege then null;
+  end;
+  perform public.take_design_attempt();
+  perform public.take_design_attempt();
+  assert public.take_design_attempt() = -1, 'no attempts left';
+  assert (select ontwerp_pogingen from public.firms) = 0, 'never below zero';
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -106,6 +123,12 @@ begin
   update public.firms set rapport_secties_standaard = array['samenvatting'];
   get diagnostics n = row_count;
   assert n = 0, 'planner cannot change the default report sections';
+
+  begin
+    perform public.take_design_attempt();
+    assert false, 'planner must not use design attempts';
+  exception when insufficient_privilege then null;
+  end;
 
   update public.plans set gearchiveerd_op = now() where id = '20000000-0000-0000-0000-000000000001';
   get diagnostics n = row_count;
@@ -251,6 +274,9 @@ begin
   assert (select count(*) from public.admin_monthly_stats(6)) = 6, 'admin monthly series';
   assert (select count(*) from public.clients) = 0, 'admin cannot read client rows';
   assert (select count(*) from public.assets) = 0, 'admin cannot read asset rows';
+  assert (select count(*) from public.admin_design_attempts()) = 2, 'admin sees attempts per firm';
+  assert public.admin_add_design_attempts(
+    (select firm_id from public.admin_design_attempts() where pogingen = 0), 3) = 3, 'admin adds attempts';
 end $$;
 
 -- ---------------------------------------------------------------------------

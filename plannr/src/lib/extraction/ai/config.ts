@@ -22,6 +22,9 @@ export { EU_REGIONS };
 // AWS's EU geography) or no profile prefix (in-region). "global.", "us." and
 // other profiles are refused.
 //
+// PLANNR_DESIGN_MODEL                 optional, model of the report designer (Instellingen →
+//                                     Huisstijl); default eu.anthropic.claude-opus-5-5
+//
 // The PLANNR_ prefix matters: Vercel reserves AWS_REGION and the AWS_* keys.
 
 export interface AiReaderConfig {
@@ -34,6 +37,23 @@ export interface AiReaderConfig {
 }
 
 export type AiReaderStatus = { configured: true; config: AiReaderConfig } | { configured: false; reason: string };
+
+export interface AiDesignerConfig {
+  region: string;
+  model: string;
+  credentials: AiReaderConfig["credentials"];
+}
+
+export type AiDesignerStatus = { configured: true; config: AiDesignerConfig } | { configured: false; reason: string };
+
+/** The report designer uses the same Bedrock access as the reader, with its own model. */
+export function getAiDesignerStatus(): AiDesignerStatus {
+  const reader = getAiReaderStatus();
+  if (!reader.configured) return reader;
+  const model = (process.env.PLANNR_DESIGN_MODEL || "eu.anthropic.claude-opus-5-5").trim();
+  if (!staysInEu(model)) return { configured: false, reason: "Het ingestelde AI-model valt buiten het EU-profiel." };
+  return { configured: true, config: { region: reader.config.region, model, credentials: reader.config.credentials } };
+}
 
 export function getAiReaderStatus(): AiReaderStatus {
   const env = process.env;

@@ -7,8 +7,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/site-url";
 import { isFontName } from "@/lib/house-style/fonts";
 import { generateHouseStyleFromWebsite, type StyleSuggestion } from "@/lib/house-style/generate-from-website";
-import { isHexColor, isLayoutVariant } from "@/lib/house-style/types";
-import { getAiReaderStatus } from "@/lib/extraction/ai/config";
+import { isCoverBlock, isHexColor, isLayoutVariant, isOpenerBlock, isPanelBlock, toHouseStyle } from "@/lib/house-style/types";
+import { exampleDesigns, MAX_WISH_LENGTH, type ReportDesign } from "@/lib/house-style/designs";
+import { designWithBedrock } from "@/lib/house-style/ai-designer";
+import { toReportLogo } from "@/lib/pdf/render";
+import { getAiDesignerStatus, getAiReaderStatus } from "@/lib/extraction/ai/config";
 import { parseReturns } from "@/lib/plan/types";
 import { REPORT_SECTION_KEYS } from "@/lib/plan/definitions";
 import { sanitizeKeyList } from "@/lib/plan/sanitize";
@@ -93,6 +96,7 @@ export async function saveHouseStyleAction(input: {
   fontHeading: string;
   fontBody: string;
   layoutVariant: string;
+  blocks: { cover: string; opener: string; panel: string };
 }): Promise<ActionResult> {
   const member = await requireOwner();
   if (![input.primaryColor, input.secondaryColor, input.accentColor].every(isHexColor)) {
@@ -100,6 +104,10 @@ export async function saveHouseStyleAction(input: {
   }
   if (!isFontName(input.fontHeading) || !isFontName(input.fontBody)) return { ok: false, error: "Kies een lettertype uit de lijst." };
   if (!isLayoutVariant(input.layoutVariant)) return { ok: false, error: "Kies een lay-out." };
+  const blocks = input.blocks;
+  if (!blocks || !isCoverBlock(blocks.cover) || !isOpenerBlock(blocks.opener) || !isPanelBlock(blocks.panel)) {
+    return { ok: false, error: "Kies een voorpagina, hoofdstukkop en vlakken." };
+  }
 
   const supabase = await createClient();
   const row = {
@@ -109,12 +117,13 @@ export async function saveHouseStyleAction(input: {
     font_heading: input.fontHeading,
     font_body: input.fontBody,
     layout_variant: input.layoutVariant,
+    ontwerp: { cover: blocks.cover, opener: blocks.opener, panel: blocks.panel },
   };
   const { data: existing } = await supabase.from("house_styles").select("id").eq("is_active", true).maybeSingle();
   const { error } = existing
     ? await supabase.from("house_styles").update(row).eq("id", existing.id)
     : await supabase.from("house_styles").insert({ ...row, firm_id: member.firm.id });
-  if (error) return { ok: false, error: "Opslaan is niet gelukt." };
+  if (error) return { ok: false, error: "Opslaan is niet gelukt. Is de database-update voor rapporten al uitgevoerd?" };
   revalidatePath("/instellingen/huisstijl");
   return { ok: true, message: "Huisstijl opgeslagen. Alle nieuwe exports van je kantoor gebruiken deze stijl." };
 }
@@ -181,4 +190,59 @@ export async function setFirmReturnsAction(raw: unknown): Promise<ActionResult> 
   if (error) return { ok: false, error: "Opslaan is niet gelukt. Is de database-update voor scenario's al uitgevoerd?" };
   revalidatePath("/", "layout");
   return { ok: true, message: "Opgeslagen." };
+}
+
+export interface DesignResult extends ActionResult {
+  designs?: ReportDesign[];
+  method?: "ai" | "voorbeeld";
+  attemptsLeft?: number;
+}
+
+/**
+ * Three report designs. With the AI designer on, this uses one of the firm's
+ * attempts (only when it succeeds); otherwise three example designs are made
+ * from the current colours, without using an attempt.
+ */
+export async function designHouseStyleAction(wish: string): Promise<DesignResult> {
+  const member = await requireOwner();
+  const supabase = await createClient();
+  const { data: row } = await supabase.from("house_styles").select("*").eq("is_active", true).maybeSingle();
+  const current = toHouseStyle(row);
+  const designer = getAiDesignerStatus();
+  const attempts = member.firm.ontwerp_pogingen;
+
+  if (!designer.configured) return { ok: true, designs: exampleDesigns(current), method: "voorbeeld", attemptsLeft: attempts ?? undefined };
+  if (typeof attempts !== "number") return { ok: false, error: "De database-update voor rapporten is nog niet uitgevoerd." };
+  if (attempts <= 0) return { ok: false, error: "Je ontwerppogingen zijn op. Neem contact op met Plannr voor extra pogingen.", attemptsLeft: 0 };
+
+  let website: { notes: string[]; colors: string[]; fonts: string[] } | null = null;
+  if (member.firm.website_url) {
+    try {
+      const s = await generateHouseStyleFromWebsite(member.firm.website_url);
+      website = { notes: s.notes, colors: [s.primaryColor, s.secondaryColor, s.accentColor], fonts: [s.fontHeading, s.fontBody] };
+    } catch {
+      // The design works without the website.
+    }
+  }
+  let logo = null;
+  if (current.logoPath) {
+    const { data } = await supabase.storage.from("logos").download(current.logoPath);
+    logo = data ? toReportLogo(await data.arrayBuffer()) : null;
+  }
+
+  try {
+    const designs = await designWithBedrock(designer.config, {
+      firmName: member.firm.name,
+      current,
+      logo,
+      website,
+      wish: String(wish ?? "").trim().slice(0, MAX_WISH_LENGTH),
+    });
+    const { data: left } = await supabase.rpc("take_design_attempt");
+    revalidatePath("/instellingen/huisstijl");
+    return { ok: true, designs, method: "ai", attemptsLeft: typeof left === "number" ? Math.max(0, left) : attempts - 1 };
+  } catch (err) {
+    console.error("report design failed:", err instanceof Error ? err.name : typeof err, (err as { status?: number })?.status ?? "");
+    return { ok: false, error: "Het ontwerpen is niet gelukt. Er is geen poging gebruikt; probeer het later opnieuw.", attemptsLeft: attempts };
+  }
 }

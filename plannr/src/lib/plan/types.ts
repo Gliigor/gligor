@@ -39,6 +39,8 @@ export interface FirmRow {
   rendement_standaard?: ReturnPercents | null;
   /** Report sections a new plan starts with (null: Plannr defaults). */
   rapport_secties_standaard?: string[] | null;
+  /** AI report design attempts left (absent before the migration). */
+  ontwerp_pogingen?: number;
   ai_extraction_enabled: boolean;
   ai_extraction_changed_at: string | null;
 }
