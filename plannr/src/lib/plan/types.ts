@@ -37,6 +37,10 @@ export interface FirmRow {
   created_at: string;
   /** Firm defaults for the realistic expected returns (null: Plannr defaults). */
   rendement_standaard?: ReturnPercents | null;
+  /** Report sections a new plan starts with (null: Plannr defaults). */
+  rapport_secties_standaard?: string[] | null;
+  /** AI report design attempts left (absent before the migration). */
+  ontwerp_pogingen?: number;
   ai_extraction_enabled: boolean;
   ai_extraction_changed_at: string | null;
 }
@@ -79,6 +83,8 @@ export interface PlanRow {
   title: string;
   /** The plan this plan is a scenario of (null for a base plan). */
   scenario_van?: string | null;
+  /** When the plan was archived (null: active). */
+  gearchiveerd_op?: string | null;
   status: PlanStatus;
   current_step: string;
   config: unknown;
@@ -248,6 +254,12 @@ export const DEFAULT_PLAN_CONFIG: PlanConfig = {
   visitedSteps: [],
   hiddenInsights: [],
 };
+
+/** The firm's default report sections, or Plannr's defaults when none are set. */
+export function firmReportSections(raw: unknown): ReportSectionKey[] {
+  if (!Array.isArray(raw)) return [...DEFAULT_PLAN_CONFIG.reportSections];
+  return REPORT_SECTION_KEYS.filter((k) => (raw as unknown[]).includes(k));
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

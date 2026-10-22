@@ -95,6 +95,17 @@ export const ibAangifteSchema = z.object({
       }),
     )
     .describe("Box 2: one entry per company in which a substantial interest (aanmerkelijk belang) is held. Empty when none."),
+  // Totals as printed, so our own code can check the items above add up.
+  box3TotalsPrinted: z
+    .array(
+      z.object({
+        owner,
+        assets: amount("Total of the box 3 assets (totaal bezittingen) printed for this person"),
+        debts: amount("Total of the box 3 debts printed for this person, before the debt threshold (schuldendrempel)"),
+      }),
+    )
+    .describe("Every box 3 total line printed in the return, usually one per person. Copy them; do not add up anything yourself. Empty when none is printed."),
+  mortgageTotalPrinted: amount("Total eigenwoningschuld at 31 December as printed on a total line. null when no total line is printed"),
   notes: z
     .array(z.string())
     .describe("Short remarks in Dutch for the financial planner: ambiguous or unreadable values, items that did not fit the fields above."),
@@ -116,6 +127,11 @@ export const jaarrekeningSchema = z.object({
   ),
   dividendPaid: amount("Dividend paid out or declared during the financial year"),
   directorSalary: amount("Gross salary of the director-shareholder (bezoldiging bestuurder), only when stated"),
+  // Totals as printed, so our own code can check the figures above.
+  balanceTotalAssets: amount("Balance-sheet total on the assets side (totaal activa) at year end, same balance sheet as above"),
+  balanceTotalLiabilities: amount("Balance-sheet total on the liabilities side (totaal passiva) at year end, same balance sheet as above"),
+  resultBeforeTax: amount("Resultaat voor belastingen of the financial year. Negative for a loss"),
+  taxOnResult: amount("Vennootschapsbelasting on the result. Positive for a tax charge, negative for a tax benefit"),
   notes: z
     .array(z.string())
     .describe("Short remarks in Dutch for the financial planner: consolidated vs. company-only figures, ambiguous values, etc."),

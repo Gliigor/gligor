@@ -10,6 +10,8 @@ import { ArrowRight, Download, FileText } from "@/components/ui/icons";
 import { formatDateTime, fullName } from "@/lib/format";
 import { PLAN_STATUS_LABELS, type ClientRow, type PlanStatus } from "@/lib/plan/types";
 import { Notes, type NoteItem } from "./notes";
+import { ArchiveButton } from "@/components/plan/archive-button";
+import { ComparePicker, type PickablePlan } from "@/components/plan/compare-picker";
 import { ClientSettings } from "./client-settings";
 
 const STATUS_TONE: Record<PlanStatus, "neutral" | "brand" | "ok"> = {
@@ -68,6 +70,15 @@ export default async function ClientPage({ params }: PageProps<"/clienten/[clien
   }
   history.sort((a, b) => b.at.localeCompare(a.at));
 
+  const activePlans = (plans ?? []).filter((p) => !p.gearchiveerd_op);
+  const archivedPlans = (plans ?? []).filter((p) => p.gearchiveerd_op);
+  const pickable: PickablePlan[] = (plans ?? []).map((p) => ({
+    id: p.id,
+    title: p.title,
+    isScenario: Boolean(p.scenario_van),
+    archived: Boolean(p.gearchiveerd_op),
+  }));
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -84,23 +95,26 @@ export default async function ClientPage({ params }: PageProps<"/clienten/[clien
               title="Plannen"
               description="Elk plan blijft altijd bewerkbaar."
               action={
-                <div className="flex items-center gap-3">
-                  {plans && plans.length > 1 ? (
-                    <Link href={`/clienten/${clientId}/vergelijken`} className="text-[13px] font-semibold text-ink-800 underline decoration-gold-500 underline-offset-4">
-                      Vergelijken
-                    </Link>
-                  ) : null}
+                <div className="flex items-center gap-4">
+                  <div className="flex flex-col items-end gap-1.5">
+                    {archivedPlans.length > 0 ? (
+                      <a href="#gearchiveerd" className="text-[13px] font-semibold text-ink-500 hover:text-ink-900">
+                        Archief ({archivedPlans.length})
+                      </a>
+                    ) : null}
+                    {pickable.length > 1 ? <ComparePicker clientId={clientId} plans={pickable} /> : null}
+                  </div>
                   <PlusLink href={`/clienten/${clientId}/plannen/nieuw`} label="Nieuw plan" compact />
                 </div>
               }
             />
-            {plans && plans.length > 0 ? (
+            {activePlans.length > 0 ? (
               <ul className="divide-y divide-ink-100">
-                {plans.map((p) => (
-                  <li key={p.id}>
+                {activePlans.map((p) => (
+                  <li key={p.id} className="flex items-center hover:bg-ink-50">
                     <Link
                       href={`/clienten/${clientId}/plannen/${p.id}`}
-                      className="flex items-center gap-4 px-4 py-3.5 hover:bg-ink-50 sm:px-5"
+                      className="flex min-w-0 flex-1 items-center gap-4 py-3.5 pl-4 sm:pl-5"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -112,13 +126,33 @@ export default async function ClientPage({ params }: PageProps<"/clienten/[clien
                       <Badge tone={STATUS_TONE[p.status as PlanStatus]}>{PLAN_STATUS_LABELS[p.status as PlanStatus]}</Badge>
                       <ArrowRight className="h-5 w-5 shrink-0 text-ink-400" aria-hidden="true" />
                     </Link>
+                    <ArchiveButton planId={p.id} archived={false} title={p.title} compact className="px-2 sm:pr-3" />
                   </li>
                 ))}
               </ul>
             ) : (
-              <EmptyState title="Nog geen plannen">Maak een plan aan met de +.</EmptyState>
+              <EmptyState title={archivedPlans.length > 0 ? "Geen actieve plannen" : "Nog geen plannen"}>
+                Maak een plan aan met de +.
+              </EmptyState>
             )}
           </Card>
+
+          {archivedPlans.length > 0 ? (
+            <Card id="gearchiveerd" className="scroll-mt-24">
+              <CardHeader title="Gearchiveerd" description="Verouderde plannen. Ze blijven bewaard en zijn terug te zetten." />
+              <ul className="divide-y divide-ink-100">
+                {archivedPlans.map((p) => (
+                  <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 sm:px-5">
+                    <Link href={`/clienten/${clientId}/plannen/${p.id}`} className="min-w-0 flex-1 hover:underline">
+                      <div className="truncate font-medium text-ink-600">{p.title}</div>
+                      <div className="text-xs text-ink-400 tabular">Gearchiveerd {formatDateTime(p.gearchiveerd_op as string)}</div>
+                    </Link>
+                    <ArchiveButton planId={p.id} archived title={p.title} />
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader title="Historie" description="Plannen en geëxporteerde rapporten, nieuwste eerst." />

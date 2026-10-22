@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ibAangifteSchema, jaarrekeningSchema, type IbAangifteExtraction } from "@/lib/extraction/ai/schema";
 import { mapIbAangifte, mapJaarrekening } from "@/lib/extraction/ai/map";
+import { checkIbAangifte, checkJaarrekening } from "@/lib/extraction/ai/checks";
 import { planExtractionChanges } from "@/lib/extraction/apply";
 import { EU_REGIONS, staysInEu } from "@/lib/extraction/ai/eu";
 import { DEFAULT_PLAN_CONFIG, parsePlanInputs, type PlanConfig } from "@/lib/plan/types";
@@ -43,6 +44,8 @@ const ib: IbAangifteExtraction = {
     { companyName: "Holding de Vries B.V.", sharePercentage: a(100, 7), dividendReceived: a(40_000, 7), holder: "taxpayer" },
     { companyName: "Werk B.V.", sharePercentage: a(50, 7), dividendReceived: a(null), holder: "taxpayer" },
   ],
+  box3TotalsPrinted: [],
+  mortgageTotalPrinted: a(null, null),
   notes: ["  Box 3-verdeling   tussen partners is 50/50. "],
 };
 
@@ -59,6 +62,10 @@ test("the AI output schemas parse the example", () => {
       directorCurrentAccount: a(1),
       dividendPaid: a(1),
       directorSalary: a(1),
+      balanceTotalAssets: a(1),
+      balanceTotalLiabilities: a(1),
+      resultBeforeTax: a(1),
+      taxOnResult: a(0),
       notes: [],
     }).success,
     true,
@@ -131,6 +138,10 @@ test("jaarrekening: losses stay negative, current account becomes a note", () =>
     directorCurrentAccount: a(25_000, 3),
     dividendPaid: a(null, null),
     directorSalary: a(null, null),
+    balanceTotalAssets: a(null, null),
+    balanceTotalLiabilities: a(null, null),
+    resultBeforeTax: a(null, null),
+    taxOnResult: a(null, null),
     notes: [],
   });
   const bv = d.assets[0];
@@ -164,4 +175,48 @@ test("AI reader only runs in the EU", () => {
   assert.ok("eu-central-1" in EU_REGIONS);
   assert.ok(!("eu-west-2" in EU_REGIONS), "London is not in the EU");
   assert.ok(!("eu-central-2" in EU_REGIONS), "Zürich is not in the EU");
+});
+
+test("checks: IB totals are added up in code and compared with the printed totals", () => {
+  const now = new Date("2026-10-22");
+  assert.deepEqual(checkIbAangifte(ib, now), [], "no printed totals: nothing to compare");
+  const ok = {
+    ...ib,
+    box3TotalsPrinted: [
+      { owner: "taxpayer" as const, assets: a(15_000), debts: a(5_000) },
+      { owner: "partner" as const, assets: a(80_004), debts: a(null) },
+    ],
+    box3Items: ib.box3Items.map((i) => (i.category === "debt" ? { ...i, value: a(5_000) } : i)),
+    mortgageTotalPrinted: a(400_000),
+  };
+  assert.deepEqual(checkIbAangifte(ok, now), [], "rounding within €10 is fine");
+  const wrong = { ...ok, mortgageTotalPrinted: a(410_000), box3TotalsPrinted: [{ owner: "joint" as const, assets: a(195_000), debts: a(5_000) }] };
+  const issues = checkIbAangifte(wrong, now);
+  assert.equal(issues.length, 2, issues.join(" | "));
+  assert.ok(issues[0].includes("€ 95.000") && issues[0].includes("€ 195.000"));
+  assert.ok(issues[1].includes("leningdelen"));
+  assert.equal(checkIbAangifte({ ...ib, taxpayer: { ...ib.taxpayer, birthYear: a(1072) } }, now).length, 1);
+});
+
+test("checks: jaarrekening balance and result must add up", () => {
+  const base = {
+    financialYear: 2025,
+    companyName: "Holding B.V.",
+    equity: a(900_000),
+    cash: a(310_000),
+    netResult: a(80_000),
+    pensionObligation: a(null),
+    directorCurrentAccount: a(null),
+    dividendPaid: a(null),
+    directorSalary: a(null),
+    balanceTotalAssets: a(1_200_000),
+    balanceTotalLiabilities: a(1_200_000),
+    resultBeforeTax: a(100_000),
+    taxOnResult: a(20_000),
+    notes: [],
+  };
+  assert.deepEqual(checkJaarrekening(base), []);
+  const issues = checkJaarrekening({ ...base, balanceTotalLiabilities: a(1_250_000), cash: a(1_310_000), netResult: a(8_000) });
+  assert.equal(issues.length, 3, issues.join(" | "));
+  assert.deepEqual(checkJaarrekening({ ...base, balanceTotalAssets: a(null), resultBeforeTax: a(null) }), [], "missing totals: skip");
 });

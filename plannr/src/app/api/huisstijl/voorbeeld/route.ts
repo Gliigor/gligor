@@ -5,13 +5,13 @@ import { renderReportPdf } from "@/lib/pdf/render";
 import { sampleReportData } from "@/lib/pdf/sample";
 import { loadLogo } from "@/lib/report/build";
 import { isFontName } from "@/lib/house-style/fonts";
-import { isHexColor, isLayoutVariant, toHouseStyle } from "@/lib/house-style/types";
+import { isCoverBlock, isHexColor, isLayoutVariant, isOpenerBlock, isPanelBlock, toHouseStyle, VARIANT_BLOCKS } from "@/lib/house-style/types";
 
 export const runtime = "nodejs";
 
 /**
  * Sample report in the firm's house style, with optional unsaved overrides from
- * the settings form (?variant=&primary=&secondary=&accent=&heading=&body=).
+ * the settings form (?variant=&primary=&secondary=&accent=&heading=&body=&cover=&opener=&panel=).
  */
 export async function GET(request: NextRequest) {
   const member = await getMember();
@@ -25,7 +25,16 @@ export async function GET(request: NextRequest) {
   const primary = `#${q.get("primary") ?? ""}`;
   const secondary = `#${q.get("secondary") ?? ""}`;
   const accent = `#${q.get("accent") ?? ""}`;
-  if (isLayoutVariant(variant)) style.layoutVariant = variant;
+  if (isLayoutVariant(variant)) {
+    style.layoutVariant = variant;
+    style.blocks = VARIANT_BLOCKS[variant];
+  }
+  const cover = q.get("cover");
+  const opener = q.get("opener");
+  const panel = q.get("panel");
+  if (isCoverBlock(cover)) style.blocks = { ...style.blocks, cover };
+  if (isOpenerBlock(opener)) style.blocks = { ...style.blocks, opener };
+  if (isPanelBlock(panel)) style.blocks = { ...style.blocks, panel };
   if (isHexColor(primary)) style.primaryColor = primary;
   if (isHexColor(secondary)) style.secondaryColor = secondary;
   if (isHexColor(accent)) style.accentColor = accent;

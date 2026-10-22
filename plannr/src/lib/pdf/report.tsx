@@ -205,7 +205,7 @@ function Bars({ data, color }: { data: { label: string; value: number }[]; color
 }
 
 function Tiles({ items, hs }: { items: { label: string; value: string }[]; hs: HouseStyle }) {
-  const v = hs.layoutVariant;
+  const p = hs.blocks.panel;
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -4 }}>
       {items.map((t) => (
@@ -214,12 +214,12 @@ function Tiles({ items, hs }: { items: { label: string; value: string }[]; hs: H
             style={{
               paddingVertical: 10,
               paddingHorizontal: 11,
-              backgroundColor: v === "minimalistisch" ? "#ffffff" : v === "modern" ? tint(hs.primaryColor, 0.92) : PAPER,
-              borderLeftWidth: v === "klassiek" ? 2 : 0,
+              backgroundColor: p === "kader" ? "#ffffff" : p === "tint" ? tint(hs.primaryColor, 0.92) : PAPER,
+              borderLeftWidth: p === "papier" ? 2 : 0,
               borderLeftColor: hs.accentColor,
-              borderWidth: v === "minimalistisch" ? 0.5 : 0,
+              borderWidth: p === "kader" ? 0.5 : 0,
               borderColor: RULE,
-              borderRadius: v === "modern" ? 4 : 0,
+              borderRadius: p === "tint" ? 4 : 0,
             }}
           >
             <Text style={{ fontSize: 7.5, color: MUTED, textTransform: "uppercase", letterSpacing: 0.6 }}>{t.label}</Text>
@@ -320,8 +320,8 @@ function InsightCard({ insight, hs }: { insight: Insight; hs: HouseStyle }) {
         marginBottom: 9,
         borderLeftWidth: 2.5,
         borderLeftColor: color,
-        backgroundColor: hs.layoutVariant === "minimalistisch" ? "#ffffff" : PAPER,
-        borderWidth: hs.layoutVariant === "minimalistisch" ? 0.5 : 0,
+        backgroundColor: hs.blocks.panel === "kader" ? "#ffffff" : PAPER,
+        borderWidth: hs.blocks.panel === "kader" ? 0.5 : 0,
         borderColor: RULE,
         paddingVertical: 9,
         paddingHorizontal: 11,
@@ -359,11 +359,11 @@ function SectionOpener({
   intro?: string;
   hs: HouseStyle;
 }) {
-  const v = hs.layoutVariant;
+  const v = hs.blocks.opener;
   const nr = String(number).padStart(2, "0");
   const ink = inkOf(hs.primaryColor);
 
-  if (v === "modern") {
+  if (v === "balk") {
     return (
       <View style={{ marginBottom: 18 }} wrap={false} minPresenceAhead={160}>
         <View style={{ backgroundColor: hs.primaryColor, paddingVertical: 16, paddingHorizontal: 18, borderRadius: 4, flexDirection: "row", alignItems: "flex-end" }}>
@@ -374,7 +374,20 @@ function SectionOpener({
       </View>
     );
   }
-  if (v === "minimalistisch") {
+  if (v === "nummer") {
+    return (
+      <View style={{ marginBottom: 18 }} wrap={false} minPresenceAhead={160}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 40, color: hs.accentColor, lineHeight: 1, marginRight: 14 }}>{nr}</Text>
+          <View style={{ flex: 1, borderLeftWidth: 1, borderLeftColor: RULE, paddingLeft: 14, paddingVertical: 4 }}>
+            <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 20, color: ink, lineHeight: 1.15 }}>{title}</Text>
+          </View>
+        </View>
+        {intro ? <Text style={{ color: MUTED, fontSize: 10, marginTop: 10, lineHeight: 1.55 }}>{intro}</Text> : null}
+      </View>
+    );
+  }
+  if (v === "hoofdstuk") {
     return (
       <View style={{ marginBottom: 18 }} wrap={false} minPresenceAhead={160}>
         <Text style={{ fontSize: 7.5, color: SUBTLE, letterSpacing: 2, textTransform: "uppercase" }}>Hoofdstuk {nr}</Text>
@@ -384,7 +397,7 @@ function SectionOpener({
       </View>
     );
   }
-  // klassiek
+  // lijn
   return (
     <View style={{ marginBottom: 18 }} wrap={false} minPresenceAhead={160}>
       <View style={{ flexDirection: "row", alignItems: "flex-end", borderBottomWidth: 1, borderBottomColor: ink, paddingBottom: 7 }}>
@@ -986,7 +999,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
 // --- cover & contents ----------------------------------------------------------------
 
 function Cover({ data, hs, logo }: { data: ReportData; hs: HouseStyle; logo?: ReportLogo | null }) {
-  const v = hs.layoutVariant;
+  const v = hs.blocks.cover;
   const on = onColor(hs.primaryColor);
   const meta = [
     ["Opgesteld voor", [data.clientName, data.companyName].filter(Boolean).join(" · ")],
@@ -994,7 +1007,39 @@ function Cover({ data, hs, logo }: { data: ReportData; hs: HouseStyle; logo?: Re
     ["Adviseur", [data.plannerName, data.firmName].filter(Boolean).join(", ")],
   ];
 
-  if (v === "modern") {
+  if (v === "licht") {
+    const ink = inkOf(hs.primaryColor);
+    return (
+      <Page size="A4" style={{ fontFamily: hs.fontBody, color: TEXT, backgroundColor: "#ffffff" }}>
+        <View style={{ flex: 1, paddingHorizontal: 56, paddingTop: 56, paddingBottom: 40, justifyContent: "space-between" }}>
+          <View style={{ color: ink }}>
+            <LogoPlate logo={logo} firmName={data.firmName} hs={hs} />
+          </View>
+          <View>
+            <Text style={{ fontSize: 8.5, color: hs.accentColor, letterSpacing: 3, textTransform: "uppercase" }}>Financieel plan</Text>
+            <Text style={{ fontFamily: hs.fontHeading, fontWeight: 700, fontSize: 40, color: ink, marginTop: 12, lineHeight: 1.1 }}>{data.planTitle}</Text>
+            <View style={{ width: 48, height: 2, backgroundColor: hs.accentColor, marginTop: 22, marginBottom: 18 }} />
+            <Text style={{ fontFamily: hs.fontHeading, fontSize: 15, color: TEXT }}>{data.clientName}</Text>
+            {data.companyName ? <Text style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>{data.companyName}</Text> : null}
+          </View>
+          <View style={{ flexDirection: "row", borderTopWidth: 0.5, borderTopColor: RULE, paddingTop: 16 }}>
+            {meta.slice(1).map(([k, val]) => (
+              <View key={k} style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={{ fontSize: 7.5, color: MUTED, textTransform: "uppercase", letterSpacing: 0.8 }}>{k}</Text>
+                <Text style={{ fontSize: 10, marginTop: 4 }}>{val}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+        <View style={{ height: 12, flexDirection: "row" }}>
+          <View style={{ flex: 5, backgroundColor: hs.primaryColor }} />
+          <View style={{ flex: 1, backgroundColor: hs.accentColor }} />
+        </View>
+      </Page>
+    );
+  }
+
+  if (v === "kleurvlak") {
     return (
       <Page size="A4" style={{ fontFamily: hs.fontBody, color: TEXT, backgroundColor: "#ffffff" }}>
         <View style={{ backgroundColor: hs.primaryColor, height: "66%", paddingHorizontal: 52, paddingTop: 52, paddingBottom: 46, justifyContent: "space-between", position: "relative" }}>
@@ -1025,7 +1070,7 @@ function Cover({ data, hs, logo }: { data: ReportData; hs: HouseStyle; logo?: Re
     );
   }
 
-  if (v === "minimalistisch") {
+  if (v === "zijbalk") {
     return (
       <Page size="A4" style={{ fontFamily: hs.fontBody, color: TEXT, flexDirection: "row", backgroundColor: "#ffffff" }}>
         <View style={{ width: "36%", backgroundColor: hs.primaryColor, padding: 40, justifyContent: "space-between", color: on.text }}>
@@ -1048,7 +1093,7 @@ function Cover({ data, hs, logo }: { data: ReportData; hs: HouseStyle; logo?: Re
     );
   }
 
-  // klassiek: full-colour page with an inset frame
+  // kader: full-colour page with an inset frame
   return (
     <Page size="A4" style={{ fontFamily: hs.fontBody, backgroundColor: hs.primaryColor, padding: 30 }}>
       <View style={{ flex: 1, borderWidth: 0.75, borderColor: hs.accentColor, paddingHorizontal: 40, paddingVertical: 44, alignItems: "center", justifyContent: "space-between" }}>
@@ -1093,7 +1138,7 @@ function Contents({ data, hs, pages, s }: { data: ReportData; hs: HouseStyle; pa
           <Text style={{ fontSize: 10, color: MUTED }}>{pages?.[k] ?? ""}</Text>
         </View>
       ))}
-      <View style={{ marginTop: 34, backgroundColor: hs.layoutVariant === "minimalistisch" ? "#ffffff" : PAPER, padding: 16, borderLeftWidth: 2, borderLeftColor: hs.accentColor }}>
+      <View style={{ marginTop: 34, backgroundColor: hs.blocks.panel === "kader" ? "#ffffff" : PAPER, padding: 16, borderLeftWidth: 2, borderLeftColor: hs.accentColor }}>
         <Text style={s.h3}>Over dit rapport</Text>
         <Text style={{ color: MUTED }}>
           Dit rapport geeft een overzicht van uw financiële situatie: uw vermogen, inkomsten, belastingen en de verwachte

@@ -23,4 +23,6 @@ export {
   StickyNote,
   Copy,
   GitCompare,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";

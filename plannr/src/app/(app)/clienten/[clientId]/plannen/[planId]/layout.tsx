@@ -9,6 +9,18 @@ import { ArrowLeft } from "@/components/ui/icons";
 import { ProgressBar } from "@/components/plan/progress-bar";
 import { PlanHeader } from "@/components/plan/plan-header";
 
+async function plansOf(clientId: string) {
+  const supabase = await createClient();
+  // "*": optional columns may not exist before their migration.
+  const { data } = await supabase.from("plans").select("*").eq("client_id", clientId).order("updated_at", { ascending: false });
+  return (data ?? []).map((p) => ({
+    id: p.id as string,
+    title: p.title as string,
+    isScenario: Boolean(p.scenario_van),
+    archived: Boolean(p.gearchiveerd_op),
+  }));
+}
+
 async function baseOf(id: string | null | undefined) {
   if (!id) return null;
   const supabase = await createClient();
@@ -43,6 +55,8 @@ export default async function PlanLayout({ children, params }: LayoutProps<"/cli
         title={bundle.plan.title}
         status={bundle.plan.status}
         scenarioOf={await baseOf(bundle.plan.scenario_van)}
+        archivedAt={bundle.plan.gearchiveerd_op}
+        clientPlans={await plansOf(clientId)}
       />
       <ProgressBar baseHref={baseHref} steps={steps} />
       <div>{children}</div>

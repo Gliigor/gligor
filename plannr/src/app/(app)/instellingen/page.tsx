@@ -7,8 +7,8 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { ChevronRight } from "@/components/ui/icons";
 import { formatDateTime } from "@/lib/format";
 import { EU_REGIONS, getAiReaderStatus } from "@/lib/extraction/ai/config";
-import { AiReaderSwitch, FirmForm, FirmReturnsForm, InviteForm, RevokeButton } from "./settings-forms";
-import { parseReturns } from "@/lib/plan/types";
+import { AiReaderSwitch, FirmForm, FirmReportSectionsForm, FirmReturnsForm, InviteForm, RevokeButton } from "./settings-forms";
+import { firmReportSections, parseReturns } from "@/lib/plan/types";
 
 export const metadata = { title: "Instellingen" };
 
@@ -55,6 +55,16 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader
+          title="Rapportonderdelen"
+          description="Welke onderdelen standaard in het rapport staan. Nieuwe plannen beginnen hiermee; per plan blijft het aan te passen."
+        />
+        <div className="p-4 sm:p-5">
+          <FirmReportSectionsForm initial={firmReportSections(member.firm.rapport_secties_standaard)} />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
           title="Documenten uitlezen"
           description="Laat een geüploade IB-aangifte of jaarrekening automatisch overnemen in het plan."
         />
@@ -69,6 +79,7 @@ export default async function SettingsPage() {
             <li>Alleen het bestand wordt verstuurd, zonder naam of andere gegevens uit Plannr. Er wordt niet om een BSN of adres gevraagd.</li>
             <li>Volgens de voorwaarden van Amazon Bedrock wordt de inhoud niet bewaard en niet gebruikt om modellen te trainen.</li>
             <li>De AI neemt alleen bedragen over, met het paginanummer erbij. Alle berekeningen doet Plannr zelf. Controleer de ingevulde waarden altijd.</li>
+            <li>Plannr telt de overgenomen bedragen na tegen de totalen in het document. Klopt dat niet, dan leest een sterker model het document nog een keer; blijft er een verschil, dan zie je dat bij het document. Maximaal 5 documenten per soort per plan.</li>
             <li>Zet je dit aan, vermeld AWS dan als subverwerker in je verwerkersovereenkomst en privacyverklaring.</li>
           </ul>
           {member.firm.ai_extraction_changed_at ? (

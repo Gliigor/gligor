@@ -16,7 +16,8 @@ import type { DocumentType } from "@/lib/plan/types";
 import type { ExtractedData } from "../types";
 import type { AiReaderConfig } from "./config";
 import { mapIbAangifte, mapJaarrekening } from "./map";
-import { ibAangifteSchema, jaarrekeningSchema } from "./schema";
+import { checkIbAangifte, checkJaarrekening } from "./checks";
+import { ibAangifteSchema, jaarrekeningSchema, type IbAangifteExtraction, type JaarrekeningExtraction } from "./schema";
 
 const TOOL_NAME = "record_figures";
 
@@ -67,17 +68,21 @@ function clientFor(config: AiReaderConfig): AnthropicBedrock {
 
 export class ExtractionError extends Error {}
 
-export async function extractWithBedrock(config: AiReaderConfig, file: File, type: DocumentType): Promise<ExtractedData> {
-  const data = Buffer.from(await file.arrayBuffer()).toString("base64");
-  const source: Anthropic.ContentBlockParam =
-    file.type === "application/pdf"
-      ? { type: "document", source: { type: "base64", media_type: "application/pdf", data } }
-      : { type: "image", source: { type: "base64", media_type: file.type === "image/png" ? "image/png" : "image/jpeg", data } };
+type Extraction =
+  | { type: "ib_aangifte"; data: IbAangifteExtraction }
+  | { type: "jaarrekening"; data: JaarrekeningExtraction };
 
-  const client = clientFor(config);
-  const request = (model: string) =>
+/** One reading of the document by one model (with the refusal fallback). */
+async function readOnce(
+  client: AnthropicBedrock,
+  config: AiReaderConfig,
+  model: string,
+  source: Anthropic.ContentBlockParam,
+  type: DocumentType,
+): Promise<Extraction> {
+  const request = (m: string) =>
     client.messages.create({
-      model,
+      model: m,
       max_tokens: 16_000,
       system: SYSTEM,
       tools: [toolFor(type)],
@@ -86,9 +91,9 @@ export async function extractWithBedrock(config: AiReaderConfig, file: File, typ
       messages: [{ role: "user", content: [source, { type: "text", text: TASK[type] }] }],
     });
 
-  let res = await request(config.model);
-  // Client-side fallback: if the main model declines, ask the fallback model once.
-  if (res.stop_reason === "refusal" && config.fallbackModel) res = await request(config.fallbackModel);
+  let res = await request(model);
+  // Client-side fallback: if the model declines, ask the fallback model once.
+  if (res.stop_reason === "refusal" && config.fallbackModel && config.fallbackModel !== model) res = await request(config.fallbackModel);
 
   if (res.stop_reason === "refusal") throw new ExtractionError("refusal");
   if (res.stop_reason === "max_tokens") throw new ExtractionError("max_tokens");
@@ -98,9 +103,48 @@ export async function extractWithBedrock(config: AiReaderConfig, file: File, typ
   if (type === "ib_aangifte") {
     const parsed = ibAangifteSchema.safeParse(call.input);
     if (!parsed.success) throw new ExtractionError("invalid_output");
-    return mapIbAangifte(parsed.data);
+    return { type, data: parsed.data };
   }
   const parsed = jaarrekeningSchema.safeParse(call.input);
   if (!parsed.success) throw new ExtractionError("invalid_output");
-  return mapJaarrekening(parsed.data);
+  return { type, data: parsed.data };
+}
+
+const check = (x: Extraction) => (x.type === "ib_aangifte" ? checkIbAangifte(x.data) : checkJaarrekening(x.data));
+
+/**
+ * Reads the document, checks that the transcribed figures add up, and when
+ * they don't, reads it once more with the stronger check model. Remaining
+ * problems are shown to the planner; nothing is corrected by guessing.
+ */
+export async function extractWithBedrock(config: AiReaderConfig, file: File, type: DocumentType): Promise<ExtractedData> {
+  const data = Buffer.from(await file.arrayBuffer()).toString("base64");
+  const source: Anthropic.ContentBlockParam =
+    file.type === "application/pdf"
+      ? { type: "document", source: { type: "base64", media_type: "application/pdf", data } }
+      : { type: "image", source: { type: "base64", media_type: file.type === "image/png" ? "image/png" : "image/jpeg", data } };
+
+  const client = clientFor(config);
+  let result = await readOnce(client, config, config.model, source, type);
+  let issues = check(result);
+  let reread = false;
+
+  if (issues.length > 0 && config.checkModel && config.checkModel !== config.model) {
+    try {
+      const second = await readOnce(client, config, config.checkModel, source, type);
+      const secondIssues = check(second);
+      reread = true;
+      if (secondIssues.length <= issues.length) {
+        result = second;
+        issues = secondIssues;
+      }
+    } catch {
+      // Keep the first reading; its problems are shown below.
+    }
+  }
+
+  const mapped = result.type === "ib_aangifte" ? mapIbAangifte(result.data) : mapJaarrekening(result.data);
+  const checkNotes = issues.map((i) => `Controle: ${i} Controleer deze waarden in het document.`);
+  if (reread && issues.length === 0) checkNotes.push("Dit document is voor de zekerheid nog een keer gelezen door een sterker model; de controles kloppen nu.");
+  return { ...mapped, notes: [...checkNotes, ...mapped.notes], check: { reread, issues } };
 }

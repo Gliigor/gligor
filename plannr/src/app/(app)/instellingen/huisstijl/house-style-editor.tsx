@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import "@fontsource/source-sans-3/400.css";
 import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/lato/400.css";
@@ -19,12 +19,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { FormError, FormSuccess, Hint, Input, Label, Select } from "@/components/ui/form";
-import { Check, Loader2, Sparkles, Trash2, Upload } from "@/components/ui/icons";
+import { Loader2, Sparkles, Trash2, Upload } from "@/components/ui/icons";
 import { createClient } from "@/lib/supabase/client";
 import { FONT_OPTIONS } from "@/lib/house-style/fonts";
-import { LAYOUT_VARIANTS, type HouseStyle } from "@/lib/house-style/types";
-import type { LayoutVariant } from "@/lib/plan/types";
+import { COVER_BLOCKS, OPENER_BLOCKS, PANEL_BLOCKS, type DesignBlocks, type HouseStyle } from "@/lib/house-style/types";
+import type { ReportDesign } from "@/lib/house-style/designs";
 import { LayoutThumbnail } from "./layout-thumbnail";
+import { AiDesignerCard, designPreviewUrl } from "./ai-designer-card";
 import { saveHouseStyleAction, setLogoAction, suggestFromWebsiteAction } from "@/lib/actions/settings";
 
 type ColorKey = "primaryColor" | "secondaryColor" | "accentColor";
@@ -40,13 +41,18 @@ export function HouseStyleEditor({
   initial,
   logoUrl,
   website: initialWebsite,
+  aiDesigner,
+  attemptsLeft,
 }: {
   firmId: string;
   firmName: string;
   initial: HouseStyle;
   logoUrl: string | null;
   website: string;
+  aiDesigner: boolean;
+  attemptsLeft: number | null;
 }) {
+  const [saved, setSaved] = useState(initial);
   const [style, setStyle] = useState(initial);
   const [website, setWebsite] = useState(initialWebsite);
   const [notes, setNotes] = useState<string[]>([]);
@@ -56,28 +62,9 @@ export function HouseStyleEditor({
   const [suggesting, startSuggest] = useTransition();
   const [saving, startSave] = useTransition();
   const [uploading, setUploading] = useState(false);
-  const [previewNonce, setPreviewNonce] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const dirty = JSON.stringify({ ...style, logoPath: null }) !== JSON.stringify({ ...initial, logoPath: null });
-
-  // Debounced preview parameters so dragging a color picker doesn't render dozens of PDFs.
-  const [previewStyle, setPreviewStyle] = useState(style);
-  useEffect(() => {
-    const t = setTimeout(() => setPreviewStyle(style), 900);
-    return () => clearTimeout(t);
-  }, [style]);
-  const previewQuery = useMemo(() => {
-    const q = new URLSearchParams({
-      primary: previewStyle.primaryColor.slice(1),
-      secondary: previewStyle.secondaryColor.slice(1),
-      accent: previewStyle.accentColor.slice(1),
-      heading: previewStyle.fontHeading,
-      body: previewStyle.fontBody,
-      n: String(previewNonce),
-    });
-    return q.toString();
-  }, [previewStyle, previewNonce]);
+  const dirty = JSON.stringify({ ...style, logoPath: null }) !== JSON.stringify({ ...saved, logoPath: null });
 
   function suggest() {
     setError(null);
@@ -112,7 +99,6 @@ export function HouseStyleEditor({
       const res = await setLogoAction(path);
       if (!res.ok) throw new Error(res.error);
       setLogo(URL.createObjectURL(file));
-      setPreviewNonce((n) => n + 1);
     } catch {
       setError("Het logo kon niet worden geüpload.");
     } finally {
@@ -126,7 +112,6 @@ export function HouseStyleEditor({
       const res = await setLogoAction(null);
       if (res.ok) {
         setLogo(null);
-        setPreviewNonce((n) => n + 1);
       }
     });
   }
@@ -137,12 +122,44 @@ export function HouseStyleEditor({
     startSave(async () => {
       const res = await saveHouseStyleAction(style);
       if (!res.ok) setError(res.error ?? "Opslaan is niet gelukt.");
-      else setMessage(res.message ?? "Opgeslagen.");
+      else {
+        setSaved(style);
+        setMessage(res.message ?? "Opgeslagen.");
+      }
     });
   }
 
+  /** A design from the AI card: applied and saved at once. */
+  async function applyDesign(d: ReportDesign): Promise<boolean> {
+    setError(null);
+    setMessage(null);
+    const next: HouseStyle = {
+      ...style,
+      primaryColor: d.primaryColor,
+      secondaryColor: d.secondaryColor,
+      accentColor: d.accentColor,
+      fontHeading: d.fontHeading,
+      fontBody: d.fontBody,
+      blocks: d.blocks,
+    };
+    const res = await saveHouseStyleAction(next);
+    if (!res.ok) {
+      setError(res.error ?? "Opslaan is niet gelukt.");
+      return false;
+    }
+    setStyle(next);
+    setSaved(next);
+    setMessage(`Ontwerp "${d.name}" is opgeslagen. Je kunt het hieronder nog verfijnen.`);
+    return true;
+  }
+
+  const setBlock = <K extends keyof DesignBlocks>(key: K, value: DesignBlocks[K]) =>
+    setStyle({ ...style, blocks: { ...style.blocks, [key]: value } });
+
   return (
     <div className="space-y-5">
+      <AiDesignerCard aiAvailable={aiDesigner} attemptsLeft={attemptsLeft} firmName={firmName} logoUrl={logo} onApply={applyDesign} />
+
       <Card>
         <CardHeader title="1. Website" description="We stellen kleuren en het best passende lettertype voor op basis van je website." />
         <div className="space-y-3 p-4 sm:p-5">
@@ -260,48 +277,28 @@ export function HouseStyleEditor({
 
       <Card>
         <CardHeader
-          title="5. Lay-out"
-          description="Drie complete voorbeeldrapporten met jouw instellingen en voorbeelddata. Bekijk de volledige PDF en kies de lay-out die het beste past."
+          title="5. Opbouw"
+          description="Kies de voorpagina, de hoofdstukkoppen en de vlakken. De inhoud en grafieken zijn bij elke keuze hetzelfde."
         />
-        <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-3">
-          {LAYOUT_VARIANTS.map((v) => {
-            const selected = style.layoutVariant === v.key;
-            const src = `/api/huisstijl/voorbeeld?variant=${v.key}&${previewQuery}`;
-            return (
-              <div
-                key={v.key}
-                className={cn(
-                  "overflow-hidden rounded-xl border-2 bg-white transition-colors",
-                  selected ? "border-brand-600" : "border-ink-200",
-                )}
-              >
-                <LayoutThumbnail variant={v.key} style={style} firmName={firmName} logoUrl={logo} />
-                <div className="space-y-2 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">{v.label}</span>
-                    <a href={src} target="_blank" rel="noopener" className="text-xs font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2">
-                      Volledig bekijken (PDF)
-                    </a>
-                  </div>
-                  <p className="text-sm text-ink-500">{v.description}</p>
-                  <Button
-                    variant={selected ? "primary" : "secondary"}
-                    size="sm"
-                    className="w-full"
-                    onClick={() => setStyle({ ...style, layoutVariant: v.key as LayoutVariant })}
-                  >
-                    {selected ? (
-                      <>
-                        <Check className="h-4 w-4" /> Gekozen
-                      </>
-                    ) : (
-                      "Kies deze lay-out"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+          <div className="space-y-2">
+            <div className="overflow-hidden rounded-xl border border-ink-200">
+              <LayoutThumbnail blocks={style.blocks} style={style} firmName={firmName} logoUrl={logo} />
+            </div>
+            <a
+              href={designPreviewUrl(style)}
+              target="_blank"
+              rel="noopener"
+              className="inline-block text-xs font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2"
+            >
+              Volledig bekijken (PDF)
+            </a>
+          </div>
+          <div className="space-y-5">
+            <BlockChoice legend="Voorpagina" options={COVER_BLOCKS} value={style.blocks.cover} onChange={(v) => setBlock("cover", v)} />
+            <BlockChoice legend="Hoofdstukkop" options={OPENER_BLOCKS} value={style.blocks.opener} onChange={(v) => setBlock("opener", v)} />
+            <BlockChoice legend="Vlakken" options={PANEL_BLOCKS} value={style.blocks.panel} onChange={(v) => setBlock("panel", v)} />
+          </div>
         </div>
       </Card>
 
@@ -320,5 +317,41 @@ export function HouseStyleEditor({
         </div>
       </div>
     </div>
+  );
+}
+
+function BlockChoice<T extends string>({
+  legend,
+  options,
+  value,
+  onChange,
+}: {
+  legend: string;
+  options: { key: T; label: string; description: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  const current = options.find((o) => o.key === value);
+  return (
+    <fieldset>
+      <legend className="mb-1.5 text-sm font-semibold text-ink-900">{legend}</legend>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            aria-pressed={o.key === value}
+            onClick={() => onChange(o.key)}
+            className={cn(
+              "h-8 rounded-sm border px-3 text-[13px] font-semibold",
+              o.key === value ? "border-night bg-night text-white" : "border-ink-200 bg-white text-ink-800 hover:border-ink-400",
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {current ? <p className="mt-1.5 text-xs text-ink-500">{current.description}</p> : null}
+    </fieldset>
   );
 }

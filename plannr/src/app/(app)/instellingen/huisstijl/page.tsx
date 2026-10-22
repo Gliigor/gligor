@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { toHouseStyle } from "@/lib/house-style/types";
+import { getAiDesignerStatus } from "@/lib/extraction/ai/config";
 import { HouseStyleEditor } from "./house-style-editor";
 
 export const metadata = { title: "Huisstijl" };
@@ -25,7 +26,15 @@ export default async function HouseStylePage() {
         title="Huisstijl"
         subtitle={`Geldt automatisch voor elk rapport dat iemand van ${member.firm.name} exporteert. Eerder geëxporteerde rapporten blijven ongewijzigd.`}
       />
-      <HouseStyleEditor firmId={member.firm.id} firmName={member.firm.name} initial={style} logoUrl={logoUrl} website={member.firm.website_url ?? ""} />
+      <HouseStyleEditor
+        firmId={member.firm.id}
+        firmName={member.firm.name}
+        initial={style}
+        logoUrl={logoUrl}
+        website={member.firm.website_url ?? ""}
+        aiDesigner={getAiDesignerStatus().configured}
+        attemptsLeft={typeof member.firm.ontwerp_pogingen === "number" ? member.firm.ontwerp_pogingen : null}
+      />
     </div>
   );
 }

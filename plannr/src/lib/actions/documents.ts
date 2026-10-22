@@ -10,6 +10,7 @@ import { getAssetType } from "@/lib/plan/definitions";
 import { loadPlan } from "@/lib/plan/load";
 import { sanitizeAssetPatch, sanitizePlanInputs } from "@/lib/plan/sanitize";
 import type { DocumentType } from "@/lib/plan/types";
+import { MAX_DOCUMENTS_PER_TYPE } from "@/lib/extraction/types";
 
 export interface RegisterResult {
   ok: boolean;
@@ -34,6 +35,16 @@ export async function registerDocument(
   const bundle = await loadPlan(planId);
   if (!bundle) return { ok: false, error: "Plan niet gevonden." };
   const supabase = await createClient();
+
+  const { count } = await supabase
+    .from("documents")
+    .select("id", { count: "exact", head: true })
+    .eq("plan_id", planId)
+    .eq("type", input.type);
+  if ((count ?? 0) >= MAX_DOCUMENTS_PER_TYPE) {
+    await supabase.storage.from("documents").remove([input.path]);
+    return { ok: false, error: `Er staan al ${MAX_DOCUMENTS_PER_TYPE} documenten van deze soort bij het plan. Verwijder er eerst één.` };
+  }
 
   const fileName = input.fileName.slice(0, 200);
   const { data: doc, error: insertError } = await supabase
