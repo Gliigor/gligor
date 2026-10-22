@@ -10,6 +10,8 @@ import { generateHouseStyleFromWebsite, type StyleSuggestion } from "@/lib/house
 import { isHexColor, isLayoutVariant } from "@/lib/house-style/types";
 import { getAiReaderStatus } from "@/lib/extraction/ai/config";
 import { parseReturns } from "@/lib/plan/types";
+import { REPORT_SECTION_KEYS } from "@/lib/plan/definitions";
+import { sanitizeKeyList } from "@/lib/plan/sanitize";
 
 // Every action here starts with requireOwner(): owner-only rules are enforced
 // on the server (and again by RLS in the database), not just hidden in the UI.
@@ -159,6 +161,16 @@ export async function setAiReaderAction(enabled: boolean): Promise<ActionResult>
   if (error) return { ok: false, error: "Opslaan is niet gelukt." };
   revalidatePath("/", "layout");
   return { ok: true, message: enabled ? "Automatisch uitlezen staat aan." : "Automatisch uitlezen staat uit." };
+}
+
+export async function setFirmReportSectionsAction(raw: unknown): Promise<ActionResult> {
+  const member = await requireOwner();
+  const sections = sanitizeKeyList(raw, [...REPORT_SECTION_KEYS]);
+  const supabase = await createClient();
+  const { error } = await supabase.from("firms").update({ rapport_secties_standaard: sections }).eq("id", member.firm.id);
+  if (error) return { ok: false, error: "Opslaan is niet gelukt. Is de database-update voor rapporten al uitgevoerd?" };
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Opgeslagen. Nieuwe plannen beginnen met deze onderdelen." };
 }
 
 export async function setFirmReturnsAction(raw: unknown): Promise<ActionResult> {

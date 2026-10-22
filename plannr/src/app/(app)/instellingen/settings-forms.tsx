@@ -6,10 +6,12 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { cn } from "@/components/ui/cn";
 import { ReturnsFields } from "@/components/plan/returns-fields";
 import type { ReturnPercents } from "@/lib/plan/types";
+import { REPORT_SECTIONS, type ReportSectionKey } from "@/lib/plan/definitions";
 import {
   invitePlannerAction,
   revokeInvitationAction,
   setAiReaderAction,
+  setFirmReportSectionsAction,
   setFirmReturnsAction,
   updateFirmAction,
   type ActionResult,
@@ -114,6 +116,47 @@ export function AiReaderSwitch({ enabled, available, unavailableReason }: { enab
       </div>
       {!available ? <p className="text-sm text-warn-600">Nog niet beschikbaar. {unavailableReason}</p> : null}
       {result?.error ? <FormError message={result.error} /> : null}
+    </div>
+  );
+}
+
+export function FirmReportSectionsForm({ initial }: { initial: ReportSectionKey[] }) {
+  const [value, setValue] = useState<ReportSectionKey[]>(initial);
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, start] = useTransition();
+  const toggle = (key: ReportSectionKey, on: boolean) =>
+    setValue((cur) => REPORT_SECTIONS.map((r) => r.key).filter((k) => (k === key ? on : cur.includes(k))));
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+        {REPORT_SECTIONS.map((r) => (
+          <label key={r.key} className="flex cursor-pointer items-start gap-3 rounded-lg px-1 py-2 hover:bg-ink-50">
+            <input
+              type="checkbox"
+              id={`kantoor-rapport-${r.key}`}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-brand-600"
+              checked={value.includes(r.key)}
+              onChange={(e) => toggle(r.key, e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium text-ink-900">{r.label}</span>
+              <span className="block text-xs text-ink-500">{r.description}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={pending || value.length === 0}
+          onClick={() => start(async () => setResult(await setFirmReportSectionsAction(value)))}
+          className="h-9 rounded-sm bg-night px-4 text-[13px] font-semibold text-white hover:bg-ink-800 disabled:opacity-50"
+        >
+          Opslaan
+        </button>
+        {result?.message ? <span className="text-sm text-ok-600">{result.message}</span> : null}
+      </div>
+      <FormError message={result?.error} />
     </div>
   );
 }

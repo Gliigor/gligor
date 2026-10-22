@@ -72,6 +72,10 @@ begin
   get diagnostics n = row_count;
   assert n = 1, 'owner can switch on the AI reader';
   update public.firms set ai_extraction_enabled = false;
+
+  update public.firms set rapport_secties_standaard = array['samenvatting', 'toelichting'];
+  get diagnostics n = row_count;
+  assert n = 1, 'owner can set the default report sections';
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -98,6 +102,10 @@ begin
   update public.firms set rendement_standaard = '{"beleggingen": 9}';
   get diagnostics n = row_count;
   assert n = 0, 'planner cannot change the firm return defaults';
+
+  update public.firms set rapport_secties_standaard = array['samenvatting'];
+  get diagnostics n = row_count;
+  assert n = 0, 'planner cannot change the default report sections';
 
   update public.plans set gearchiveerd_op = now() where id = '20000000-0000-0000-0000-000000000001';
   get diagnostics n = row_count;

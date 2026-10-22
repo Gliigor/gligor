@@ -37,6 +37,8 @@ export interface FirmRow {
   created_at: string;
   /** Firm defaults for the realistic expected returns (null: Plannr defaults). */
   rendement_standaard?: ReturnPercents | null;
+  /** Report sections a new plan starts with (null: Plannr defaults). */
+  rapport_secties_standaard?: string[] | null;
   ai_extraction_enabled: boolean;
   ai_extraction_changed_at: string | null;
 }
@@ -250,6 +252,12 @@ export const DEFAULT_PLAN_CONFIG: PlanConfig = {
   visitedSteps: [],
   hiddenInsights: [],
 };
+
+/** The firm's default report sections, or Plannr's defaults when none are set. */
+export function firmReportSections(raw: unknown): ReportSectionKey[] {
+  if (!Array.isArray(raw)) return [...DEFAULT_PLAN_CONFIG.reportSections];
+  return REPORT_SECTION_KEYS.filter((k) => (raw as unknown[]).includes(k));
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -11,13 +11,18 @@ import { createClient } from "@/lib/supabase/client";
 import { deleteDocument, registerDocument } from "@/lib/actions/documents";
 import { formatDateTime } from "@/lib/format";
 import { DOCUMENT_TYPE_LABELS, type DocumentRow, type DocumentType } from "@/lib/plan/types";
-import type { ExtractionSource } from "@/lib/extraction/types";
+import { MAX_DOCUMENTS_PER_TYPE, type ExtractionSource } from "@/lib/extraction/types";
 
 const ACCEPT = ["application/pdf", "image/png", "image/jpeg"];
 const MAX_BYTES = 20 * 1024 * 1024;
 
 /** The parts of documents.extracted_data shown here; older rows may lack them. */
-function readExtraction(raw: unknown): { method: "voorbeeld" | "ai"; sources: ExtractionSource[]; notes: string[] } {
+function readExtraction(raw: unknown): {
+  method: "voorbeeld" | "ai";
+  sources: ExtractionSource[];
+  notes: string[];
+  check: { reread: boolean; issues: number } | null;
+} {
   const obj = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
   const sources = Array.isArray(obj.sources)
     ? obj.sources.filter(
@@ -26,7 +31,11 @@ function readExtraction(raw: unknown): { method: "voorbeeld" | "ai"; sources: Ex
       )
     : [];
   const notes = Array.isArray(obj.notes) ? obj.notes.filter((n): n is string => typeof n === "string") : [];
-  return { method: obj.method === "ai" ? "ai" : "voorbeeld", sources, notes };
+  const rawCheck = (typeof obj.check === "object" && obj.check !== null ? obj.check : null) as Record<string, unknown> | null;
+  const check = rawCheck
+    ? { reread: rawCheck.reread === true, issues: Array.isArray(rawCheck.issues) ? rawCheck.issues.length : 0 }
+    : null;
+  return { method: obj.method === "ai" ? "ai" : "voorbeeld", sources, notes, check };
 }
 
 function safeFileName(name: string) {
@@ -132,39 +141,55 @@ function DropZone({
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function handleFile(file: File | undefined) {
-    if (!file) return;
+  const slotsLeft = Math.max(0, MAX_DOCUMENTS_PER_TYPE - documents.length);
+
+  async function handleFiles(list: FileList | null | undefined) {
+    const files = Array.from(list ?? []);
+    if (files.length === 0) return;
     setError(null);
     setMessage(null);
-    if (!ACCEPT.includes(file.type)) return setError("Alleen PDF-, PNG- of JPG-bestanden zijn toegestaan.");
-    if (file.size > MAX_BYTES) return setError("Het bestand is groter dan 20 MB.");
+    if (files.length > slotsLeft) {
+      return setError(
+        slotsLeft === 0
+          ? `Er staan al ${MAX_DOCUMENTS_PER_TYPE} documenten bij dit onderdeel. Verwijder er eerst één.`
+          : `Je kunt nog ${slotsLeft} ${slotsLeft === 1 ? "bestand" : "bestanden"} toevoegen (maximaal ${MAX_DOCUMENTS_PER_TYPE}).`,
+      );
+    }
+    if (files.some((f) => !ACCEPT.includes(f.type))) return setError("Alleen PDF-, PNG- of JPG-bestanden zijn toegestaan.");
+    if (files.some((f) => f.size > MAX_BYTES)) return setError("Een bestand is groter dan 20 MB.");
 
-    setBusy(true);
+    const done: string[] = [];
+    const failed: string[] = [];
     try {
-      const path = `${firmId}/${planId}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
-      const supabase = createClient();
-      const { error: uploadError } = await supabase.storage.from("documents").upload(path, file, { contentType: file.type });
-      if (uploadError) throw new Error("upload");
-      const res = await registerDocument(planId, { type, path, fileName: file.name });
-      if (!res.ok) setError(res.error ?? "Er ging iets mis.");
-      else {
-        setMessage(
-          res.appliedCount
-            ? `${res.appliedCount} ${res.appliedCount === 1 ? "veld" : "velden"} ingevuld uit het document. ${res.notes?.join(" ") ?? ""}`
-            : "Document opgeslagen. Er zijn geen velden ingevuld voor de aangevinkte onderdelen.",
-        );
+      // One by one: each document is read and applied before the next, so later ones see earlier values.
+      for (const [i, file] of files.entries()) {
+        setBusy(files.length > 1 ? `${i + 1} van ${files.length}: ${file.name}` : file.name);
+        const path = `${firmId}/${planId}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
+        const { error: uploadError } = await createClient().storage.from("documents").upload(path, file, { contentType: file.type });
+        if (uploadError) {
+          failed.push(`${file.name}: uploaden is niet gelukt.`);
+          continue;
+        }
+        const res = await registerDocument(planId, { type, path, fileName: file.name });
+        if (!res.ok) failed.push(`${file.name}: ${res.error ?? "er ging iets mis."}`);
+        else
+          done.push(
+            res.appliedCount
+              ? `${file.name}: ${res.appliedCount} ${res.appliedCount === 1 ? "veld" : "velden"} ingevuld.`
+              : `${file.name}: opgeslagen, geen velden ingevuld voor de aangevinkte onderdelen.`,
+          );
+        router.refresh();
       }
-      router.refresh();
-    } catch {
-      setError("Uploaden is niet gelukt. Probeer het opnieuw.");
     } finally {
-      setBusy(false);
+      setBusy(null);
       if (inputRef.current) inputRef.current.value = "";
     }
+    if (done.length > 0) setMessage(`${done.join(" ")} Bekijk per document de gevonden waarden en controles.`);
+    if (failed.length > 0) setError(failed.join(" "));
   }
 
   async function remove(id: string) {
@@ -187,7 +212,7 @@ function DropZone({
           onDrop={(e) => {
             e.preventDefault();
             setDragging(false);
-            void handleFile(e.dataTransfer.files[0]);
+            void handleFiles(e.dataTransfer.files);
           }}
           className={cn(
             "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors",
@@ -197,30 +222,34 @@ function DropZone({
           {busy ? (
             <>
               <Loader2 className="h-7 w-7 animate-spin text-brand-600" />
-              <p className="text-sm text-ink-600">{aiReader ? "Uploaden en uitlezen… dit kan een minuut duren" : "Uploaden…"}</p>
+              <p className="text-sm text-ink-600">{aiReader ? "Uploaden en uitlezen… dit kan per document een minuut duren" : "Uploaden…"}</p>
+              <p className="max-w-full truncate text-xs text-ink-500">{busy}</p>
             </>
           ) : (
             <>
               <FileUp className="h-7 w-7 text-ink-400" />
               <p className="text-sm text-ink-700">
-                <span className="hidden sm:inline">Sleep een bestand hierheen of </span>
+                <span className="hidden sm:inline">Sleep bestanden hierheen of </span>
                 <button
                   type="button"
                   className="font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2"
                   onClick={() => inputRef.current?.click()}
                 >
-                  kies een bestand
+                  kies bestanden
                 </button>
               </p>
-              <p className="text-xs text-ink-500">PDF, PNG of JPG · max. 20 MB</p>
+              <p className="text-xs text-ink-500">
+                PDF, PNG of JPG · max. 20 MB · nog {slotsLeft} van {MAX_DOCUMENTS_PER_TYPE}
+              </p>
             </>
           )}
           <input
             ref={inputRef}
             type="file"
             accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+            multiple
             className="sr-only"
-            onChange={(e) => void handleFile(e.target.files?.[0])}
+            onChange={(e) => void handleFiles(e.target.files)}
             aria-label={`${title} uploaden`}
           />
         </div>
@@ -256,6 +285,13 @@ function DropZone({
                             : "Bezig"}
                       </Badge>
                     )}
+                    {extraction.method === "ai" && extraction.check ? (
+                      extraction.check.issues > 0 ? (
+                        <Badge tone="warn">Controleren</Badge>
+                      ) : extraction.check.reread ? (
+                        <Badge tone="neutral">Dubbel gelezen</Badge>
+                      ) : null
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => void remove(d.id)}

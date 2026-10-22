@@ -9,6 +9,7 @@ import { isAssetTypeRelevant } from "@/lib/plan/status";
 import { sanitizeAssetPatch, sanitizeKeyList, sanitizePlanInputs } from "@/lib/plan/sanitize";
 import {
   DEFAULT_PLAN_CONFIG,
+  firmReportSections,
   normalizeAsset,
   parsePlanConfig,
   type AssetRow,
@@ -54,20 +55,21 @@ export async function createPlanAction(clientId: string, _prev: { error?: string
   const title = String(formData.get("title") ?? "").trim().slice(0, 200);
   if (!title) return { error: "Geef het plan een titel." };
   const supabase = await createClient();
+  const config: PlanConfig = { ...DEFAULT_PLAN_CONFIG, reportSections: firmReportSections(member.firm.rapport_secties_standaard) };
   const { data, error } = await supabase
     .from("plans")
     .insert({
       firm_id: member.firm.id,
       client_id: clientId,
       title,
-      config: DEFAULT_PLAN_CONFIG,
+      config,
       inputs: { uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: null, laterLeeftijd: null, laterPct: null } }, prive: {}, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
       created_by: member.userId,
     })
     .select("id")
     .single();
   if (error || !data) return { error: "Het plan kon niet worden aangemaakt." };
-  await ensureRequiredRows(supabase, member.firm.id, data.id, DEFAULT_PLAN_CONFIG);
+  await ensureRequiredRows(supabase, member.firm.id, data.id, config);
   redirect(`/clienten/${clientId}/plannen/${data.id}/configuratie`);
 }
 

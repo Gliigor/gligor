@@ -1,5 +1,8 @@
 import type { DocumentType } from "@/lib/plan/types";
 
+/** At most this many documents of one kind (IB-aangifte, jaarrekening) per plan. */
+export const MAX_DOCUMENTS_PER_TYPE = 5;
+
 /** How a document was read: example data (no reader configured) or the AI reader. */
 export type ExtractionMethod = "voorbeeld" | "ai";
 
@@ -26,4 +29,6 @@ export interface ExtractedData {
   notes: string[];
   /** Every value found, with its page, shown next to the document. */
   sources: ExtractionSource[];
+  /** AI reader only: whether the figures add up, and whether a stronger model read it again. */
+  check?: { reread: boolean; issues: string[] };
 }

@@ -11,8 +11,11 @@ export { EU_REGIONS };
 // PLANNR_AWS_REGION=eu-central-1      region the request enters AWS (EU_REGIONS, enforced)
 // PLANNR_BEDROCK_API_KEY=...          a Bedrock API key, or alternatively:
 // PLANNR_AWS_ACCESS_KEY_ID / PLANNR_AWS_SECRET_ACCESS_KEY
-// PLANNR_BEDROCK_MODEL                optional, default eu.anthropic.claude-opus-5-5
-// PLANNR_BEDROCK_FALLBACK_MODEL       optional, used only if the main model declines;
+// PLANNR_BEDROCK_MODEL                optional, default eu.anthropic.claude-sonnet-5-5
+// PLANNR_BEDROCK_CHECK_MODEL          optional, reads a document again when our checks on the
+//                                     first reading fail; default eu.anthropic.claude-opus-5-5,
+//                                     "none" to disable
+// PLANNR_BEDROCK_FALLBACK_MODEL       optional, used only if a model declines;
 //                                     default eu.anthropic.claude-opus-4-8, "none" to disable
 //
 // Model IDs must use the "eu." inference profile (processing stays inside
@@ -24,6 +27,8 @@ export { EU_REGIONS };
 export interface AiReaderConfig {
   region: string;
   model: string;
+  /** Stronger model for a second reading when the checks on the first one fail. */
+  checkModel: string | null;
   fallbackModel: string | null;
   credentials: { apiKey: string } | { accessKeyId: string; secretAccessKey: string };
 }
@@ -44,11 +49,15 @@ export function getAiReaderStatus(): AiReaderStatus {
     credentials = { accessKeyId: env.PLANNR_AWS_ACCESS_KEY_ID, secretAccessKey: env.PLANNR_AWS_SECRET_ACCESS_KEY };
   if (!credentials) return { configured: false, reason: "De toegangssleutel voor de AI-lezer ontbreekt op de server." };
 
-  const model = (env.PLANNR_BEDROCK_MODEL || "eu.anthropic.claude-opus-5-5").trim();
-  const fallback = (env.PLANNR_BEDROCK_FALLBACK_MODEL || "eu.anthropic.claude-opus-4-8").trim();
-  const fallbackModel = fallback === "none" ? null : fallback;
-  if (!staysInEu(model) || (fallbackModel && !staysInEu(fallbackModel))) {
+  const model = (env.PLANNR_BEDROCK_MODEL || "eu.anthropic.claude-sonnet-5-5").trim();
+  const optional = (raw: string | undefined, fallback: string) => {
+    const value = (raw || fallback).trim();
+    return value === "none" ? null : value;
+  };
+  const checkModel = optional(env.PLANNR_BEDROCK_CHECK_MODEL, "eu.anthropic.claude-opus-5-5");
+  const fallbackModel = optional(env.PLANNR_BEDROCK_FALLBACK_MODEL, "eu.anthropic.claude-opus-4-8");
+  if ([model, checkModel, fallbackModel].some((m) => m !== null && !staysInEu(m))) {
     return { configured: false, reason: "Het ingestelde AI-model valt buiten het EU-profiel." };
   }
-  return { configured: true, config: { region, model, fallbackModel, credentials } };
+  return { configured: true, config: { region, model, checkModel, fallbackModel, credentials } };
 }
