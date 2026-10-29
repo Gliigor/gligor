@@ -13,7 +13,7 @@ import {
   type Side,
   type StepKey,
 } from "./definitions";
-import type { AssetRow, PlanConfig, PlanInputs } from "./types";
+import type { AssetRow, ClientRow, PlanConfig, PlanInputs } from "./types";
 
 export interface MissingField {
   side: Side;
@@ -34,6 +34,23 @@ export function isAssetTypeRelevant(def: AssetTypeDef, config: PlanConfig): bool
 
 export function sideHasSections(side: Side, config: PlanConfig): boolean {
   return SECTIONS.some((s) => s.side === side && config.sections[s.key]);
+}
+
+/** Whether the client has a company (older clients: a company name). */
+export function clientHasCompany(client: Pick<ClientRow, "heeft_bedrijf" | "company_name">): boolean {
+  return client.heeft_bedrijf ?? Boolean(client.company_name);
+}
+
+/**
+ * The plan config as it applies to this client: without a company every zakelijk
+ * section is off, whatever the stored config says, so nothing business-related is
+ * shown, asked, calculated or reported.
+ */
+export function configForClient(config: PlanConfig, hasCompany: boolean): PlanConfig {
+  if (hasCompany) return config;
+  const sections = { ...config.sections };
+  for (const def of SECTIONS) if (def.side === "zakelijk") sections[def.key] = false;
+  return { ...config, sections };
 }
 
 function isEmpty(value: unknown): boolean {
@@ -117,9 +134,9 @@ export interface StepStatus {
   missingCount: number;
 }
 
-/** Zakelijk is a step only for clients with a company (or plans that already have business data). */
-export function hasZakelijkStep(config: PlanConfig, hasCompany: boolean): boolean {
-  return hasCompany || sideHasSections("zakelijk", config);
+/** Zakelijk is a step only for clients with a company. */
+export function hasZakelijkStep(hasCompany: boolean): boolean {
+  return hasCompany;
 }
 
 export function computeStepStatuses(args: {
@@ -134,7 +151,7 @@ export function computeStepStatuses(args: {
   const missing = findMissingFields(config, inputs, assets);
   const visited = new Set(config.visitedSteps);
 
-  return STEPS.filter((step) => step.key !== "zakelijk" || hasZakelijkStep(config, hasCompany)).map((step) => {
+  return STEPS.filter((step) => step.key !== "zakelijk" || hasZakelijkStep(hasCompany)).map((step) => {
     let state: StepState = visited.has(step.key) ? "complete" : "open";
     let missingCount = 0;
 

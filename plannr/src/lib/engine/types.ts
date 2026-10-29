@@ -101,6 +101,8 @@ export interface PlanInput {
   referenceYear: number;
   /** Realistisch verwacht rendement per kind of wealth (fractions). Default: ASSUMPTIONS.rvr. */
   returns?: Partial<ReturnRates>;
+  /** Yearly inflation (fraction). Expenses, incomes and benefits move with it. Default: ASSUMPTIONS.inflation. */
+  inflation?: number;
   /** Household expenses per life phase, as a share of today's expenses. */
   spendingPattern?: { retiredPct: number; laterAge: number; laterPct: number };
   household: {
@@ -258,6 +260,8 @@ export interface PlanResult {
       total: number;
     };
     zakelijk: {
+      /** Whether the plan includes a company at all (BV or eenmanszaak); false hides everything zakelijk. */
+      included: boolean;
       shareValue: number;
       /** Ondernemingsvermogen of eenmanszaken (box 1). */
       soleTraders: { name: string; owner: "client" | "partner"; profit: number; taxableProfit: number; businessAssets: number }[];
@@ -324,6 +328,8 @@ export interface PlanResult {
     scenarios: Record<ScenarioKey, { label: string; returnRate: number }>;
     /** The neutral rates per kind of wealth that were used. */
     returns: ReturnRates;
+    /** The yearly inflation that was used (fraction). */
+    inflation: number;
     events: LifeEvent[];
     points: ProjectionPoint[];
     /** Totals over the whole projection, neutral scenario (nominal). */

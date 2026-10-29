@@ -51,7 +51,7 @@ export const SECTIONS: SectionDef[] = [
   },
 ];
 
-export const STEP_KEYS = ["documenten", "gezin", "woning", "inkomen", "uitgaven", "vermogen", "zakelijk", "resultaten", "rapport"] as const;
+export const STEP_KEYS = ["documenten", "gezin", "woning", "inkomen", "uitgaven", "vermogen", "zakelijk", "uitgangspunten", "resultaten", "rapport"] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
 
 export const STEPS: { key: StepKey; label: string; short: string }[] = [
@@ -62,6 +62,7 @@ export const STEPS: { key: StepKey; label: string; short: string }[] = [
   { key: "uitgaven", label: "Uitgaven", short: "Uitgaven" },
   { key: "vermogen", label: "Vermogen", short: "Vermogen" },
   { key: "zakelijk", label: "Zakelijk", short: "Zakelijk" },
+  { key: "uitgangspunten", label: "Uitgangspunten", short: "Aannames" },
   { key: "resultaten", label: "Resultaten", short: "Result." },
   { key: "rapport", label: "Rapport", short: "Rapport" },
 ];
@@ -531,7 +532,7 @@ export const ASSET_TYPES: AssetTypeDef[] = [
     side: "prive",
     taxBox: 3,
     kind: "schuld",
-    sections: ["bv", "box3"],
+    sections: ["bv"],
     label: "Lening van de eigen BV",
     itemLabel: "Lening",
     multiple: true,
@@ -562,7 +563,7 @@ export const ASSET_TYPES: AssetTypeDef[] = [
     side: "prive",
     taxBox: 1,
     kind: "bezitting",
-    sections: ["bv", "box3"],
+    sections: ["bv"],
     label: "Lening aan de eigen BV",
     itemLabel: "Lening",
     multiple: true,

@@ -4,7 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { FormError, FormSuccess, Input, Label } from "@/components/ui/form";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { cn } from "@/components/ui/cn";
-import { ReturnsFields } from "@/components/plan/returns-fields";
+import { ReturnsFields, InflationField } from "@/components/plan/returns-fields";
 import type { ReturnPercents } from "@/lib/plan/types";
 import { REPORT_SECTIONS, type ReportSectionKey } from "@/lib/plan/definitions";
 import {
@@ -167,6 +167,9 @@ export function FirmReturnsForm({ initial }: { initial: ReturnPercents }) {
   const [pending, start] = useTransition();
   return (
     <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <InflationField id="kantoor-inflatie" value={value} onChange={setValue} />
+      </div>
       <ReturnsFields idPrefix="kantoor-rvr" value={value} onChange={setValue} />
       <div className="flex items-center gap-3">
         <button

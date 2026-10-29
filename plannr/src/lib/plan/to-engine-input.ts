@@ -14,7 +14,7 @@ import type {
 } from "@/lib/engine/types";
 import { getCashKind } from "./definitions";
 import type { AssetRow, PlanConfig, PlanInputs, ReturnPercents } from "./types";
-import { toNumber } from "./types";
+import { RETURN_KEYS, toNumber } from "./types";
 
 const BOX3_CATEGORY: Record<string, Box3Category> = {
   spaargeld: "savings",
@@ -51,7 +51,7 @@ export function ownerOf(asset: AssetRow): Owner {
   return CLIENT_BY_DEFAULT.has(asset.type) ? "client" : "joint";
 }
 
-const RETURN_MAP: Record<keyof ReturnPercents, keyof ReturnRates> = {
+const RETURN_MAP: Record<(typeof RETURN_KEYS)[number], keyof ReturnRates> = {
   sparen: "savings",
   beleggingen: "investments",
   vastgoed: "realEstate",
@@ -62,11 +62,17 @@ const RETURN_MAP: Record<keyof ReturnPercents, keyof ReturnRates> = {
 /** Plan overrides firm defaults; both in percent. Missing values fall back to the engine defaults. */
 export function effectiveReturns(firm: ReturnPercents | null | undefined, plan: ReturnPercents | null | undefined): Partial<ReturnRates> {
   const out: Partial<ReturnRates> = {};
-  for (const [k, target] of Object.entries(RETURN_MAP) as [keyof ReturnPercents, keyof ReturnRates][]) {
+  for (const [k, target] of Object.entries(RETURN_MAP) as [(typeof RETURN_KEYS)[number], keyof ReturnRates][]) {
     const v = plan?.[k] ?? firm?.[k];
     if (typeof v === "number") out[target] = v / 100;
   }
   return out;
+}
+
+/** Inflation as a fraction: plan overrides firm default; undefined means the engine default. */
+export function effectiveInflation(firm: ReturnPercents | null | undefined, plan: ReturnPercents | null | undefined): number | undefined {
+  const v = plan?.inflatie ?? firm?.inflatie;
+  return typeof v === "number" ? v / 100 : undefined;
 }
 
 export function toEngineInput(args: {
@@ -113,6 +119,7 @@ export function toEngineInput(args: {
   return {
     referenceYear,
     returns: effectiveReturns(args.firmReturns, inputs.uitgangspunten.rendement),
+    inflation: effectiveInflation(args.firmReturns, inputs.uitgangspunten.rendement),
     spendingPattern: {
       retiredPct: (pattern.pensioenPct ?? 100) / 100,
       laterAge: pattern.laterLeeftijd ?? 75,
@@ -203,8 +210,9 @@ export function toEngineInput(args: {
             yearlyContribution: meta(a, "jaarlijkse_inleg"),
           }),
         ),
+      // Loans to and from the own BV only count when the plan includes a BV.
       loans: assets
-        .filter((a) => a.type === "lening_dga" || a.type === "vordering_bv")
+        .filter((a) => c.bv && (a.type === "lening_dga" || a.type === "vordering_bv"))
         .map(
           (a): LoanInput => ({
             kind: a.type as LoanInput["kind"],

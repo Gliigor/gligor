@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ASSET_TYPES, getAssetType, isStepKey, REPORT_SECTION_KEYS, SECTION_KEYS, type SectionKey } from "@/lib/plan/definitions";
-import { isAssetTypeRelevant } from "@/lib/plan/status";
+import { clientHasCompany, configForClient, isAssetTypeRelevant } from "@/lib/plan/status";
 import { sanitizeAssetPatch, sanitizeKeyList, sanitizePlanInputs } from "@/lib/plan/sanitize";
 import {
   DEFAULT_PLAN_CONFIG,
@@ -58,7 +58,7 @@ export async function createPlanAction(clientId: string, _prev: { error?: string
   const supabase = await createClient();
   const { data: client } = await supabase.from("clients").select("*").eq("id", clientId).maybeSingle<ClientRow>();
   if (!client) return { error: "Cliënt niet gevonden." };
-  const hasCompany = client.heeft_bedrijf ?? Boolean(client.company_name);
+  const hasCompany = clientHasCompany(client);
   const config: PlanConfig = {
     ...DEFAULT_PLAN_CONFIG,
     // A client with a company starts with a BV (balance, result, dividend); the Zakelijk step can switch to a sole trader.
@@ -141,12 +141,15 @@ export async function setPlanSections(
 ): Promise<{ ok: boolean; assets?: AssetRow[] }> {
   const member = await requireMember();
   const supabase = await createClient();
-  const { data: plan } = await supabase.from("plans").select("config").eq("id", planId).single();
+  const { data: plan } = await supabase.from("plans").select("config, client_id").eq("id", planId).single();
   if (!plan) return { ok: false };
-  const config = parsePlanConfig(plan.config);
+  const { data: client } = await supabase.from("clients").select("*").eq("id", plan.client_id).single<ClientRow>();
+  const parsed = parsePlanConfig(plan.config);
   for (const key of SECTION_KEYS) {
-    if (typeof patch[key] === "boolean") config.sections[key] = patch[key];
+    if (typeof patch[key] === "boolean") parsed.sections[key] = patch[key];
   }
+  // Without a company, zakelijk sections cannot be switched on.
+  const config = configForClient(parsed, client ? clientHasCompany(client) : false);
   const { error } = await supabase.from("plans").update({ config }).eq("id", planId);
   if (error) return { ok: false };
   await ensureRequiredRows(supabase, member.firm.id, planId, config);

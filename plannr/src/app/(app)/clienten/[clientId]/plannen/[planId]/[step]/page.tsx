@@ -4,7 +4,7 @@ import { requireMember } from "@/lib/auth";
 import { calculatePlan } from "@/lib/engine";
 import { isStepKey, LEGACY_STEPS, STEPS } from "@/lib/plan/definitions";
 import { loadPlan } from "@/lib/plan/load";
-import { findMissingFields, hasZakelijkStep } from "@/lib/plan/status";
+import { clientHasCompany, findMissingFields, hasZakelijkStep } from "@/lib/plan/status";
 import { toEngineInput } from "@/lib/plan/to-engine-input";
 import { StepVisit } from "@/components/plan/step-visit";
 import { StepNav } from "@/components/plan/steps/step-nav";
@@ -35,8 +35,7 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
   if (!bundle || bundle.client.id !== clientId) notFound();
 
   const { config, inputs, assets } = bundle;
-  const hasCompany = bundle.client.heeft_bedrijf ?? Boolean(bundle.client.company_name);
-  const zakelijk = hasZakelijkStep(config, hasCompany);
+  const zakelijk = hasZakelijkStep(clientHasCompany(bundle.client));
   const steps = STEPS.filter((s) => s.key !== "zakelijk" || zakelijk);
   const index = steps.findIndex((s) => s.key === step);
   const prev = steps[index - 1]?.key;
@@ -88,6 +87,7 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
     case "inkomen":
     case "uitgaven":
     case "vermogen":
+    case "uitgangspunten":
       body = (
         <ControlStep
           key={step}
@@ -134,14 +134,14 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
           <ResultsView
             result={result}
             insightsSlot={<InsightsPanel planId={planId} insights={insights} initialHidden={config.hiddenInsights} />}
-            choicesSlot={<ChoicesPanel planId={planId} />}
+            choicesSlot={<ChoicesPanel planId={planId} withBv={result.wealth.zakelijk.included && config.sections.bv} />}
           />
         </div>
       );
       break;
     }
     case "rapport":
-      body = <ReportStep planId={planId} initialSections={config.reportSections} exports={bundle.exports} />;
+      body = <ReportStep planId={planId} initialSections={config.reportSections} exports={bundle.exports} withZakelijk={zakelijk} />;
       break;
   }
 

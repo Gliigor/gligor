@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -31,7 +32,8 @@ import { ownerOf } from "@/lib/plan/to-engine-input";
 import { inputClass } from "@/components/ui/form";
 import { ChildrenCard, PartnerCard } from "./household-cards";
 import { AddMenu, CashItemsCard } from "./cash-items-card";
-import { AssumptionsCard } from "./assumptions-card";
+import { AssumptionsCards } from "./assumptions-card";
+import { formatPct, inflationPct } from "../returns-fields";
 import { ExpensesCard } from "./expenses-card";
 import { SalaryHelper } from "./salary-helper";
 import { deriveBv, isExtended } from "@/lib/plan/bv";
@@ -48,7 +50,7 @@ export function ControlStep({
   initialAssets,
   firmReturns,
 }: {
-  part: PrivePart | "zakelijk";
+  part: PrivePart | "zakelijk" | "uitgangspunten";
   planId: string;
   config: PlanConfig;
   initialInputs: PlanInputs;
@@ -476,14 +478,24 @@ export function ControlStep({
     );
   };
 
-  const intro: Record<PrivePart | "zakelijk", string> = {
+  const intro: Record<typeof part, string> = {
     gezin: "Wie horen bij het huishouden? Dit bepaalt met wie het plan rekent.",
     woning: "De eigen woning en de hypotheek, zoals in box 1 van de IB-aangifte.",
     inkomen: "Alle inkomsten per jaar: loon, pensioen, lijfrente en overige inkomsten. Samen vormen ze de kasstroom.",
-    uitgaven: "Wat het huishouden per jaar uitgeeft, en hoe dat verandert na het pensioen.",
+    uitgaven: "Wat het huishouden per jaar uitgeeft, in geld van nu.",
     vermogen: "Spaargeld, beleggingen, ander vastgoed en schulden in box 3.",
     zakelijk: "Controleer de zakelijke gegevens (opgebouwd zoals de jaarrekening) en vul aan wat ontbreekt.",
+    uitgangspunten: "Alle percentages waarmee het plan rekent, op één plek. Leeg laten: de grijze standaardwaarde van het kantoor.",
   };
+  const inflation = formatPct(inflationPct(inputs.uitgangspunten.rendement, firmReturns));
+  const assumptionsNote = (text: string) => (
+    <p className="text-sm text-ink-500">
+      {text}{" "}
+      <Link href="uitgangspunten" className="font-medium text-brand-700 underline decoration-brand-700/30 hover:decoration-brand-700">
+        Aanpassen bij Uitgangspunten
+      </Link>
+    </p>
+  );
 
   return (
     <div className="space-y-5">
@@ -492,7 +504,7 @@ export function ControlStep({
         <SaveIndicator status={status} />
       </div>
 
-      <Summary missing={missing} docCount={docCount} />
+      {part !== "uitgangspunten" ? <Summary missing={missing} docCount={docCount} /> : null}
 
       {part === "gezin" ? (
         <>
@@ -594,7 +606,7 @@ export function ControlStep({
             fromDocument={inputs.fromDocument.includes("jaarlijkse_uitgaven")}
             onChange={saveInputs}
           />
-          <AssumptionsCard inputs={inputs} firmReturns={firmReturns} onChange={saveInputs} show="pattern" />
+          {assumptionsNote(`De uitgaven stijgen elk jaar met de inflatie (${inflation}). Hoe ze veranderen na het pensioen, staat bij de uitgangspunten.`)}
         </>
       ) : null}
 
@@ -603,8 +615,12 @@ export function ControlStep({
           {config.sections.box3
             ? priveCard("Vermogen box 3", "Spaargeld, beleggingen, overig onroerend goed en schulden", { section: "box3", types: typesOf("vermogen") })
             : null}
-          <AssumptionsCard inputs={inputs} firmReturns={firmReturns} onChange={saveInputs} show="returns" />
+          {assumptionsNote("Het verwachte rendement per soort vermogen staat bij de uitgangspunten.")}
         </>
+      ) : null}
+
+      {part === "uitgangspunten" ? (
+        <AssumptionsCards inputs={inputs} firmReturns={firmReturns} onChange={saveInputs} withBv={config.sections.bv} />
       ) : null}
 
       {part === "zakelijk" ? (
