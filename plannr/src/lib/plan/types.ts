@@ -1,3 +1,4 @@
+import { EXPENSE_KEYS, type ExpenseAmounts } from "./expenses";
 import {
   CASH_KINDS,
   REPORT_SECTION_KEYS,
@@ -61,6 +62,9 @@ export interface ClientRow {
   first_name: string;
   last_name: string;
   company_name: string | null;
+  /** Absent before the migration of 2026-10-29. */
+  geboortejaar?: number | null;
+  heeft_bedrijf?: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -167,6 +171,7 @@ export interface PlanConfig {
 
 export interface PriveInputs {
   geboortejaar?: number | null;
+  functie?: string | null;
   pensioenleeftijd?: number | null;
   bruto_inkomen?: number | null;
   jaarlijkse_uitgaven?: number | null;
@@ -177,6 +182,7 @@ export type Relatie = "gehuwd" | "samenwonend_fiscaal" | "samenwonend";
 
 export interface PartnerInputs {
   naam?: string | null;
+  functie?: string | null;
   relatie?: Relatie | null;
   geboortejaar?: number | null;
   pensioenleeftijd?: number | null;
@@ -227,6 +233,8 @@ export interface PlanAssumptions {
 export interface PlanInputs {
   uitgangspunten: PlanAssumptions;
   prive: PriveInputs;
+  /** Yearly expenses per category (Uitgaven step); when used, prive.jaarlijkse_uitgaven is their sum. */
+  uitgaven: ExpenseAmounts;
   partner: PartnerInputs;
   kinderen: ChildInput[];
   schenkingen: GiftPlanInput[];
@@ -250,7 +258,7 @@ export const DEFAULT_PLAN_CONFIG: PlanConfig = {
     dividend: false,
     eenmanszaak: false,
   },
-  reportSections: ["samenvatting", "vermogensoverzicht", "inkomsten_uitgaven", "belastingdruk", "rendementsscenarios", "schenkingen", "scenarios", "aandachtspunten", "toelichting"],
+  reportSections: ["samenvatting", "vermogensoverzicht", "inkomsten_uitgaven", "belastingdruk", "rendementsscenarios", "tijdlijn", "schenkingen", "scenarios", "aandachtspunten", "toelichting"],
   visitedSteps: [],
   hiddenInsights: [],
 };
@@ -297,11 +305,20 @@ export function parsePlanInputs(raw: unknown): PlanInputs {
   const rawPrive = isRecord(obj.prive) ? obj.prive : {};
   const prive: PriveInputs = {};
   for (const key of NUMERIC_PRIVE_KEYS) prive[key] = num(rawPrive[key]);
+  prive.functie = str(rawPrive.functie, 200) || null;
+
+  const rawUitgaven = isRecord(obj.uitgaven) ? obj.uitgaven : {};
+  const uitgaven: ExpenseAmounts = {};
+  for (const key of EXPENSE_KEYS) {
+    const v = num(rawUitgaven[key]);
+    if (v !== null) uitgaven[key] = v;
+  }
 
   const rawPartner = isRecord(obj.partner) ? obj.partner : {};
   const partner: PartnerInputs = {};
   for (const key of NUMERIC_PARTNER_KEYS) partner[key] = num(rawPartner[key]);
   partner.naam = str(rawPartner.naam, 100) || null;
+  partner.functie = str(rawPartner.functie, 200) || null;
   const rel = rawPartner.relatie;
   partner.relatie = rel === "gehuwd" || rel === "samenwonend_fiscaal" || rel === "samenwonend" ? rel : null;
 
@@ -351,7 +368,7 @@ export function parsePlanInputs(raw: unknown): PlanInputs {
       return { pensioenPct: num(r.pensioenPct), laterLeeftijd: num(r.laterLeeftijd), laterPct: num(r.laterPct) };
     })(),
   };
-  return { uitgangspunten, prive, partner, kinderen, schenkingen, posten, fromDocument };
+  return { uitgangspunten, prive, uitgaven, partner, kinderen, schenkingen, posten, fromDocument };
 }
 
 /** Reads return percentages; out-of-range values are dropped. */

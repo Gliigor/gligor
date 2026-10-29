@@ -6,6 +6,7 @@ import { Font, renderToBuffer } from "@react-pdf/renderer";
 import { FONT_OPTIONS } from "@/lib/house-style/fonts";
 import type { HouseStyle } from "@/lib/house-style/types";
 import { ReportDocument, type ReportData, type ReportLogo, type SectionPages } from "./report";
+import { ExpenseFormDocument } from "./expense-form";
 
 let fontsRegistered = false;
 
@@ -44,6 +45,12 @@ export async function renderReportPdf(data: ReportData, style: HouseStyle, logo?
     />,
   );
   return renderToBuffer(<ReportDocument data={data} style={style} logo={logo} sectionPages={pages} />);
+}
+
+/** Printable expense form in the firm's house style. */
+export async function renderExpenseFormPdf(firmName: string, style: HouseStyle, logo?: ReportLogo | null): Promise<Buffer> {
+  registerFonts();
+  return renderToBuffer(<ExpenseFormDocument firmName={firmName} style={style} logo={logo} />);
 }
 
 /** Detects PNG/JPEG from magic bytes (logos are restricted to these types). */

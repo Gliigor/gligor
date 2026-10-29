@@ -6,7 +6,7 @@ import { inputClass } from "@/components/ui/form";
 import { cn } from "@/components/ui/cn";
 import { Plus, Trash2 } from "@/components/ui/icons";
 import { ASSUMPTIONS } from "@/lib/engine/assumptions";
-import { GIFT_KINDS, PARTNER_FIELDS } from "@/lib/plan/definitions";
+import { GIFT_KINDS, PARTNER_FIELDS, PARTNER_INCOME_FIELDS } from "@/lib/plan/definitions";
 import type { ChildInput, GiftPlanInput, PlanInputs } from "@/lib/plan/types";
 import { formatEuro } from "@/lib/format";
 import { FieldInput, FieldShell, NumberInput } from "../fields";
@@ -18,33 +18,45 @@ export function PartnerCard({
   inputs,
   missingIds,
   onChange,
+  part = "gezin",
+  extra,
 }: {
   inputs: PlanInputs;
   missingIds: Set<string>;
   onChange: (next: PlanInputs) => void;
+  /** Gezin: who the partner is. Inkomen: the partner's income and pension. */
+  part?: "gezin" | "inkomen";
+  extra?: (fieldKey: string) => React.ReactNode;
 }) {
+  const fields = PARTNER_FIELDS.filter((f) => PARTNER_INCOME_FIELDS.includes(f.key) === (part === "inkomen"));
+  const name = inputs.partner.naam || "partner";
   return (
     <Card>
-      <CardHeader title="Partner" description="Inkomen en pensioen van de partner. De uitgaven van het huishouden staan bij Inkomen & uitgaven." />
+      <CardHeader
+        title={part === "inkomen" ? `Inkomen ${name}` : "Partner"}
+        description={part === "inkomen" ? "Bruto per jaar, zoals op de jaaropgaaf." : "Wie de partner is. Inkomen en pensioen vul je in bij Inkomen."}
+      />
       <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-        {PARTNER_FIELDS.map((field) => {
+        {fields.map((field) => {
           const id = `partner.${field.key}`;
           return (
-            <FieldInput
-              key={field.key}
-              id={domId(id)}
-              field={field}
-              value={inputs.partner[field.key as keyof typeof inputs.partner] ?? null}
-              missing={missingIds.has(id)}
-              fromDocument={inputs.fromDocument.includes(id)}
-              onChange={(v) =>
-                onChange({
-                  ...inputs,
-                  partner: { ...inputs.partner, [field.key]: v },
-                  fromDocument: inputs.fromDocument.filter((k) => k !== id),
-                })
-              }
-            />
+            <div key={field.key}>
+              <FieldInput
+                id={domId(id)}
+                field={field}
+                value={inputs.partner[field.key as keyof typeof inputs.partner] ?? null}
+                missing={missingIds.has(id)}
+                fromDocument={inputs.fromDocument.includes(id)}
+                onChange={(v) =>
+                  onChange({
+                    ...inputs,
+                    partner: { ...inputs.partner, [field.key]: v },
+                    fromDocument: inputs.fromDocument.filter((k) => k !== id),
+                  })
+                }
+              />
+              {extra?.(field.key)}
+            </div>
           );
         })}
       </div>

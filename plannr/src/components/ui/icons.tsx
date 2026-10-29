@@ -25,4 +25,6 @@ export {
   GitCompare,
   Archive,
   ArchiveRestore,
+  FileSpreadsheet,
+  Printer,
 } from "lucide-react";

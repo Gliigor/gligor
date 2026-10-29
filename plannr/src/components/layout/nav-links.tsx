@@ -6,7 +6,10 @@ import { cn } from "@/components/ui/cn";
 
 export function NavLinks({ isOwner, orientation = "vertical" }: { isOwner: boolean; orientation?: "vertical" | "horizontal" }) {
   const pathname = usePathname();
-  const links = [{ href: "/clienten", label: "Cliënten" }];
+  const links = [
+    { href: "/clienten", label: "Cliënten" },
+    { href: "/downloads", label: "Downloads" },
+  ];
   if (isOwner) links.push({ href: "/instellingen", label: "Instellingen" });
   return (
     <nav className={cn("flex", orientation === "vertical" ? "flex-col gap-1" : "items-center gap-1")}>

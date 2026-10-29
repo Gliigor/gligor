@@ -14,25 +14,34 @@ function text(formData: FormData, key: string, max = 200): string {
   return typeof v === "string" ? v.trim().slice(0, max) : "";
 }
 
+function birthYear(formData: FormData): number | null | "invalid" {
+  const raw = text(formData, "geboortejaar", 4);
+  if (!raw) return null;
+  const year = Number(raw);
+  return Number.isInteger(year) && year >= 1900 && year <= new Date().getFullYear() ? year : "invalid";
+}
+
+/** Columns added on 2026-10-29; before that migration they are left out. */
+const missingColumn = (error: { code?: string } | null) => error?.code === "42703" || error?.code === "PGRST204";
+
 export async function createClientAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const member = await requireMember();
   const firstName = text(formData, "first_name", 100);
   const lastName = text(formData, "last_name", 100);
-  const companyName = text(formData, "company_name");
+  const hasCompany = formData.get("heeft_bedrijf") === "on";
+  const companyName = hasCompany ? text(formData, "company_name") : "";
+  const year = birthYear(formData);
   if (!firstName || !lastName) return { error: "Vul een voornaam en achternaam in." };
+  if (year === "invalid") return { error: "Vul een geldig geboortejaar in, bijvoorbeeld 1968." };
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const base = { firm_id: member.firm.id, first_name: firstName, last_name: lastName, company_name: companyName || null, created_by: member.userId };
+  let { data, error } = await supabase
     .from("clients")
-    .insert({
-      firm_id: member.firm.id,
-      first_name: firstName,
-      last_name: lastName,
-      company_name: companyName || null,
-      created_by: member.userId,
-    })
+    .insert({ ...base, geboortejaar: year, heeft_bedrijf: hasCompany })
     .select("id")
     .single();
+  if (missingColumn(error)) ({ data, error } = await supabase.from("clients").insert(base).select("id").single());
   if (error || !data) return { error: "De cliënt kon niet worden opgeslagen." };
   revalidatePath("/clienten");
   redirect(`/clienten/${data.id}`);
@@ -42,13 +51,18 @@ export async function updateClientAction(clientId: string, _prev: FormState, for
   await requireMember();
   const firstName = text(formData, "first_name", 100);
   const lastName = text(formData, "last_name", 100);
-  const companyName = text(formData, "company_name");
+  const hasCompany = formData.get("heeft_bedrijf") === "on";
+  const companyName = hasCompany ? text(formData, "company_name") : "";
+  const year = birthYear(formData);
   if (!firstName || !lastName) return { error: "Vul een voornaam en achternaam in." };
+  if (year === "invalid") return { error: "Vul een geldig geboortejaar in, bijvoorbeeld 1968." };
   const supabase = await createClient();
-  const { error } = await supabase
+  const base = { first_name: firstName, last_name: lastName, company_name: companyName || null };
+  let { error } = await supabase
     .from("clients")
-    .update({ first_name: firstName, last_name: lastName, company_name: companyName || null })
+    .update({ ...base, geboortejaar: year, heeft_bedrijf: hasCompany })
     .eq("id", clientId);
+  if (missingColumn(error)) ({ error } = await supabase.from("clients").update(base).eq("id", clientId));
   if (error) return { error: "Wijzigen is niet gelukt." };
   revalidatePath(`/clienten/${clientId}`);
   return {};

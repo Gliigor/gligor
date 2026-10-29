@@ -51,17 +51,53 @@ export const SECTIONS: SectionDef[] = [
   },
 ];
 
-export const STEP_KEYS = ["configuratie", "documenten", "prive", "zakelijk", "resultaten", "rapport"] as const;
+export const STEP_KEYS = ["documenten", "gezin", "woning", "inkomen", "uitgaven", "vermogen", "zakelijk", "resultaten", "rapport"] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
 
 export const STEPS: { key: StepKey; label: string; short: string }[] = [
-  { key: "configuratie", label: "Configuratie", short: "Config" },
   { key: "documenten", label: "Documenten", short: "Docs" },
-  { key: "prive", label: "Privé", short: "Privé" },
+  { key: "gezin", label: "Gezin", short: "Gezin" },
+  { key: "woning", label: "Woning", short: "Woning" },
+  { key: "inkomen", label: "Inkomen", short: "Inkomen" },
+  { key: "uitgaven", label: "Uitgaven", short: "Uitgaven" },
+  { key: "vermogen", label: "Vermogen", short: "Vermogen" },
   { key: "zakelijk", label: "Zakelijk", short: "Zakelijk" },
   { key: "resultaten", label: "Resultaten", short: "Result." },
-  { key: "rapport", label: "Rapport & export", short: "Rapport" },
+  { key: "rapport", label: "Rapport", short: "Rapport" },
 ];
+
+/** Older step URLs (before the step-by-step privé flow) and where they lead now. */
+export const LEGACY_STEPS: Record<string, StepKey> = { configuratie: "documenten", prive: "gezin" };
+
+/** The privé steps that each show part of the privé data. */
+export type PrivePart = "gezin" | "woning" | "inkomen" | "uitgaven" | "vermogen";
+export const PRIVE_PARTS: PrivePart[] = ["gezin", "woning", "inkomen", "uitgaven", "vermogen"];
+
+/** Which step a privé input field is filled in. */
+export const PRIVE_FIELD_STEP: Record<string, PrivePart> = {
+  geboortejaar: "gezin",
+  pensioenleeftijd: "gezin",
+  functie: "gezin",
+  bruto_inkomen: "inkomen",
+  pensioen_per_jaar: "inkomen",
+  jaarlijkse_uitgaven: "uitgaven",
+};
+
+/** Partner fields filled in at Inkomen; the rest belong to Gezin. */
+export const PARTNER_INCOME_FIELDS = ["bruto_inkomen", "pensioen_per_jaar"];
+
+/** Which step a privé asset type is filled in (everything else: vermogen). */
+const ASSET_TYPE_STEP: Record<string, PrivePart> = {
+  eigen_woning: "woning",
+  hypotheek: "woning",
+  spaarrekening_eigen_woning: "woning",
+  lijfrente: "inkomen",
+};
+
+export function stepOfAssetType(def: { type: string; side: Side }): StepKey {
+  if (def.side === "zakelijk") return "zakelijk";
+  return ASSET_TYPE_STEP[def.type] ?? "vermogen";
+}
 
 export function isStepKey(value: string): value is StepKey {
   return (STEP_KEYS as readonly string[]).includes(value);
@@ -73,6 +109,7 @@ export const REPORT_SECTION_KEYS = [
   "inkomsten_uitgaven",
   "belastingdruk",
   "rendementsscenarios",
+  "tijdlijn",
   "zakelijk_overzicht",
   "schenkingen",
   "scenarios",
@@ -87,6 +124,7 @@ export const REPORT_SECTIONS: { key: ReportSectionKey; label: string; descriptio
   { key: "inkomsten_uitgaven", label: "Inkomsten vs. uitgaven", description: "Netto inkomen, uitgaven en jaarlijks saldo" },
   { key: "belastingdruk", label: "Belastingdruk per box", description: "Indicatie box 1, 2 en 3" },
   { key: "rendementsscenarios", label: "Rendementsscenario's", description: "Verwachte vermogensontwikkeling in drie scenario's" },
+  { key: "tijdlijn", label: "Tijdlijn", description: "Belangrijke momenten: pensioen, AOW, rentevaste periodes en uitkeringen" },
   { key: "zakelijk_overzicht", label: "Zakelijk overzicht", description: "BV, balans, resultaat en dividend" },
   { key: "schenkingen", label: "Gezin & schenkingen", description: "Partner, kinderen en geplande schenkingen" },
   { key: "scenarios", label: "Scenariovergelijking", description: "Dit plan naast de scenario's die ervan zijn gemaakt" },
@@ -122,6 +160,7 @@ export interface FieldDef {
 /** Non-asset privé inputs, stored in plans.inputs.prive. */
 export const PRIVE_INPUT_FIELDS: FieldDef[] = [
   { key: "geboortejaar", label: "Geboortejaar", kind: "integer", section: "algemeen", required: true },
+  { key: "functie", label: "Functie / beroep", kind: "text", section: "algemeen", help: "Optioneel, voor het rapport." },
   {
     key: "pensioenleeftijd",
     label: "Gewenste pensioenleeftijd",
@@ -140,7 +179,7 @@ export const PRIVE_INPUT_FIELDS: FieldDef[] = [
   },
   {
     key: "jaarlijkse_uitgaven",
-    label: "Netto uitgaven huishouden (per jaar)",
+    label: "Totale uitgaven huishouden (per jaar)",
     kind: "money",
     section: "inkomen",
     required: true,
@@ -172,6 +211,7 @@ export const PARTNER_FIELDS: FieldDef[] = [
     ],
   },
   { key: "geboortejaar", label: "Geboortejaar", kind: "integer", section: "partner", required: true },
+  { key: "functie", label: "Functie / beroep", kind: "text", section: "partner", help: "Optioneel, voor het rapport." },
   { key: "pensioenleeftijd", label: "Gewenste pensioenleeftijd", kind: "integer", section: "partner", required: true },
   {
     key: "bruto_inkomen",
@@ -244,9 +284,17 @@ export const ASSET_TYPES: AssetTypeDef[] = [
     itemLabel: "Woning",
     multiple: false,
     requiredRow: true,
-    valueField: { label: "WOZ-waarde", required: true },
+    valueField: { label: "WOZ-waarde", required: true, help: "Voor de belasting (eigenwoningforfait)." },
     showLabel: true,
-    metadataFields: [],
+    metadataFields: [
+      {
+        key: "vrije_verkoopwaarde",
+        label: "Geschatte vrije verkoopwaarde",
+        kind: "money",
+        section: "eigen_woning",
+        help: "Wat de woning nu opbrengt bij verkoop. Leeg: de WOZ-waarde. Telt mee in het vermogen.",
+      },
+    ],
   },
   {
     type: "hypotheek",
@@ -262,6 +310,14 @@ export const ASSET_TYPES: AssetTypeDef[] = [
     showLabel: true,
     metadataFields: [
       { key: "rente", label: "Rente", kind: "percent", section: "eigen_woning", required: true },
+      {
+        key: "rentevast_tot",
+        label: "Rentevast tot (jaar)",
+        kind: "integer",
+        section: "eigen_woning",
+        help: "Het jaar waarin de rentevaste periode afloopt. Komt op de tijdlijn in het rapport.",
+      },
+      { key: "ingangsjaar", label: "Afgesloten in (jaar)", kind: "integer", section: "eigen_woning", help: "Na 30 jaar eindigt de renteaftrek." },
       {
         key: "aflosvorm",
         label: "Aflosvorm",
@@ -313,9 +369,17 @@ export const ASSET_TYPES: AssetTypeDef[] = [
     itemLabel: "Object",
     multiple: true,
     requiredRow: false,
-    valueField: { label: "WOZ-waarde", required: true },
+    valueField: { label: "WOZ-waarde", required: true, help: "Voor de belasting (eigenwoningforfait)." },
     showLabel: true,
-    metadataFields: [],
+    metadataFields: [
+      {
+        key: "vrije_verkoopwaarde",
+        label: "Geschatte vrije verkoopwaarde",
+        kind: "money",
+        section: "eigen_woning",
+        help: "Wat de woning nu opbrengt bij verkoop. Leeg: de WOZ-waarde. Telt mee in het vermogen.",
+      },
+    ],
   },
   {
     type: "schulden_box3",

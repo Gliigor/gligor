@@ -4,11 +4,11 @@ import { computeStepStatuses, findMissingFields } from "@/lib/plan/status";
 import { DEFAULT_PLAN_CONFIG, parsePlanConfig, parsePlanInputs } from "@/lib/plan/types";
 
 test("parses unknown config defensively", () => {
-  const c = parsePlanConfig({ sections: { bv: true, onzin: true }, reportSections: ["samenvatting", "x"], visitedSteps: ["prive", "y"] });
+  const c = parsePlanConfig({ sections: { bv: true, onzin: true }, reportSections: ["samenvatting", "x"], visitedSteps: ["woning", "prive", "y"] });
   assert.equal(c.sections.bv, true);
   assert.equal(c.sections.box3, DEFAULT_PLAN_CONFIG.sections.box3);
   assert.deepEqual(c.reportSections, ["samenvatting"]);
-  assert.deepEqual(c.visitedSteps, ["prive"]);
+  assert.deepEqual(c.visitedSteps, ["woning"], "old step names are dropped");
 });
 
 test("missing fields follow the configuration", () => {
@@ -22,10 +22,19 @@ test("missing fields follow the configuration", () => {
   assert.ok(!findMissingFields(noHouse, inputs, []).some((m) => m.id === "type.eigen_woning"));
 });
 
-test("zakelijk step is n/a without zakelijk sections", () => {
-  const statuses = computeStepStatuses({ config: DEFAULT_PLAN_CONFIG, inputs: parsePlanInputs({}), assets: [], documentCount: 0, exportCount: 0 });
-  assert.equal(statuses.find((s) => s.key === "zakelijk")!.state, "not_applicable");
-  assert.equal(statuses.find((s) => s.key === "configuratie")!.state, "complete");
+test("zakelijk is only a step for clients with a company; missing fields land on their own step", () => {
+  const args = { config: DEFAULT_PLAN_CONFIG, inputs: parsePlanInputs({}), assets: [], documentCount: 0, exportCount: 0 };
+  const without = computeStepStatuses({ ...args, hasCompany: false });
+  assert.deepEqual(without.map((s) => s.key), ["documenten", "gezin", "woning", "inkomen", "uitgaven", "vermogen", "resultaten", "rapport"]);
+  const withCompany = computeStepStatuses({ ...args, hasCompany: true });
+  assert.ok(withCompany.some((s) => s.key === "zakelijk"));
+
+  const missing = findMissingFields(DEFAULT_PLAN_CONFIG, parsePlanInputs({}), []);
+  const stepOf = (id: string) => missing.find((m) => m.id === id)?.step;
+  assert.equal(stepOf("input.geboortejaar"), "gezin");
+  assert.equal(stepOf("type.eigen_woning"), "woning");
+  assert.equal(stepOf("input.bruto_inkomen"), "inkomen");
+  assert.equal(stepOf("input.jaarlijkse_uitgaven"), "uitgaven");
 });
 
 test("extraction fills an empty placeholder row instead of duplicating it", async () => {

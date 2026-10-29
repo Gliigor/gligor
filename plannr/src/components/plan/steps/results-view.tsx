@@ -39,9 +39,11 @@ const PARTS = [
   { key: "onderneming", label: "Eenmanszaak", color: "#E87BA4" },
 ] as const;
 
-/** Vertical markers for retirement and AOW, labelled at the top. */
+const CHART_EVENTS = new Set(["pensioen", "aow", "rentevast"]);
+
+/** Vertical markers for retirement, AOW and the end of fixed-rate periods, labelled at the top. */
 function eventMarkers(result: PlanResult) {
-  return result.projection.events.map((e, i) => (
+  return result.projection.events.filter((e) => CHART_EVENTS.has(e.kind)).map((e, i) => (
     <ReferenceLine
       key={`${e.year}-${e.label}`}
       x={e.year}
