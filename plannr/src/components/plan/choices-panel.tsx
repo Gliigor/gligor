@@ -13,8 +13,9 @@ import { NumberInput } from "./fields";
 // Same validated palette as the other result charts.
 const COLORS = ["#2B5FA3", "#C9871A", "#1D9B7C"];
 
-export function ChoicesPanel({ planId }: { planId: string }) {
-  const [kind, setKind] = useState<ComparisonKind>("pensioen_financiering");
+export function ChoicesPanel({ planId, withBv }: { planId: string; withBv: boolean }) {
+  const choices = COMPARISONS.filter((c) => withBv || !c.bv);
+  const [kind, setKind] = useState<ComparisonKind>(choices[0].kind);
   const [outcomes, setOutcomes] = useState<Partial<Record<ComparisonKind, ComparisonOutcome>>>({});
   const [params, setParams] = useState<Partial<Record<ComparisonKind, ComparisonParams>>>({});
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +65,7 @@ export function ChoicesPanel({ planId }: { planId: string }) {
       />
       <div className="border-b border-ink-100 px-3 sm:px-5">
         <div className="-mb-px flex gap-1 overflow-x-auto" role="tablist">
-          {COMPARISONS.map((c) => (
+          {choices.map((c) => (
             <button
               key={c.kind}
               role="tab"

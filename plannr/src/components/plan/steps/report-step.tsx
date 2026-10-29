@@ -15,11 +15,15 @@ export function ReportStep({
   planId,
   initialSections,
   exports,
+  withZakelijk,
 }: {
   planId: string;
   initialSections: ReportSectionKey[];
   exports: { id: string; created_at: string }[];
+  /** Offer the business overview only when the plan has a company. */
+  withZakelijk: boolean;
 }) {
+  const offered = REPORT_SECTIONS.filter((r) => withZakelijk || r.key !== "zakelijk_overzicht");
   const router = useRouter();
   const [sections, setSections] = useState(initialSections);
   const [previewSections, setPreviewSections] = useState(initialSections);
@@ -75,7 +79,7 @@ export function ReportStep({
         <Card>
           <CardHeader title="Rapportonderdelen" description="Wat de cliënt te zien krijgt" />
           <div className="space-y-1 p-3">
-            {REPORT_SECTIONS.map((r) => (
+            {offered.map((r) => (
               <label key={r.key} className="flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2 hover:bg-ink-50">
                 <input
                   type="checkbox"

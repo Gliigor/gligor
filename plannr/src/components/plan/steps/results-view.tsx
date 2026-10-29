@@ -71,6 +71,7 @@ export function ResultsView({
   choicesSlot?: React.ReactNode;
 }) {
   const w = result.wealth;
+  const zakelijk = w.zakelijk.included;
   const tiles = [
     { label: "Totaal vermogen", value: formatEuro(w.total, { whole: true }), hint: "" },
     { label: "Vermogen privé", value: formatEuro(w.prive.total, { whole: true }), hint: "" },
@@ -84,14 +85,14 @@ export function ResultsView({
     { name: "Eigen woning (netto)", value: w.prive.eigenWoningNet },
     { name: "Box 3 (netto)", value: w.prive.box3Net },
     ...(w.prive.otherAssetsTotal ? [{ name: "Polissen en leningen", value: w.prive.otherAssetsTotal }] : []),
-    { name: "Aandelen BV", value: w.zakelijk.shareValue },
+    ...(zakelijk ? [{ name: "Aandelen BV", value: w.zakelijk.shareValue }] : []),
   ];
   const incomeBars = [
     { name: "Netto inkomen", value: result.income.net },
     { name: "Uitgaven", value: result.income.expenses },
     { name: "Saldo", value: result.income.balance },
   ];
-  const taxBars = result.taxes.lines.map((l) => ({ name: `Box ${l.box}`, value: l.tax, label: l.label }));
+  const taxBars = result.taxes.lines.filter((l) => zakelijk || l.box !== 2).map((l) => ({ name: `Box ${l.box}`, value: l.tax, label: l.label }));
 
   return (
     <div className="space-y-5">
@@ -109,9 +110,11 @@ export function ResultsView({
         <div className="col-span-2 bg-night px-5 py-5 text-ink-50 sm:px-6 sm:py-6 lg:col-span-1">
           <div className="eyebrow !text-gold-500">Totaal netto vermogen</div>
           <div className="mt-2 font-display text-[2.2rem] font-semibold leading-none tabular sm:text-[2.6rem]">{formatEuro(w.total, { whole: true })}</div>
-          <div className="mt-3 text-[13px] text-white/60">
-            privé {formatEuro(w.prive.total, { whole: true })} · zakelijk {formatEuro(w.zakelijk.total, { whole: true })}
-          </div>
+          {zakelijk ? (
+            <div className="mt-3 text-[13px] text-white/60">
+              privé {formatEuro(w.prive.total, { whole: true })} · zakelijk {formatEuro(w.zakelijk.total, { whole: true })}
+            </div>
+          ) : null}
         </div>
         {tiles.slice(3).map((t) => (
           <div key={t.label} className="bg-white px-4 py-4 last:col-span-2 sm:px-6 sm:py-6 lg:last:col-span-1">
@@ -135,7 +138,7 @@ export function ResultsView({
       {result.household.persons.length > 1 || result.gifts ? <HouseholdCard result={result} /> : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <BarCard title="Vermogen privé vs. zakelijk" description="Netto waarden vandaag" data={wealthBars} />
+        <BarCard title={zakelijk ? "Vermogen privé vs. zakelijk" : "Vermogen per onderdeel"} description="Netto waarden vandaag" data={wealthBars} />
         <BarCard title="Inkomsten vs. uitgaven" description="Per jaar, na belasting" data={incomeBars} />
       </div>
 

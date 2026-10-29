@@ -45,8 +45,8 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader
-          title="Verwacht rendement (RVR)"
-          description="Realistisch verwacht rendement per soort vermogen, per jaar. Dit is de startwaarde voor alle plannen van het kantoor; per plan aan te passen. Leeg laten: de waarde die grijs staat."
+          title="Inflatie en verwacht rendement"
+          description="Inflatie en realistisch verwacht rendement (RVR) per soort vermogen, per jaar. Dit is de startwaarde voor alle plannen van het kantoor; per plan aan te passen bij Uitgangspunten. Leeg laten: de waarde die grijs staat."
         />
         <div className="p-4 sm:p-5">
           <FirmReturnsForm initial={parseReturns(member.firm.rendement_standaard)} />

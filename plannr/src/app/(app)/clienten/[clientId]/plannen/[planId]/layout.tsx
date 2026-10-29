@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadPlan } from "@/lib/plan/load";
-import { computeStepStatuses } from "@/lib/plan/status";
+import { clientHasCompany, computeStepStatuses } from "@/lib/plan/status";
 import { fullName } from "@/lib/format";
 import { ArrowLeft } from "@/components/ui/icons";
 import { ProgressBar } from "@/components/plan/progress-bar";
@@ -40,7 +40,7 @@ export default async function PlanLayout({ children, params }: LayoutProps<"/cli
     assets: bundle.assets,
     documentCount: bundle.documents.length,
     exportCount: bundle.exports.length,
-    hasCompany: bundle.client.heeft_bedrijf ?? Boolean(bundle.client.company_name),
+    hasCompany: clientHasCompany(bundle.client),
   });
   const baseHref = `/clienten/${clientId}/plannen/${planId}`;
 

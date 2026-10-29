@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeStepStatuses, findMissingFields } from "@/lib/plan/status";
+import { computeStepStatuses, configForClient, findMissingFields } from "@/lib/plan/status";
 import { DEFAULT_PLAN_CONFIG, parsePlanConfig, parsePlanInputs } from "@/lib/plan/types";
 
 test("parses unknown config defensively", () => {
@@ -25,7 +25,7 @@ test("missing fields follow the configuration", () => {
 test("zakelijk is only a step for clients with a company; missing fields land on their own step", () => {
   const args = { config: DEFAULT_PLAN_CONFIG, inputs: parsePlanInputs({}), assets: [], documentCount: 0, exportCount: 0 };
   const without = computeStepStatuses({ ...args, hasCompany: false });
-  assert.deepEqual(without.map((s) => s.key), ["documenten", "gezin", "woning", "inkomen", "uitgaven", "vermogen", "resultaten", "rapport"]);
+  assert.deepEqual(without.map((s) => s.key), ["documenten", "gezin", "woning", "inkomen", "uitgaven", "vermogen", "uitgangspunten", "resultaten", "rapport"]);
   const withCompany = computeStepStatuses({ ...args, hasCompany: true });
   assert.ok(withCompany.some((s) => s.key === "zakelijk"));
 
@@ -35,6 +35,15 @@ test("zakelijk is only a step for clients with a company; missing fields land on
   assert.equal(stepOf("type.eigen_woning"), "woning");
   assert.equal(stepOf("input.bruto_inkomen"), "inkomen");
   assert.equal(stepOf("input.jaarlijkse_uitgaven"), "uitgaven");
+});
+
+test("without a company every zakelijk section is off", () => {
+  const stored = { ...DEFAULT_PLAN_CONFIG, sections: { ...DEFAULT_PLAN_CONFIG.sections, bv: true, dividend: true, eenmanszaak: true } };
+  const none = configForClient(stored, false);
+  for (const k of ["bv", "balans", "resultaat", "pensioen_eigen_beheer", "dividend", "eenmanszaak"] as const) assert.equal(none.sections[k], false, k);
+  assert.equal(none.sections.box3, stored.sections.box3, "privé sections stay as they are");
+  assert.equal(configForClient(stored, true), stored);
+  assert.ok(!findMissingFields(none, parsePlanInputs({}), []).some((m) => m.step === "zakelijk"));
 });
 
 test("extraction fills an empty placeholder row instead of duplicating it", async () => {

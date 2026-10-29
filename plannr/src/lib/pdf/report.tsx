@@ -413,7 +413,9 @@ function SectionOpener({
 
 function summaryText(r: PlanResult): string {
   const parts = [
-    `Uw totale netto vermogen bedraagt ${formatEuro(r.wealth.total, { whole: true })}, waarvan ${formatEuro(r.wealth.prive.total, { whole: true })} privé en ${formatEuro(r.wealth.zakelijk.total, { whole: true })} zakelijk.`,
+    r.wealth.zakelijk.included
+      ? `Uw totale netto vermogen bedraagt ${formatEuro(r.wealth.total, { whole: true })}, waarvan ${formatEuro(r.wealth.prive.total, { whole: true })} privé en ${formatEuro(r.wealth.zakelijk.total, { whole: true })} zakelijk.`
+      : `Uw totale netto vermogen bedraagt ${formatEuro(r.wealth.total, { whole: true })}.`,
   ];
   if (r.income.expenses > 0) {
     parts.push(
@@ -448,6 +450,8 @@ const BOX_EXPLANATION: Record<1 | 2 | 3, { what: string; how: string }> = {
 
 function TaxSection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) {
   const total = r.taxes.total;
+  // Box 2 only applies to a shareholding in the own BV.
+  const lines = r.taxes.lines.filter((l) => r.wealth.zakelijk.included || l.box !== 2);
   const colors = [inkOf(hs.primaryColor), hs.secondaryColor, hs.accentColor];
   return (
     <View>
@@ -457,7 +461,7 @@ function TaxSection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) 
             Verdeling van {formatEuro(total, { whole: true })} belasting per jaar
           </Text>
           <View style={{ flexDirection: "row", height: 14 }}>
-            {r.taxes.lines.map((l, i) =>
+            {lines.map((l, i) =>
               l.tax > 0 ? (
                 <View
                   key={l.box}
@@ -467,7 +471,7 @@ function TaxSection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) 
             )}
           </View>
           <View style={{ flexDirection: "row", marginTop: 5 }}>
-            {r.taxes.lines.map((l, i) => (
+            {lines.map((l, i) => (
               <View key={l.box} style={{ flexDirection: "row", alignItems: "center", marginRight: 14 }}>
                 <View style={{ width: 7, height: 7, backgroundColor: colors[i], marginRight: 4 }} />
                 <Text style={{ fontSize: 7.5, color: MUTED }}>
@@ -479,7 +483,7 @@ function TaxSection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) 
         </View>
       ) : null}
 
-      {r.taxes.lines.map((l) => (
+      {lines.map((l) => (
         <View key={l.box} wrap={false} style={{ marginBottom: 12, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: RULE }}>
           <Text style={s.h3}>{l.label}</Text>
           <Text style={{ color: TEXT, marginBottom: 3 }}>{BOX_EXPLANATION[l.box].what}</Text>
@@ -521,7 +525,7 @@ function TaxSection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) 
               ["Heffingsvrij vermogen", -r.taxes.box3.exemption],
               ["Grondslag sparen en beleggen", r.taxes.box3.taxableBase],
             ]}
-            total={["Box 3-belasting", r.taxes.lines.find((l) => l.box === 3)?.tax ?? 0]}
+            total={["Box 3-belasting", lines.find((l) => l.box === 3)?.tax ?? 0]}
           />
         </View>
       ) : null}
@@ -749,8 +753,12 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
           <Tiles
             hs={hs}
             items={[
-              { label: "Vermogen privé", value: formatEuro(w.prive.total, { whole: true }) },
-              { label: "Vermogen zakelijk", value: formatEuro(w.zakelijk.total, { whole: true }) },
+              ...(w.zakelijk.included
+                ? [
+                    { label: "Vermogen privé", value: formatEuro(w.prive.total, { whole: true }) },
+                    { label: "Vermogen zakelijk", value: formatEuro(w.zakelijk.total, { whole: true }) },
+                  ]
+                : [{ label: "Inflatie / jaar", value: formatPercent(r.projection.inflation) }]),
               { label: "Belastingdruk", value: formatPercent(r.taxes.effectiveRate) },
               { label: "Netto inkomen / jaar", value: formatEuro(r.income.net, { whole: true }) },
               { label: "Uitgaven / jaar", value: formatEuro(r.income.expenses, { whole: true }) },
@@ -792,7 +800,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
               {w.prive.bvLoans.excess > 0 ? `, waarvan ${formatEuro(w.prive.bvLoans.excess, { whole: true })} boven de grens van de Wet excessief lenen.` : "."}
             </Text>
           ) : null}
-          {w.zakelijk.total !== 0 || w.zakelijk.companies.length > 0 || w.zakelijk.soleTraders.length > 0 ? (
+          {w.zakelijk.included ? (
             <View style={{ marginTop: 14 }}>
               <Text style={s.h3}>Zakelijk</Text>
               <Table
@@ -817,7 +825,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
               { label: "Eigen woning (netto)", value: w.prive.eigenWoningNet },
               { label: "Box 3 (netto)", value: w.prive.box3Net },
               ...(w.prive.otherAssetsTotal ? [{ label: "Polissen en leningen", value: w.prive.otherAssetsTotal }] : []),
-              { label: "Aandelen BV", value: w.zakelijk.shareValue },
+              ...(w.zakelijk.included ? [{ label: "Aandelen BV", value: w.zakelijk.shareValue }] : []),
             ]}
           />
         </View>
@@ -1019,10 +1027,16 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
             werkelijke rendementen kunnen hoger of lager uitvallen.
           </Text>
           <Text style={{ marginBottom: 7 }}>
+            Bedragen zijn ingevoerd in geld van nu. Uitgaven, inkomens, pensioenen en AOW stijgen jaarlijks met een inflatie van{" "}
+            {formatPercent(r.projection.inflation)}.
+          </Text>
+          <Text style={{ marginBottom: 7 }}>
             Realistisch verwacht rendement per jaar (neutraal scenario): spaargeld {formatPercent(r.projection.returns.savings)},
             beleggingen {formatPercent(r.projection.returns.investments)}, overig vastgoed {formatPercent(r.projection.returns.realEstate)},
-            liquide middelen in de BV {formatPercent(r.projection.returns.bv)} (vóór vennootschapsbelasting), waardestijging eigen
-            woning {formatPercent(r.projection.returns.house)}.
+            {r.wealth.zakelijk.included
+              ? ` liquide middelen in de BV ${formatPercent(r.projection.returns.bv)} (vóór vennootschapsbelasting),`
+              : ""}{" "}
+            waardestijging eigen woning {formatPercent(r.projection.returns.house)}.
           </Text>
           <Text style={{ color: MUTED, fontSize: 8.5 }}>
             Deze berekening is gemaakt met een prototype-rekenkern ({r.engine.name} v{r.engine.version}) en is niet geschikt als
