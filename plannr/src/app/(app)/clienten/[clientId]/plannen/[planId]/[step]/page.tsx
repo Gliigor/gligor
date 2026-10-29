@@ -90,8 +90,7 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
     case "vermogen":
       body = (
         <ControlStep
-          // Remount when sections change on the server (a yes/no switch adds rows there).
-          key={`${step}:${JSON.stringify(config.sections)}`}
+          key={step}
           part={step}
           planId={planId}
           config={config}

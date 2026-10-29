@@ -135,7 +135,10 @@ export async function updatePlanConfig(planId: string, raw: unknown) {
 }
 
 /** Switches plan sections on or off from within a step (e.g. "Is er een eigen woning?"). */
-export async function setPlanSections(planId: string, patch: Partial<Record<SectionKey, boolean>>) {
+export async function setPlanSections(
+  planId: string,
+  patch: Partial<Record<SectionKey, boolean>>,
+): Promise<{ ok: boolean; assets?: AssetRow[] }> {
   const member = await requireMember();
   const supabase = await createClient();
   const { data: plan } = await supabase.from("plans").select("config").eq("id", planId).single();
@@ -148,8 +151,10 @@ export async function setPlanSections(planId: string, patch: Partial<Record<Sect
   if (error) return { ok: false };
   await ensureRequiredRows(supabase, member.firm.id, planId, config);
   await markInProgress(supabase, planId);
+  // The step merges rows the server just added (e.g. the eigen woning) without reloading.
+  const { data: rows } = await supabase.from("assets").select("*").eq("plan_id", planId);
   revalidatePlan();
-  return { ok: true };
+  return { ok: true, assets: (rows ?? []).map((r) => normalizeAsset(r)) };
 }
 
 export async function updateReportSections(planId: string, sections: unknown) {

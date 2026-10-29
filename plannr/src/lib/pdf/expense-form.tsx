@@ -17,6 +17,7 @@ export function ExpenseFormDocument({ firmName, style, logo }: { firmName: strin
       <Page size="A4" style={{ fontFamily: style.fontBody, fontSize: 9, color: TEXT, paddingHorizontal: 48, paddingTop: 40, paddingBottom: 48 }} wrap>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
           {logo ? (
+            // eslint-disable-next-line jsx-a11y/alt-text
             <Image src={{ data: logo.data, format: logo.format }} style={{ maxHeight: 34, maxWidth: 150, objectFit: "contain" }} />
           ) : (
             <Text style={{ fontFamily: style.fontHeading, fontWeight: 700, fontSize: 12, color: style.primaryColor }}>{firmName}</Text>

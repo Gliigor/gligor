@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,7 @@ export function ControlStep({
   const side: Side = part === "zakelijk" ? "zakelijk" : "prive";
   const router = useRouter();
   const [config, setConfig] = useState(initialConfig);
-  const [toggling, startToggle] = useTransition();
+  const [toggling, setToggling] = useState(false);
   const [inputs, setInputs] = useState(initialInputs);
   const [assets, setAssets] = useState(initialAssets);
   const [adding, setAdding] = useState<string | null>(null);
@@ -80,13 +80,20 @@ export function ControlStep({
       ? inputs.fromDocument.filter((k) => (k.startsWith("partner.") ? part === "gezin" : PRIVE_FIELD_STEP[k] === part)).length
       : 0) + partAssets.reduce((n, a) => n + (a.metadata._fromDocument?.length ?? 0), 0);
 
-  /** Switches plan sections; the server adds required rows, so the step reloads with fresh data. */
-  function toggleSections(patch: Partial<Record<SectionKey, boolean>>) {
+  /** Switches plan sections. Rows the server adds (e.g. the eigen woning) are merged in; nothing typed is lost. */
+  async function toggleSections(patch: Partial<Record<SectionKey, boolean>>) {
     setConfig((c) => ({ ...c, sections: { ...c.sections, ...patch } }));
-    startToggle(async () => {
-      await setPlanSections(planId, patch);
-      router.refresh();
-    });
+    setToggling(true);
+    try {
+      const res = await setPlanSections(planId, patch);
+      if (res.ok && res.assets) {
+        const added = res.assets;
+        setAssets((rows) => [...rows, ...added.filter((a) => !rows.some((r) => r.id === a.id))]);
+      }
+    } finally {
+      setToggling(false);
+    }
+    router.refresh();
   }
 
   // --- mutations ---------------------------------------------------------------
