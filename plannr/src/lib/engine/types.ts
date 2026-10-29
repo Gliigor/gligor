@@ -128,7 +128,13 @@ export interface PlanInput {
   prive: {
     /** Household expenses per year (shared by client and partner). */
     yearlyExpenses: number;
-    eigenWoning: { wozValue: number; mortgages: { amount: number; interestRate: number }[]; owner: Owner } | null;
+    eigenWoning: {
+      wozValue: number;
+      /** Estimated market value; counts in wealth (the WOZ value stays the basis for the eigenwoningforfait). */
+      marketValue?: number | null;
+      mortgages: { amount: number; interestRate: number; label?: string; fixedRateUntil?: number | null; startYear?: number | null }[];
+      owner: Owner;
+    } | null;
     box3: { category: Box3Category; value: number; owner: Owner }[];
     /** Income and expenses over time, on top of the yearly figures above. */
     cashItems: CashFlowItem[];
@@ -190,8 +196,9 @@ export interface ProjectionPoint {
 
 export interface LifeEvent {
   year: number;
-  kind: "pensioen" | "aow";
-  role: "client" | "partner";
+  /** pensioen, aow and rentevast are drawn in the charts; all of them are on the report's timeline. */
+  kind: "pensioen" | "aow" | "rentevast" | "renteaftrek" | "uitkering";
+  role: "client" | "partner" | "household";
   label: string;
   /** Short form for chart markers, e.g. "AOW Jan". */
   shortLabel: string;

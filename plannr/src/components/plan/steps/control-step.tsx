@@ -32,6 +32,8 @@ import { inputClass } from "@/components/ui/form";
 import { ChildrenCard, PartnerCard } from "./household-cards";
 import { AddMenu, CashItemsCard } from "./cash-items-card";
 import { AssumptionsCard } from "./assumptions-card";
+import { ExpensesCard } from "./expenses-card";
+import { SalaryHelper } from "./salary-helper";
 import { deriveBv, isExtended } from "@/lib/plan/bv";
 import { taxableBusinessProfit } from "@/lib/engine/mock-engine";
 import { SaveIndicator, useAutosave } from "../use-autosave";
@@ -271,7 +273,16 @@ export function ControlStep({
       <Card key={title}>
         <CardHeader title={title} description={description} />
         <div className="space-y-5 p-4 sm:p-5">
-          {fields.length > 0 ? <div className="grid gap-4 sm:grid-cols-2">{fields.map(inputField)}</div> : null}
+          {fields.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {fields.map((f) => (
+                <div key={f.key}>
+                  {inputField(f)}
+                  {f.key === "bruto_inkomen" ? <SalaryHelper idPrefix="client" onApply={(v) => setInput("bruto_inkomen", v)} /> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
           {core.map((t) => assetBlock(t, t.sections.find((k) => config.sections[k]) ?? opts.section))}
           {shown.map((t) => assetBlock(t, t.sections.find((k) => config.sections[k]) ?? opts.section))}
           {optional.length > 0 ? (
@@ -540,6 +551,28 @@ export function ControlStep({
                 types: typesOf("inkomen"),
               })
             : null}
+          {config.sections.partner ? (
+            <PartnerCard
+              part="inkomen"
+              inputs={inputs}
+              missingIds={missingIds}
+              onChange={saveInputs}
+              extra={(key) =>
+                key === "bruto_inkomen" ? (
+                  <SalaryHelper
+                    idPrefix="partner"
+                    onApply={(v) =>
+                      saveInputs({
+                        ...inputs,
+                        partner: { ...inputs.partner, bruto_inkomen: v },
+                        fromDocument: inputs.fromDocument.filter((k) => k !== "partner.bruto_inkomen"),
+                      })
+                    }
+                  />
+                ) : null
+              }
+            />
+          ) : null}
           {config.sections.inkomen || config.sections.pensioen ? (
             <CashItemsCard config={config} inputs={inputs} missingIds={missingIds} onChange={saveInputs} />
           ) : null}
@@ -548,10 +581,12 @@ export function ControlStep({
 
       {part === "uitgaven" ? (
         <>
-          {priveCard("Uitgaven van het huishouden", "Alle vaste en variabele uitgaven per jaar, zonder hypotheek of huur die al in Woning staat.", {
-            section: "inkomen",
-            fields: fieldsOf("uitgaven"),
-          })}
+          <ExpensesCard
+            inputs={inputs}
+            missing={missingIds.has("input.jaarlijkse_uitgaven")}
+            fromDocument={inputs.fromDocument.includes("jaarlijkse_uitgaven")}
+            onChange={saveInputs}
+          />
           <AssumptionsCard inputs={inputs} firmReturns={firmReturns} onChange={saveInputs} show="pattern" />
         </>
       ) : null}

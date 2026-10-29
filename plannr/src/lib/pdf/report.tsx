@@ -601,6 +601,7 @@ const SECTION_INTRO: Partial<Record<ReportSectionKey, string>> = {
   inkomsten_uitgaven: "Wat er jaarlijks binnenkomt, wat er na belastingen overblijft en hoe dat zich verhoudt tot uw uitgaven.",
   belastingdruk: "In Nederland wordt inkomen in drie boxen belast, elk met eigen regels. Hieronder ziet u per box wat er wordt belast, hoeveel en waarom.",
   rendementsscenarios: "Hoe uw vermogen zich de komende jaren kan ontwikkelen bij drie verschillende rendementen.",
+  tijdlijn: "De momenten die financieel het meest uitmaken, op volgorde. Rond deze jaren is het goed om het plan samen opnieuw te bekijken.",
   zakelijk_overzicht: "De kerncijfers van uw onderneming en hoe die doorwerken in uw privévermogen.",
   schenkingen: "Uw huishouden, de momenten van stoppen met werken en AOW, en de schenkingen aan uw kinderen.",
   scenarios: "Wat er verandert als u andere keuzes maakt: dit plan naast de scenario's die ervan zijn gemaakt.",
@@ -617,6 +618,40 @@ const PART_LABELS: [keyof PlanResult["projection"]["points"][number]["components
 ];
 
 /** What the neutral total is made of: now, at retirement and at the end. */
+function TimelineSection({ r, s, hs }: { r: PlanResult; s: Styles; hs: HouseStyle }) {
+  const events = r.projection.events;
+  if (events.length === 0) return <Text style={s.lead}>Er zijn nog geen momenten bekend. Vul leeftijden, pensioen en hypotheekgegevens in.</Text>;
+  const persons = r.household.persons;
+  const ageIn = (year: number, i: number) => {
+    const p = persons[i];
+    return p?.birthYear ? String(year - p.birthYear) : "";
+  };
+  return (
+    <View>
+      <View style={[s.row, { borderBottomColor: TEXT }]}>
+        <Text style={{ width: 52, fontWeight: 700 }}>Jaar</Text>
+        <Text style={[s.cellLabel, s.bold]}>Moment</Text>
+        {persons.map((p) => (
+          <Text key={p.role} style={{ width: 70, textAlign: "right", fontWeight: 700 }}>
+            {p.name}
+          </Text>
+        ))}
+      </View>
+      {events.map((e, i) => (
+        <View key={`${e.year}-${i}`} style={s.row} wrap={false}>
+          <Text style={{ width: 52, fontFamily: hs.fontHeading, fontWeight: 700, color: inkOf(hs.primaryColor) }}>{e.year}</Text>
+          <Text style={s.cellLabel}>{e.label}</Text>
+          {persons.map((p, idx) => (
+            <Text key={p.role} style={{ width: 70, textAlign: "right", color: MUTED }}>
+              {ageIn(e.year, idx) ? `${ageIn(e.year, idx)} jaar` : ""}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function CompositionTable({ r, s }: { r: PlanResult; s: Styles }) {
   const pts = r.projection.points;
   const first = pts[0];
@@ -955,6 +990,8 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
           ))}
         </View>
       );
+    case "tijdlijn":
+      return <TimelineSection r={r} s={s} hs={hs} />;
     case "schenkingen":
       return <FamilySection r={r} s={s} hs={hs} />;
     case "scenarios":

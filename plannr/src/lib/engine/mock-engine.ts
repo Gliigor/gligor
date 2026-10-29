@@ -136,10 +136,12 @@ export function mockCalculate(input: PlanInput): PlanResult {
   const otherBvDebts = loans.filter((l) => l.kind === "lening_dga" && !(l.forHome && s.eigenWoning));
   const tbsLoans = loans.filter((l) => l.kind === "vordering_bv");
   const mortgages = [...(woning?.mortgages ?? []), ...homeLoans.map((l) => ({ amount: l.amount, interestRate: l.interestRate }))];
-  const eigenWoningValue = woning?.wozValue ?? 0;
+  const wozValue = woning?.wozValue ?? 0;
+  // Wealth uses the estimated market value when known; the eigenwoningforfait uses the WOZ value.
+  const eigenWoningValue = woning ? (woning.marketValue ?? woning.wozValue) : 0;
   const mortgageDebt = mortgages.reduce((sum, m) => sum + m.amount, 0);
   const yearlyMortgageInterest = mortgages.reduce((sum, m) => sum + m.amount * (m.interestRate / 100), 0);
-  const forfait = eigenWoningValue * a.box1.eigenwoningforfait;
+  const forfait = wozValue * a.box1.eigenwoningforfait;
 
   const box3Items = [
     ...(s.box3 ? input.prive.box3 : []),
@@ -633,6 +635,24 @@ export function mockCalculate(input: PlanInput): PlanResult {
     const aa = aowAge(p.birthYear);
     // The year AOW starts (partly, when the AOW age includes months).
     events.push({ year: p.birthYear + aa.years, kind: "aow", role, label: `AOW ${p.name} (${aowAgeLabel(p.birthYear)})`, shortLabel: `AOW ${p.name}` });
+  }
+  for (const [i, m] of (woning?.mortgages ?? []).entries()) {
+    const name = m.label || `leningdeel ${i + 1}`;
+    if (m.fixedRateUntil) {
+      events.push({ year: m.fixedRateUntil, kind: "rentevast", role: "household", label: `Rentevast ${name} loopt af`, shortLabel: "Rentevast" });
+    }
+    // Mortgage interest is deductible for at most 30 years.
+    if (m.startYear) {
+      events.push({ year: m.startYear + 30, kind: "renteaftrek", role: "household", label: `Renteaftrek ${name} eindigt (30 jaar)`, shortLabel: "Renteaftrek" });
+    }
+  }
+  for (const pol of input.prive.policies) {
+    if (pol.kind === "kapitaalverzekering" && pol.payoutYear) {
+      events.push({ year: pol.payoutYear, kind: "uitkering", role: "household", label: `Uitkering ${pol.label || "kapitaalverzekering"}`, shortLabel: "Uitkering" });
+    }
+    if (pol.kind === "lijfrente" && pol.startYear) {
+      events.push({ year: pol.startYear, kind: "uitkering", role: "household", label: `Start uitkering ${pol.label || "lijfrente"}`, shortLabel: "Lijfrente" });
+    }
   }
   const lastYear = input.referenceYear + a.projectionYears;
   const lifeEvents = events.filter((e) => e.year >= input.referenceYear && e.year <= lastYear).sort((x, y) => x.year - y.year);

@@ -2,6 +2,7 @@ import {
   ASSET_TYPES,
   getCashKind,
   PARTNER_FIELDS,
+  PARTNER_INCOME_FIELDS,
   PRIVE_FIELD_STEP,
   PRIVE_INPUT_FIELDS,
   SECTIONS,
@@ -54,7 +55,7 @@ export function findMissingFields(config: PlanConfig, inputs: PlanInputs, assets
     for (const field of PARTNER_FIELDS) {
       if (!field.required) continue;
       if (isEmpty(inputs.partner[field.key as keyof typeof inputs.partner])) {
-        missing.push({ side: "prive", step: "gezin", id: `partner.${field.key}`, label: `Partner: ${field.label}` });
+        missing.push({ side: "prive", step: PARTNER_INCOME_FIELDS.includes(field.key) ? "inkomen" : "gezin", id: `partner.${field.key}`, label: `Partner: ${field.label}` });
       }
     }
   }

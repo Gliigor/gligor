@@ -87,7 +87,13 @@ export function toEngineInput(args: {
   const woning = assets.find((a) => a.type === "eigen_woning");
   const mortgages = assets
     .filter((a) => a.type === "hypotheek")
-    .map((a) => ({ amount: a.value ?? 0, interestRate: meta(a, "rente") }));
+    .map((a) => ({
+      amount: a.value ?? 0,
+      interestRate: meta(a, "rente"),
+      label: a.label || undefined,
+      fixedRateUntil: typeof a.metadata.rentevast_tot === "number" ? a.metadata.rentevast_tot : null,
+      startYear: typeof a.metadata.ingangsjaar === "number" ? a.metadata.ingangsjaar : null,
+    }));
 
   const childById = new Map(inputs.kinderen.map((k) => [k.id, k]));
   const gifts: GiftInput[] = inputs.schenkingen
@@ -151,7 +157,12 @@ export function toEngineInput(args: {
       yearlyExpenses: p.jaarlijkse_uitgaven ?? 0,
       eigenWoning:
         woning || mortgages.length > 0
-          ? { wozValue: woning?.value ?? 0, mortgages, owner: woning ? ownerOf(woning) : "joint" }
+          ? {
+              wozValue: woning?.value ?? 0,
+              marketValue: typeof woning?.metadata.vrije_verkoopwaarde === "number" ? woning.metadata.vrije_verkoopwaarde : null,
+              mortgages,
+              owner: woning ? ownerOf(woning) : "joint",
+            }
           : null,
       box3: [
         ...assets

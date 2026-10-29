@@ -1,5 +1,6 @@
 // Validation of values coming from the browser before they are stored.
 
+import { expenseTotal, usesCategories } from "./expenses";
 import { getAssetType, getCashKind, PARTNER_FIELDS, PRIVE_INPUT_FIELDS, type FieldDef } from "./definitions";
 import { applyBvDerivations } from "./bv";
 import { parsePlanInputs, type AssetMetadata, type PartnerInputs, type PlanInputs, type PriveInputs } from "./types";
@@ -43,6 +44,13 @@ const clamp = (v: number | null, min: number, max: number) => (v === null ? null
 
 /** Validates everything the privé step can save in plans.inputs. */
 export function sanitizePlanInputs(raw: unknown): PlanInputs {
+  const result = sanitizeInputsOnly(raw);
+  // With categories, the yearly total is always their sum.
+  if (usesCategories(result.uitgaven)) result.prive.jaarlijkse_uitgaven = expenseTotal(result.uitgaven);
+  return result;
+}
+
+function sanitizeInputsOnly(raw: unknown): PlanInputs {
   const obj = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
   const parsed = parsePlanInputs(obj);
   const allowedDocKeys = [...PRIVE_INPUT_FIELDS.map((f) => f.key), ...PARTNER_FIELDS.map((f) => `partner.${f.key}`)];
@@ -54,6 +62,10 @@ export function sanitizePlanInputs(raw: unknown): PlanInputs {
       uitgavenpatroon: { pensioenPct: pct(pat.pensioenPct), laterLeeftijd: clamp(pat.laterLeeftijd, 50, 110), laterPct: pct(pat.laterPct) },
     },
     prive: sanitizePriveInputs(obj.prive),
+    // Yearly amounts per category, whole euros.
+    uitgaven: Object.fromEntries(
+      Object.entries(parsed.uitgaven).map(([k, v]) => [k, v === null || v === undefined ? null : Math.min(MAX_AMOUNT, Math.max(0, Math.round(v)))]),
+    ),
     partner: sanitizePartnerInputs(obj.partner),
     kinderen: parsed.kinderen.map((k) => ({ ...k, naam: k.naam.trim(), geboortejaar: clamp(k.geboortejaar, 1900, 2100) })),
     schenkingen: parsed.schenkingen.map((g) => ({
