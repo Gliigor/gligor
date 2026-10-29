@@ -108,10 +108,10 @@ async function main() {
   // 4. Clients.
   console.log("• Cliënten aanmaken…");
   const clients = [
-    { first_name: "Sanne", last_name: "Bakker", company_name: null, created_by: plannerId },
-    { first_name: "Pieter", last_name: "Jansen", company_name: null, created_by: ownerId },
-    { first_name: "Fatima", last_name: "El Amrani", company_name: "Amrani Consultancy B.V.", created_by: plannerId },
-    { first_name: "Jan", last_name: "de Vries", company_name: "De Vries Holding B.V.", created_by: ownerId },
+    { first_name: "Sanne", last_name: "Bakker", company_name: null, geboortejaar: 1985, heeft_bedrijf: false, created_by: plannerId },
+    { first_name: "Pieter", last_name: "Jansen", company_name: null, geboortejaar: 1971, heeft_bedrijf: false, created_by: ownerId },
+    { first_name: "Fatima", last_name: "El Amrani", company_name: "Amrani Consultancy B.V.", geboortejaar: 1979, heeft_bedrijf: true, created_by: plannerId },
+    { first_name: "Jan", last_name: "de Vries", company_name: "De Vries Holding B.V.", geboortejaar: 1968, heeft_bedrijf: true, created_by: ownerId },
   ];
   const ids: Record<string, string> = {};
   for (const c of clients) {

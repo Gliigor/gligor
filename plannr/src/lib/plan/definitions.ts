@@ -51,17 +51,49 @@ export const SECTIONS: SectionDef[] = [
   },
 ];
 
-export const STEP_KEYS = ["configuratie", "documenten", "prive", "zakelijk", "resultaten", "rapport"] as const;
+export const STEP_KEYS = ["documenten", "gezin", "woning", "inkomen", "uitgaven", "vermogen", "zakelijk", "resultaten", "rapport"] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
 
 export const STEPS: { key: StepKey; label: string; short: string }[] = [
-  { key: "configuratie", label: "Configuratie", short: "Config" },
   { key: "documenten", label: "Documenten", short: "Docs" },
-  { key: "prive", label: "Privé", short: "Privé" },
+  { key: "gezin", label: "Gezin", short: "Gezin" },
+  { key: "woning", label: "Woning", short: "Woning" },
+  { key: "inkomen", label: "Inkomen", short: "Inkomen" },
+  { key: "uitgaven", label: "Uitgaven", short: "Uitgaven" },
+  { key: "vermogen", label: "Vermogen", short: "Vermogen" },
   { key: "zakelijk", label: "Zakelijk", short: "Zakelijk" },
   { key: "resultaten", label: "Resultaten", short: "Result." },
-  { key: "rapport", label: "Rapport & export", short: "Rapport" },
+  { key: "rapport", label: "Rapport", short: "Rapport" },
 ];
+
+/** Older step URLs (before the step-by-step privé flow) and where they lead now. */
+export const LEGACY_STEPS: Record<string, StepKey> = { configuratie: "documenten", prive: "gezin" };
+
+/** The privé steps that each show part of the privé data. */
+export type PrivePart = "gezin" | "woning" | "inkomen" | "uitgaven" | "vermogen";
+export const PRIVE_PARTS: PrivePart[] = ["gezin", "woning", "inkomen", "uitgaven", "vermogen"];
+
+/** Which step a privé input field is filled in. */
+export const PRIVE_FIELD_STEP: Record<string, PrivePart> = {
+  geboortejaar: "gezin",
+  pensioenleeftijd: "gezin",
+  bruto_inkomen: "inkomen",
+  pensioen_per_jaar: "inkomen",
+  jaarlijkse_uitgaven: "uitgaven",
+};
+
+/** Which step a privé asset type is filled in (everything else: vermogen). */
+const ASSET_TYPE_STEP: Record<string, PrivePart> = {
+  eigen_woning: "woning",
+  hypotheek: "woning",
+  spaarrekening_eigen_woning: "woning",
+  lijfrente: "inkomen",
+};
+
+export function stepOfAssetType(def: { type: string; side: Side }): StepKey {
+  if (def.side === "zakelijk") return "zakelijk";
+  return ASSET_TYPE_STEP[def.type] ?? "vermogen";
+}
 
 export function isStepKey(value: string): value is StepKey {
   return (STEP_KEYS as readonly string[]).includes(value);

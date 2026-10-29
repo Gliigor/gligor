@@ -2,10 +2,11 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { FormError, Input, Label } from "@/components/ui/form";
+import { FormError } from "@/components/ui/form";
 import { SubmitButton } from "@/components/ui/submit-button";
 import type { ClientRow } from "@/lib/plan/types";
 import { deleteClientAction, updateClientAction, type FormState } from "../actions";
+import { ClientFields } from "../client-fields";
 
 export function ClientSettings({ client, canDelete }: { client: ClientRow; canDelete: boolean }) {
   const [open, setOpen] = useState(false);
@@ -29,21 +30,8 @@ export function ClientSettings({ client, canDelete }: { client: ClientRow; canDe
 
   return (
     <div className="w-full rounded-xl border border-ink-200 bg-white p-4 shadow-sm sm:max-w-md">
-      <form action={action} className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="first_name">Voornaam</Label>
-            <Input id="first_name" name="first_name" defaultValue={client.first_name} required />
-          </div>
-          <div>
-            <Label htmlFor="last_name">Achternaam</Label>
-            <Input id="last_name" name="last_name" defaultValue={client.last_name} required />
-          </div>
-        </div>
-        <div>
-          <Label htmlFor="company_name">Bedrijfsnaam (optioneel)</Label>
-          <Input id="company_name" name="company_name" defaultValue={client.company_name ?? ""} />
-        </div>
+      <form action={action} className="space-y-4">
+        <ClientFields initial={client} />
         <FormError message={state.error} />
         <div className="flex flex-wrap items-center justify-between gap-2">
           {canDelete ? (

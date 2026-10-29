@@ -11,7 +11,7 @@ import type { StepStatus } from "@/lib/plan/status";
  * planner can jump to any step at any time.
  */
 export function ProgressBar({ baseHref, steps }: { baseHref: string; steps: StepStatus[] }) {
-  const active = useSelectedLayoutSegment() ?? "configuratie";
+  const active = useSelectedLayoutSegment() ?? "documenten";
   const activeIndex = Math.max(0, steps.findIndex((s) => s.key === active));
   const activeStep = steps[activeIndex];
 

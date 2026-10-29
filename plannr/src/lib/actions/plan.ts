@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { ASSET_TYPES, getAssetType, isStepKey, REPORT_SECTION_KEYS } from "@/lib/plan/definitions";
+import { ASSET_TYPES, getAssetType, isStepKey, REPORT_SECTION_KEYS, SECTION_KEYS, type SectionKey } from "@/lib/plan/definitions";
 import { isAssetTypeRelevant } from "@/lib/plan/status";
 import { sanitizeAssetPatch, sanitizeKeyList, sanitizePlanInputs } from "@/lib/plan/sanitize";
 import {
@@ -13,6 +13,7 @@ import {
   normalizeAsset,
   parsePlanConfig,
   type AssetRow,
+  type ClientRow,
   type PlanConfig,
   type PlanStatus,
 } from "@/lib/plan/types";
@@ -55,7 +56,15 @@ export async function createPlanAction(clientId: string, _prev: { error?: string
   const title = String(formData.get("title") ?? "").trim().slice(0, 200);
   if (!title) return { error: "Geef het plan een titel." };
   const supabase = await createClient();
-  const config: PlanConfig = { ...DEFAULT_PLAN_CONFIG, reportSections: firmReportSections(member.firm.rapport_secties_standaard) };
+  const { data: client } = await supabase.from("clients").select("*").eq("id", clientId).maybeSingle<ClientRow>();
+  if (!client) return { error: "Cliënt niet gevonden." };
+  const hasCompany = client.heeft_bedrijf ?? Boolean(client.company_name);
+  const config: PlanConfig = {
+    ...DEFAULT_PLAN_CONFIG,
+    // A client with a company starts with a BV (balance, result, dividend); the Zakelijk step can switch to a sole trader.
+    sections: { ...DEFAULT_PLAN_CONFIG.sections, bv: hasCompany, balans: hasCompany, resultaat: hasCompany, dividend: hasCompany },
+    reportSections: firmReportSections(member.firm.rapport_secties_standaard),
+  };
   const { data, error } = await supabase
     .from("plans")
     .insert({
@@ -63,14 +72,23 @@ export async function createPlanAction(clientId: string, _prev: { error?: string
       client_id: clientId,
       title,
       config,
-      inputs: { uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: null, laterLeeftijd: null, laterPct: null } }, prive: {}, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
+      current_step: "documenten",
+      inputs: {
+        uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: null, laterLeeftijd: null, laterPct: null } },
+        prive: client.geboortejaar ? { geboortejaar: client.geboortejaar } : {},
+        partner: {},
+        kinderen: [],
+        schenkingen: [],
+        posten: [],
+        fromDocument: [],
+      },
       created_by: member.userId,
     })
     .select("id")
     .single();
   if (error || !data) return { error: "Het plan kon niet worden aangemaakt." };
   await ensureRequiredRows(supabase, member.firm.id, data.id, config);
-  redirect(`/clienten/${clientId}/plannen/${data.id}/configuratie`);
+  redirect(`/clienten/${clientId}/plannen/${data.id}/documenten`);
 }
 
 export async function updatePlanMeta(planId: string, patch: { title?: string; status?: PlanStatus }) {
@@ -108,6 +126,24 @@ export async function updatePlanConfig(planId: string, raw: unknown) {
   const incoming = parsePlanConfig(raw);
   // visitedSteps and hiddenInsights are changed by their own actions.
   const config: PlanConfig = { ...incoming, visitedSteps: current.visitedSteps, hiddenInsights: current.hiddenInsights };
+  const { error } = await supabase.from("plans").update({ config }).eq("id", planId);
+  if (error) return { ok: false };
+  await ensureRequiredRows(supabase, member.firm.id, planId, config);
+  await markInProgress(supabase, planId);
+  revalidatePlan();
+  return { ok: true };
+}
+
+/** Switches plan sections on or off from within a step (e.g. "Is er een eigen woning?"). */
+export async function setPlanSections(planId: string, patch: Partial<Record<SectionKey, boolean>>) {
+  const member = await requireMember();
+  const supabase = await createClient();
+  const { data: plan } = await supabase.from("plans").select("config").eq("id", planId).single();
+  if (!plan) return { ok: false };
+  const config = parsePlanConfig(plan.config);
+  for (const key of SECTION_KEYS) {
+    if (typeof patch[key] === "boolean") config.sections[key] = patch[key];
+  }
   const { error } = await supabase.from("plans").update({ config }).eq("id", planId);
   if (error) return { ok: false };
   await ensureRequiredRows(supabase, member.firm.id, planId, config);
@@ -216,7 +252,7 @@ export async function deleteAsset(assetId: string) {
 }
 
 export async function goToStep(clientId: string, planId: string, step: string) {
-  redirect(`/clienten/${clientId}/plannen/${planId}/${isStepKey(step) ? step : "configuratie"}`);
+  redirect(`/clienten/${clientId}/plannen/${planId}/${isStepKey(step) ? step : "documenten"}`);
 }
 
 /**
@@ -239,7 +275,7 @@ export async function createScenarioAction(planId: string): Promise<{ ok: false;
       title: `Scenario ${(count ?? 0) + 1}: ${String(base.title).replace(/^Scenario \d+: /, "")}`.slice(0, 200),
       scenario_van: root,
       status: "concept",
-      current_step: "prive",
+      current_step: "gezin",
       config: { ...parsePlanConfig(base.config), visitedSteps: parsePlanConfig(base.config).visitedSteps },
       inputs: sanitizePlanInputs(base.inputs),
       created_by: member.userId,
@@ -269,7 +305,7 @@ export async function createScenarioAction(planId: string): Promise<{ ok: false;
     );
   }
   revalidatePath(`/clienten/${base.client_id}`);
-  redirect(`/clienten/${base.client_id}/plannen/${plan.id}/prive`);
+  redirect(`/clienten/${base.client_id}/plannen/${plan.id}/gezin`);
 }
 
 /** Archives a plan (hidden from the plan list) or puts it back. */

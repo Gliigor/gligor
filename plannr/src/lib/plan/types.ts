@@ -61,6 +61,9 @@ export interface ClientRow {
   first_name: string;
   last_name: string;
   company_name: string | null;
+  /** Absent before the migration of 2026-10-29. */
+  geboortejaar?: number | null;
+  heeft_bedrijf?: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;

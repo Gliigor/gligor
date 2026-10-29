@@ -40,6 +40,7 @@ export default async function PlanLayout({ children, params }: LayoutProps<"/cli
     assets: bundle.assets,
     documentCount: bundle.documents.length,
     exportCount: bundle.exports.length,
+    hasCompany: bundle.client.heeft_bedrijf ?? Boolean(bundle.client.company_name),
   });
   const baseHref = `/clienten/${clientId}/plannen/${planId}`;
 

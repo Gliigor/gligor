@@ -83,8 +83,9 @@ export default async function ClientPage({ params }: PageProps<"/clienten/[clien
     <div className="space-y-8">
       <PageHeader
         back={{ href: "/clienten", label: "Cliënten" }}
-        eyebrow={client.company_name ?? "Cliënt"}
+        eyebrow={client.company_name ?? (client.heeft_bedrijf ? "Cliënt met bedrijf" : "Cliënt")}
         title={fullName(client)}
+        subtitle={client.geboortejaar ? `${new Date().getFullYear() - client.geboortejaar} jaar (geboren ${client.geboortejaar})` : undefined}
         actions={<ClientSettings client={client} canDelete={member.isOwner} />}
       />
 
