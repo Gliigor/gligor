@@ -229,7 +229,7 @@ export function toEngineInput(args: {
         .filter((a) => a.type === "bv_aandelen")
         .map((a) => ({
           name: typeof a.metadata.bv_naam === "string" ? a.metadata.bv_naam : "",
-          owner: ownerOf(a) === "partner" ? ("partner" as const) : ("client" as const),
+          owner: ownerOf(a),
           sharePercentage: meta(a, "aandelen_percentage"),
           equity: meta(a, "eigen_vermogen"),
           liquidAssets: meta(a, "liquide_middelen"),

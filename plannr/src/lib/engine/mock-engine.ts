@@ -156,8 +156,10 @@ export function mockCalculate(input: PlanInput): PlanResult {
   const anyZakelijk = s.bv || s.balans || s.resultaat || s.pensioenEigenBeheer || s.dividend;
   const companies = (anyZakelijk ? input.zakelijk.companies : []).map((c) => ({
     ...c,
-    owner: (c.owner === "partner" && hasPartner ? "partner" : "client") as Role,
+    owner: (hasPartner ? c.owner : "client") as Owner,
   }));
+  /** The person who draws the DGA salary: the shareholder, or the client for jointly held shares. */
+  const directorOf = (c: { owner: Owner }): Role => (c.owner === "partner" ? "partner" : "client");
   const pct = (c: { sharePercentage: number }) => c.sharePercentage / 100;
   // A werkmaatschappij held by a holding is not in box 2 itself: its value sits in the holding's
   // deelneming, and its profit (dividend to the holding is tax-free) adds to the group.
@@ -167,16 +169,14 @@ export function mockCalculate(input: PlanInput): PlanResult {
   const liquidAssets = s.balans ? companies.reduce((sum, c) => sum + c.liquidAssets, 0) : 0;
   const ownLiquid = s.balans ? direct.reduce((sum, c) => sum + c.liquidAssets * pct(c), 0) : 0;
   const pensionObligation = s.pensioenEigenBeheer ? companies.reduce((sum, c) => sum + c.pensionObligation, 0) : 0;
-  const dgaSalaryOf = (role: Role) => (s.bv ? companies.filter((c) => c.owner === role).reduce((sum, c) => sum + c.dgaSalary, 0) : 0);
-  const dividendOf = (role: Role) => (s.dividend ? direct.filter((c) => c.owner === role).reduce((sum, c) => sum + c.dividend * pct(c), 0) : 0);
+  const dgaSalaryOf = (role: Role) => (s.bv ? companies.filter((c) => directorOf(c) === role).reduce((sum, c) => sum + c.dgaSalary, 0) : 0);
+  const dividendOf = (role: Role) => (s.dividend ? direct.reduce((sum, c) => sum + c.dividend * pct(c) * share(c.owner, role), 0) : 0);
   const retainedOf = (role: Role) =>
     s.resultaat
-      ? companies
-          .filter((c) => c.owner === role)
-          .reduce(
-            (sum, c) => sum + Math.max(0, c.resultAfterTax - (s.dividend && !c.heldByHolding ? c.dividend : 0)) * pct(c),
-            0,
-          )
+      ? companies.reduce(
+          (sum, c) => sum + Math.max(0, c.resultAfterTax - (s.dividend && !c.heldByHolding ? c.dividend : 0)) * pct(c) * share(c.owner, role),
+          0,
+        )
       : 0;
 
   // Eenmanszaken: taxable profit in box 1 of the owner while the business runs.

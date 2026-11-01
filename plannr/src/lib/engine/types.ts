@@ -147,7 +147,8 @@ export interface PlanInput {
   zakelijk: {
     companies: {
       name: string;
-      owner: "client" | "partner";
+      /** Who holds the shares; "joint": half each (the DGA salary stays with the client). */
+      owner: Owner;
       sharePercentage: number;
       equity: number;
       liquidAssets: number;

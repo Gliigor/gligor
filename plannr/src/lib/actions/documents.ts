@@ -65,7 +65,8 @@ export async function registerDocument(
     const { data: blob, error: downloadError } = await supabase.storage.from("documents").download(input.path);
     if (downloadError || !blob) throw new Error("download");
     const reader = getAiReaderStatus();
-    const ai = member.firm.ai_extraction_enabled && reader.configured ? reader.config : null;
+    // The AI reader is on for every firm as soon as it is configured on the server.
+    const ai = reader.configured ? reader.config : null;
     const extracted = await extractDocument(new File([blob], fileName, { type: blob.type }), input.type, ai);
     const changes = planExtractionChanges(extracted, bundle.config, bundle.inputs, bundle.assets);
 

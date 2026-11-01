@@ -7,7 +7,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { ChevronRight } from "@/components/ui/icons";
 import { formatDateTime } from "@/lib/format";
 import { EU_REGIONS, getAiReaderStatus } from "@/lib/extraction/ai/config";
-import { AiConnectionTest, AiReaderSwitch, FirmForm, FirmReportSectionsForm, FirmReturnsForm, InviteForm, RevokeButton } from "./settings-forms";
+import { AiConnectionTest, FirmForm, FirmReportSectionsForm, FirmReturnsForm, InviteForm, RevokeButton } from "./settings-forms";
 import { firmReportSections, parseReturns } from "@/lib/plan/types";
 
 export const metadata = { title: "Instellingen" };
@@ -69,23 +69,20 @@ export default async function SettingsPage() {
           description="Laat een geüploade IB-aangifte of jaarrekening automatisch overnemen in het plan."
         />
         <div className="space-y-4 p-4 sm:p-5">
-          <AiReaderSwitch
-            enabled={member.firm.ai_extraction_enabled}
-            available={reader.configured}
-            unavailableReason={reader.configured ? undefined : reader.reason}
-          />
+          <p className="text-sm text-ink-700">
+            {reader.configured
+              ? "Staat aan voor alle planners: een geüploade IB-aangifte of jaarrekening wordt automatisch uitgelezen."
+              : `Nog niet beschikbaar. ${reader.reason}`}
+          </p>
           <ul className="space-y-1.5 border-t border-ink-100 pt-4 text-sm text-ink-600">
             <li>Het document wordt gelezen door Claude (Anthropic) via Amazon Bedrock, binnenkomend in {regionName} en verwerkt binnen het EU-profiel van AWS. Het gaat niet naar de VS of naar Anthropic.</li>
             <li>Alleen het bestand wordt verstuurd, zonder naam of andere gegevens uit Plannr. Er wordt niet om een BSN of adres gevraagd.</li>
             <li>Volgens de voorwaarden van Amazon Bedrock wordt de inhoud niet bewaard en niet gebruikt om modellen te trainen.</li>
             <li>De AI neemt alleen bedragen over, met het paginanummer erbij. Alle berekeningen doet Plannr zelf. Controleer de ingevulde waarden altijd.</li>
             <li>Plannr telt de overgenomen bedragen na tegen de totalen in het document. Klopt dat niet, dan leest een sterker model het document nog een keer; blijft er een verschil, dan zie je dat bij het document. Maximaal 5 documenten per soort per plan.</li>
-            <li>Zet je dit aan, vermeld AWS dan als subverwerker in je verwerkersovereenkomst en privacyverklaring.</li>
+            <li>Vermeld AWS als subverwerker in je verwerkersovereenkomst en privacyverklaring.</li>
           </ul>
           {reader.configured ? <AiConnectionTest /> : null}
-          {member.firm.ai_extraction_changed_at ? (
-            <p className="text-xs text-ink-400">Laatst gewijzigd op {formatDateTime(member.firm.ai_extraction_changed_at)}</p>
-          ) : null}
         </div>
       </Card>
 

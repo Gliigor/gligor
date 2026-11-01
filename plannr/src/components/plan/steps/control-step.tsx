@@ -138,18 +138,21 @@ export function ControlStep({
   }
 
   // --- rendering -----------------------------------------------------------------
-  const ownerSelect = (row: AssetRow, bv = false, label?: string) =>
+  /** Who owns a row, by name: the client, the partner or both ("Samen"). */
+  const ownerName = (value: string, fallback: string) =>
+    value === "client" ? heading.clientName : value === "partner" ? inputs.partner.naam || "Partner" : fallback;
+  const ownerSelect = (row: AssetRow, opts: { label?: string; joint?: boolean } = {}) =>
     config.sections.partner ? (
-      <FieldShell id={domId(`asset.${row.id}.eigenaar`)} label={label ?? (bv ? "Aandelen van" : "Eigenaar")}>
+      <FieldShell id={domId(`asset.${row.id}.eigenaar`)} label={opts.label ?? "Eigenaar"}>
         <select
           id={domId(`asset.${row.id}.eigenaar`)}
           className={inputClass}
           value={ownerOf(row)}
           onChange={(e) => patchAsset(row.id, { meta: ["eigenaar", e.target.value] })}
         >
-          {OWNER_OPTIONS.filter((o) => !bv || o.value !== "joint").map((o) => (
+          {OWNER_OPTIONS.filter((o) => opts.joint !== false || o.value !== "joint").map((o) => (
             <option key={o.value} value={o.value}>
-              {o.value === "partner" && inputs.partner.naam ? inputs.partner.naam : o.label}
+              {ownerName(o.value, o.label)}
             </option>
           ))}
         </select>
@@ -240,7 +243,7 @@ export function ControlStep({
                 .filter((f) => (f.section === section || f.section === "algemeen") && isFieldVisible(f, config))
                 .map((f) => metaField(row, f))}
               {def.side === "prive" && def.type !== "hypotheek" ? ownerSelect(row) : null}
-              {def.type === "eenmanszaak" ? ownerSelect(row, true, "Ondernemer") : null}
+              {def.type === "eenmanszaak" ? ownerSelect(row, { label: "Ondernemer", joint: false }) : null}
             </div>
             {def.multiple ? (
               <div className="mt-2 flex justify-end">
@@ -341,8 +344,6 @@ export function ControlStep({
     const derived: Record<string, number | null> = { eigen_vermogen: d.equity, resultaat_na_belasting: d.resultAfterTax };
     const name = typeof row.metadata.bv_naam === "string" && row.metadata.bv_naam ? row.metadata.bv_naam : def.label;
     const viaHolding = row.metadata.gehouden_door === "holding";
-    const equity = d.equity ?? (typeof row.metadata.eigen_vermogen === "number" ? row.metadata.eigen_vermogen : null);
-    const pct = typeof row.metadata.aandelen_percentage === "number" ? row.metadata.aandelen_percentage : null;
     return (
       <Card key={row.id}>
         <CardHeader
@@ -361,7 +362,7 @@ export function ControlStep({
           }
         />
         <div className="space-y-5 p-4 sm:p-5">
-          {config.sections.partner ? <div className="max-w-xs">{ownerSelect(row, true)}</div> : null}
+          {config.sections.partner ? <div className="max-w-xs">{ownerSelect(row, { label: "Aandelen van" })}</div> : null}
           {config.sections.balans || config.sections.resultaat ? (
             <label className="flex items-start gap-2.5 text-sm text-ink-700">
               <input
@@ -399,11 +400,6 @@ export function ControlStep({
               </div>
             );
           })}
-          {equity !== null && pct !== null && config.sections.balans && !viaHolding ? (
-            <p className="border-l-2 border-gold-500 bg-ink-50 px-3 py-2 text-sm text-ink-700">
-              Indicatieve waarde aandelen: <span className="font-semibold tabular">{formatEuro((equity * pct) / 100)}</span>
-            </p>
-          ) : null}
         </div>
       </Card>
     );

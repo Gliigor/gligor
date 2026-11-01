@@ -50,7 +50,6 @@ export function DocumentsStep({
   planId,
   documents,
   aiReader,
-  isOwner,
   priveEnabled,
   zakelijkEnabled,
 }: {
@@ -58,7 +57,6 @@ export function DocumentsStep({
   planId: string;
   documents: DocumentRow[];
   aiReader: boolean;
-  isOwner: boolean;
   priveEnabled: boolean;
   zakelijkEnabled: boolean;
 }) {
@@ -81,15 +79,8 @@ export function DocumentsStep({
           </>
         ) : (
           <>
-            <span className="font-semibold">Automatisch uitlezen staat uit.</span> Er worden voorbeeldwaarden ingevuld, zodat je
-            de werking kunt zien; die komen niet uit het document.{" "}
-            {isOwner ? (
-              <a href="/instellingen" className="underline decoration-gold-500 underline-offset-4">
-                Aanzetten bij Instellingen
-              </a>
-            ) : (
-              "De eigenaar van het kantoor kan het aanzetten bij Instellingen."
-            )}
+            <span className="font-semibold">Automatisch uitlezen is op deze server nog niet ingesteld.</span> Er worden
+            voorbeeldwaarden ingevuld, zodat je de werking kunt zien; die komen niet uit het document.
           </>
         )}
       </div>
