@@ -6,6 +6,7 @@ import "server-only";
 
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk";
 import type { AiReaderConfig } from "./config";
+import { effortFor } from "./eu";
 
 export interface PingResult {
   role: string;
@@ -43,7 +44,8 @@ export async function pingBedrock(config: AiReaderConfig): Promise<PingResult[]>
   return Promise.all(
     models.map(async ({ role, model }) => {
       try {
-        await client.messages.create({ model, max_tokens: 5, messages: [{ role: "user", content: "Antwoord alleen met: OK" }] });
+        // Same request shape as a real reading (effort where the model supports it).
+        await client.messages.create({ model, max_tokens: 16, ...effortFor(model, "low"), messages: [{ role: "user", content: "Antwoord alleen met: OK" }] });
         return { role, model, ok: true, message: null };
       } catch (error) {
         return { role, model, ok: false, message: explainBedrockError(error) };

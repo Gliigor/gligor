@@ -15,6 +15,7 @@ import AnthropicBedrock from "@anthropic-ai/bedrock-sdk";
 import type { DocumentType } from "@/lib/plan/types";
 import type { ExtractedData } from "../types";
 import type { AiReaderConfig } from "./config";
+import { effortFor } from "./eu";
 import { mapIbAangifte, mapJaarrekening } from "./map";
 import { checkIbAangifte, checkJaarrekening } from "./checks";
 import { ibAangifteSchema, jaarrekeningSchema, type IbAangifteExtraction, type JaarrekeningExtraction } from "./schema";
@@ -87,7 +88,7 @@ async function readOnce(
       system: SYSTEM,
       tools: [toolFor(type)],
       tool_choice: { type: "auto" },
-      output_config: { effort: "high" },
+      ...effortFor(m, "high"),
       messages: [{ role: "user", content: [source, { type: "text", text: TASK[type] }] }],
     });
 

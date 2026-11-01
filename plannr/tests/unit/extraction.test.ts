@@ -4,7 +4,7 @@ import { ibAangifteSchema, jaarrekeningSchema, type IbAangifteExtraction } from 
 import { mapIbAangifte, mapJaarrekening } from "@/lib/extraction/ai/map";
 import { checkIbAangifte, checkJaarrekening } from "@/lib/extraction/ai/checks";
 import { planExtractionChanges } from "@/lib/extraction/apply";
-import { EU_REGIONS, staysInEu } from "@/lib/extraction/ai/eu";
+import { EU_REGIONS, staysInEu, supportsEffort } from "@/lib/extraction/ai/eu";
 import { DEFAULT_PLAN_CONFIG, parsePlanInputs, type PlanConfig } from "@/lib/plan/types";
 
 const a = (value: number | null, page: number | null = 2) => ({ value, page });
@@ -219,4 +219,13 @@ test("checks: jaarrekening balance and result must add up", () => {
   const issues = checkJaarrekening({ ...base, balanceTotalLiabilities: a(1_250_000), cash: a(1_310_000), netResult: a(8_000) });
   assert.equal(issues.length, 3, issues.join(" | "));
   assert.deepEqual(checkJaarrekening({ ...base, balanceTotalAssets: a(null), resultBeforeTax: a(null) }), [], "missing totals: skip");
+});
+
+test("effort is only sent to models that accept it", () => {
+  for (const id of ["eu.anthropic.claude-sonnet-5-5", "eu.anthropic.claude-opus-5-5", "anthropic.claude-opus-4-8", "eu.anthropic.claude-sonnet-4-6", "eu.anthropic.claude-opus-4-5-20251101-v1:0"]) {
+    assert.equal(supportsEffort(id), true, id);
+  }
+  for (const id of ["eu.anthropic.claude-haiku-4-5-20251001-v1:0", "eu.anthropic.claude-sonnet-4-5-20250929-v1:0", "eu.anthropic.claude-opus-4-20250514-v1:0", "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"]) {
+    assert.equal(supportsEffort(id), false, id);
+  }
 });
