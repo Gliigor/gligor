@@ -9,6 +9,7 @@ import { z } from "zod";
 import type Anthropic from "@anthropic-ai/sdk";
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk";
 import type { AiDesignerConfig } from "@/lib/extraction/ai/config";
+import { effortFor } from "@/lib/extraction/ai/eu";
 import { catalogue, designProposalSchema, parseDesignProposal, type ReportDesign } from "./designs";
 import type { HouseStyle } from "./types";
 
@@ -80,7 +81,7 @@ export async function designWithBedrock(config: AiDesignerConfig, input: DesignI
     system: SYSTEM,
     tools: [tool()],
     tool_choice: { type: "auto" },
-    output_config: { effort: "medium" },
+    ...effortFor(config.model, "medium"),
     messages: [{ role: "user", content }],
   });
   if (res.stop_reason === "refusal") throw new DesignError("refusal");
