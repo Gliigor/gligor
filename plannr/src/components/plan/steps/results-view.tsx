@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   LabelList,
   Line,
   LineChart,
@@ -36,8 +35,8 @@ const AXIS = "#98938A";
 // orange and magenta are below 3:1 on white, so the card also offers a table view).
 const PARTS = [
   { key: "woning", label: "Eigen woning (netto)", color: "#2B5FA3" },
-  { key: "box3", label: "Box 3", color: "#C9871A" },
-  { key: "bv", label: "BV", color: "#1D9B7C" },
+  { key: "box3", label: "Sparen en beleggen (box 3)", color: "#C9871A" },
+  { key: "bv", label: "BV (na box 2-belasting)", color: "#1D9B7C" },
   { key: "polissen", label: "Polissen en leningen", color: "#6250D6" },
   { key: "onderneming", label: "Eenmanszaak", color: "#E87BA4" },
 ] as const;
@@ -118,6 +117,8 @@ export function ResultsView({
 
   return (
     <div className="space-y-8">
+      <LifeSummary result={result} />
+
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-ink-200 bg-ink-200 lg:grid-cols-[1.35fr_1fr_1fr_1fr]">
         <div className="col-span-2 bg-night px-5 py-5 text-ink-50 sm:px-6 sm:py-6 lg:col-span-1">
           <div className="eyebrow !text-gold-500">Totaal netto vermogen</div>
@@ -159,72 +160,75 @@ export function ResultsView({
 
       <div role="tabpanel" key={tab} className="animate-[tab-in_200ms_ease-out]">
         {tab === "overzicht" ? (
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-w-0 space-y-6">
-              {result.warnings.length > 0 ? (
-                <div className="space-y-1 border-l-2 border-warn-600 bg-warn-50 px-4 py-3 text-sm text-warn-600">
-                  {result.warnings.map((m) => (
-                    <p key={m} className="flex items-start gap-2">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {m}
-                    </p>
-                  ))}
-                </div>
-              ) : null}
-              <ProjectionCard result={result} />
-            </div>
-            <div className="space-y-6">
-              {missing.length > 0 ? (
-                <div className="border border-warn-100 bg-warn-50 px-5 py-4">
-                  <h3 className="text-sm font-semibold text-warn-600">Nog aan te vullen · {missing.length}</h3>
-                  <p className="mt-1 text-xs text-ink-600">Aangezet, maar nog leeg. Lege velden tellen als € 0.</p>
-                  <ul className="mt-3 divide-y divide-warn-100 text-[13px]">
-                    {missing.slice(0, 8).map((m) => (
-                      <li key={m.id}>
-                        <Link href={m.href} className="flex items-baseline justify-between gap-3 py-2 text-ink-800 hover:text-ink-900">
-                          <span className="min-w-0">{m.label}</span>
-                          <span className="shrink-0 text-xs text-ink-500">{m.stepLabel} →</span>
-                        </Link>
-                      </li>
+          <div className="space-y-6">
+            <WealthBar result={result} />
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-w-0 space-y-6">
+                {result.warnings.length > 0 ? (
+                  <div className="space-y-1 border-l-2 border-warn-600 bg-warn-50 px-4 py-3 text-sm text-warn-600">
+                    {result.warnings.map((m) => (
+                      <p key={m} className="flex items-start gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {m}
+                      </p>
                     ))}
-                  </ul>
-                  {missing.length > 8 ? <p className="pt-2 text-xs text-ink-500">en {missing.length - 8} meer</p> : null}
-                </div>
-              ) : null}
-              <Card>
-                <CardHeader title="Aandachtspunten" />
-                {insights.length === 0 ? (
-                  <p className="px-5 py-5 text-sm text-ink-500">Geen bijzondere aandachtspunten.</p>
-                ) : (
-                  <ul className="divide-y divide-ink-100 px-5">
-                    {shownInsights.map((i) => (
-                      <li key={i.id} className="py-3">
-                        <div className="flex items-baseline gap-3 text-[13.5px]">
-                          <span className="h-[7px] w-[7px] shrink-0 -translate-y-px rounded-full" style={{ background: TONE_DOT[i.tone] }} aria-hidden="true" />
-                          <span className="flex-1 font-medium text-ink-900">{i.title}</span>
-                          {i.amount ? <span className="tabular text-ink-600">{formatEuro(i.amount.value, { whole: true })}</span> : null}
-                        </div>
-                        {allInsights ? <p className="mt-1 pl-5 text-[13px] text-ink-600">{i.body}</p> : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {insights.length > 3 || (insights.length > 0 && !allInsights) ? (
-                  <button
-                    type="button"
-                    onClick={() => setAllInsights((x) => !x)}
-                    className="w-full border-t border-ink-100 px-5 py-3 text-left text-[13px] font-medium text-ink-700 hover:text-ink-900"
-                  >
-                    {allInsights ? "Minder tonen" : insights.length > 3 ? `Alle ${insights.length} aandachtspunten met uitleg →` : "Uitleg tonen →"}
-                  </button>
+                  </div>
                 ) : null}
-              </Card>
+                <YearFlowsCard result={result} />
+              </div>
+              <div className="space-y-6">
+                {missing.length > 0 ? (
+                  <div className="border border-warn-100 bg-warn-50 px-5 py-4">
+                    <h3 className="text-sm font-semibold text-warn-600">Nog aan te vullen · {missing.length}</h3>
+                    <p className="mt-1 text-xs text-ink-600">Aangezet, maar nog leeg. Lege velden tellen als € 0.</p>
+                    <ul className="mt-3 divide-y divide-warn-100 text-[13px]">
+                      {missing.slice(0, 8).map((m) => (
+                        <li key={m.id}>
+                          <Link href={m.href} className="flex items-baseline justify-between gap-3 py-2 text-ink-800 hover:text-ink-900">
+                            <span className="min-w-0">{m.label}</span>
+                            <span className="shrink-0 text-xs text-ink-500">{m.stepLabel} →</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    {missing.length > 8 ? <p className="pt-2 text-xs text-ink-500">en {missing.length - 8} meer</p> : null}
+                  </div>
+                ) : null}
+                <Card>
+                  <CardHeader title="Aandachtspunten" />
+                  {insights.length === 0 ? (
+                    <p className="px-5 py-5 text-sm text-ink-500">Geen bijzondere aandachtspunten.</p>
+                  ) : (
+                    <ul className="divide-y divide-ink-100 px-5">
+                      {shownInsights.map((i) => (
+                        <li key={i.id} className="py-3">
+                          <div className="flex items-baseline gap-3 text-[13.5px]">
+                            <span className="h-[7px] w-[7px] shrink-0 -translate-y-px rounded-full" style={{ background: TONE_DOT[i.tone] }} aria-hidden="true" />
+                            <span className="flex-1 font-medium text-ink-900">{i.title}</span>
+                            {i.amount ? <span className="tabular text-ink-600">{formatEuro(i.amount.value, { whole: true })}</span> : null}
+                          </div>
+                          {allInsights ? <p className="mt-1 pl-5 text-[13px] text-ink-600">{i.body}</p> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {insights.length > 3 || (insights.length > 0 && !allInsights) ? (
+                    <button
+                      type="button"
+                      onClick={() => setAllInsights((x) => !x)}
+                      className="w-full border-t border-ink-100 px-5 py-3 text-left text-[13px] font-medium text-ink-700 hover:text-ink-900"
+                    >
+                      {allInsights ? "Minder tonen" : insights.length > 3 ? `Alle ${insights.length} aandachtspunten met uitleg →` : "Uitleg tonen →"}
+                    </button>
+                  ) : null}
+                </Card>
+              </div>
             </div>
           </div>
         ) : null}
 
         {tab === "vermogen" ? (
           <div className="space-y-6">
-            <CompositionCard result={result} />
+            <ProjectionCard result={result} />
             <BarCard title={zakelijk ? "Vermogen privé vs. zakelijk" : "Vermogen per onderdeel"} description="Netto waarden vandaag" data={wealthBars} />
           </div>
         ) : null}
@@ -590,116 +594,164 @@ function CashFlowCard({ result }: { result: PlanResult }) {
 }
 
 /** What the total is made of over time (neutral scenario), with how much each part grows. */
-function CompositionCard({ result }: { result: PlanResult }) {
-  const [showTable, setShowTable] = useState(false);
-  const points = result.projection.points;
-  const parts = PARTS.filter((part) => points.some((p) => Math.abs(p.components[part.key]) > 0.5));
-  const data = points.map((p) => ({ year: p.year, totaal: p.neutraal, ...p.components }));
-  const first = points[0];
-  const last = points[points.length - 1];
-  const retYear = result.retirement.retirementYear;
-  const atRet = retYear !== null ? points.find((p) => p.year === retYear) : undefined;
-  if (!first || !last || parts.length === 0) return null;
 
+const nlInt = new Intl.NumberFormat("nl-NL");
+const years = (n: number) => `${nlInt.format(n)} jaar`;
+
+/** "U bent nu 64 jaar, uw partner 61 jaar", with the years until stopping work and until AOW per person. */
+function LifeSummary({ result }: { result: PlanResult }) {
+  const ref = result.referenceYear;
+  const persons = result.household.persons.filter((p) => p.birthYear);
+  if (persons.length === 0) return null;
+  const age = (p: (typeof persons)[number]) => ref - (p.birthYear ?? ref);
+  const [client, partner] = persons;
+  const until = (year: number | null, done: string, todo: (n: number) => string) => {
+    if (year === null) return "—";
+    const n = year - ref;
+    return n <= 0 ? done : todo(n);
+  };
+  return (
+    <div className="space-y-5">
+      <p className="font-display text-[1.7rem] leading-snug text-ink-900 sm:text-[2rem]">
+        {client.name} is nu {age(client)} jaar{partner ? `, ${partner.name} ${age(partner)} jaar` : ""}.
+      </p>
+      <div className={cn("grid gap-px overflow-hidden rounded-sm border border-ink-200 bg-ink-200", persons.length > 1 ? "sm:grid-cols-2" : "")}>
+        {persons.map((p) => (
+          <div key={p.role} className="grid grid-cols-2 gap-4 bg-white px-5 py-4">
+            <div>
+              <div className="eyebrow">Stoppen met werken · {p.name}</div>
+              <div className="mt-1.5 font-display text-[1.5rem] font-semibold text-ink-900">
+                {until(p.retirementYear, "Gestopt", (n) => `Nog ${years(n)}`)}
+              </div>
+              <div className="text-[13px] text-ink-500">
+                {p.retirementYear ? `in ${p.retirementYear}, op ${p.retirementYear - (p.birthYear ?? 0)} jaar` : "stopleeftijd niet ingevuld"}
+              </div>
+            </div>
+            <div>
+              <div className="eyebrow">AOW · {p.name}</div>
+              <div className="mt-1.5 font-display text-[1.5rem] font-semibold text-ink-900">{until(p.aowYear, "Ontvangt AOW", (n) => `Nog ${years(n)}`)}</div>
+              <div className="text-[13px] text-ink-500">{p.aowYear ? `vanaf ${p.aowYear}, op ${p.aowAgeLabel}` : "—"}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Today's net wealth as one horizontal bar, split by kind, with amounts and shares underneath. */
+function WealthBar({ result }: { result: PlanResult }) {
+  const c = result.projection.points[0]?.components;
+  if (!c) return null;
+  const parts = PARTS.map((p) => ({ ...p, value: c[p.key] }));
+  const positive = parts.filter((p) => p.value > 0.5);
+  const negative = parts.filter((p) => p.value < -0.5);
+  const total = positive.reduce((x, p) => x + p.value, 0);
+  if (total <= 0) return null;
+  return (
+    <Card>
+      <CardHeader title="Uw vermogen nu" description={`Netto, na schulden${result.wealth.zakelijk.included ? " en na de box 2-belasting die bij uitkeren uit de BV nog betaald moet worden" : ""}.`} />
+      <div className="space-y-5 p-5 sm:p-6">
+        <div className="flex items-baseline justify-between gap-4">
+          <span className="font-display text-[2rem] font-semibold text-ink-900 tabular">{formatEuro(result.wealth.total, { whole: true })}</span>
+        </div>
+        <div className="flex h-10 w-full overflow-hidden rounded-sm" role="img" aria-label="Verdeling van het vermogen">
+          {positive.map((p, i) => (
+            <div
+              key={p.key}
+              title={`${p.label}: ${formatEuro(p.value, { whole: true })}`}
+              style={{ width: `${(p.value / total) * 100}%`, background: p.color, marginLeft: i === 0 ? 0 : 2 }}
+            />
+          ))}
+        </div>
+        <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-5">
+          {positive.map((p) => (
+            <li key={p.key} className="flex items-start gap-2.5">
+              <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: p.color }} aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="block text-[13px] text-ink-600">{p.label}</span>
+                <span className="block whitespace-nowrap font-semibold text-ink-900 tabular">{formatEuro(p.value, { whole: true })}</span>
+                <span className="block text-[13px] text-ink-500 tabular">{formatPercent(p.value / total)}</span>
+              </span>
+            </li>
+          ))}
+          {negative.map((p) => (
+            <li key={p.key} className="flex items-start gap-2.5">
+              <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-sm border border-danger-600" aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="block text-[13px] text-ink-600">{p.label}</span>
+                <span className="block font-semibold text-danger-600 tabular">{formatEuro(p.value, { whole: true })}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Card>
+  );
+}
+
+const FLOW_IN = [
+  { key: "work", label: "Werk en onderneming", color: "#2B5FA3" },
+  { key: "dividend", label: "Dividend", color: "#1D9B7C" },
+  { key: "pension", label: "Pensioen", color: "#C9871A" },
+  { key: "aow", label: "AOW", color: "#6250D6" },
+  { key: "other", label: "Lijfrente en overig", color: "#E87BA4" },
+] as const;
+const FLOW_OUT = [
+  { key: "tax", label: "Belasting", color: "#98938A" },
+  { key: "spending", label: "Uitgaven", color: "#C8C0B0" },
+] as const;
+
+/** Per year: income stacked above zero, tax and spending below, and the balance as a line (today's money). */
+function YearFlowsCard({ result }: { result: PlanResult }) {
+  const points = result.projection.points;
+  const inKeys = FLOW_IN.filter((k) => points.some((p) => Math.abs(p.flows[k.key]) > 0.5));
+  const data = points.map((p) => ({
+    year: p.year,
+    ...Object.fromEntries(inKeys.map((k) => [k.key, p.flows[k.key]])),
+    tax: -p.flows.tax,
+    spending: -p.flows.spending,
+    balance: p.flows.balance,
+  }));
+  const label = (key: string) =>
+    key === "balance" ? "Over / tekort" : ([...FLOW_IN, ...FLOW_OUT].find((k) => k.key === key)?.label ?? key);
   return (
     <Card>
       <CardHeader
-        title="Samenstelling van het vermogen"
-        description={`Neutraal scenario, nominaal, ${first.year}–${last.year}. De lijn is het totaal.`}
-        action={
-          <button type="button" onClick={() => setShowTable((x) => !x)} className="text-sm font-semibold text-ink-900 underline decoration-gold-500 underline-offset-4 hover:decoration-2">
-            {showTable ? "Toon grafiek" : "Toon als tabel"}
-          </button>
-        }
+        title="Inkomsten en uitgaven per jaar"
+        description="In geld van nu. Boven de nul wat binnenkomt, onder de nul belasting en uitgaven; de lijn is wat er overblijft of tekortkomt."
       />
-      {showTable ? null : (
-        <div className="px-2 pb-1 pt-4 sm:px-4">
-          <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 px-2 text-xs text-ink-600">
-            {parts.map((part) => (
-              <li key={part.key} className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: part.color }} />
-                {part.label}
-              </li>
-            ))}
-            <li className="inline-flex items-center gap-1.5">
-              <span className="h-0.5 w-4 rounded bg-ink-900" />
-              Totaal
+      <div className="px-2 pb-3 pt-4 sm:px-4">
+        <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 px-2 text-xs text-ink-600">
+          {[...inKeys, ...FLOW_OUT].map((k) => (
+            <li key={k.key} className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: k.color }} />
+              {k.label}
             </li>
-          </ul>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={data} margin={{ top: 8, right: 24, bottom: 0, left: 0 }} stackOffset="sign">
-              <CartesianGrid vertical={false} stroke={GRID} />
-              <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: GRID }} tick={{ fill: AXIS, fontSize: 12 }} minTickGap={24} />
-              <YAxis tickFormatter={(v) => formatEuroCompact(Number(v))} tickLine={false} axisLine={false} tick={{ fill: AXIS, fontSize: 12 }} width={72} />
-              <Tooltip
-                formatter={(v, name) => [
-                  formatEuro(Number(v), { whole: true }),
-                  name === "totaal" ? "Totaal" : (PARTS.find((x) => x.key === name)?.label ?? String(name)),
-                ]}
-                labelFormatter={(year) => yearLabel(result, year)}
-                contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
-              />
-              {eventMarkers(result)}
-              {parts.map((part) => (
-                <Area
-                  key={part.key}
-                  type="monotone"
-                  dataKey={part.key}
-                  stackId="v"
-                  stroke="#ffffff"
-                  strokeWidth={2}
-                  fill={part.color}
-                  fillOpacity={0.9}
-                  isAnimationActive={false}
-                />
-              ))}
-              <Area type="monotone" dataKey="totaal" stroke="#1f2328" strokeWidth={2} fill="none" isAnimationActive={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-sm tabular">
-          <thead>
-            <tr className="border-y border-ink-100 bg-ink-50 text-left text-xs text-ink-500">
-              <th className="px-4 py-2 font-medium sm:px-5">Onderdeel</th>
-              <th className="px-4 py-2 text-right font-medium">{first.year}</th>
-              {atRet ? <th className="px-4 py-2 text-right font-medium">Bij pensioen ({atRet.year})</th> : null}
-              <th className="px-4 py-2 text-right font-medium">{last.year}</th>
-              <th className="px-4 py-2 text-right font-medium sm:px-5">Verandering</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-ink-100">
-            {parts.map((part) => {
-              const change = last.components[part.key] - first.components[part.key];
-              return (
-                <tr key={part.key}>
-                  <td className="px-4 py-2 sm:px-5">
-                    <span className="mr-2 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: part.color }} />
-                    {part.label}
-                  </td>
-                  <td className="px-4 py-2 text-right">{formatEuro(first.components[part.key], { whole: true })}</td>
-                  {atRet ? <td className="px-4 py-2 text-right">{formatEuro(atRet.components[part.key], { whole: true })}</td> : null}
-                  <td className="px-4 py-2 text-right">{formatEuro(last.components[part.key], { whole: true })}</td>
-                  <td className={`px-4 py-2 text-right sm:px-5 ${change < 0 ? "text-danger-600" : ""}`}>
-                    {change >= 0 ? "+" : ""}
-                    {formatEuro(change, { whole: true })}
-                  </td>
-                </tr>
-              );
-            })}
-            <tr className="border-t border-ink-900 font-semibold">
-              <td className="px-4 py-2 sm:px-5">Totaal</td>
-              <td className="px-4 py-2 text-right">{formatEuro(first.neutraal, { whole: true })}</td>
-              {atRet ? <td className="px-4 py-2 text-right">{formatEuro(atRet.neutraal, { whole: true })}</td> : null}
-              <td className="px-4 py-2 text-right">{formatEuro(last.neutraal, { whole: true })}</td>
-              <td className="px-4 py-2 text-right sm:px-5">
-                {last.neutraal - first.neutraal >= 0 ? "+" : ""}
-                {formatEuro(last.neutraal - first.neutraal, { whole: true })}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+          ))}
+          <li className="inline-flex items-center gap-1.5">
+            <span className="h-0.5 w-4 rounded bg-ink-900" />
+            Over / tekort
+          </li>
+        </ul>
+        <ResponsiveContainer width="100%" height={320}>
+          <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} stackOffset="sign" barCategoryGap={2}>
+            <CartesianGrid vertical={false} stroke={GRID} />
+            <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: GRID }} tick={{ fill: AXIS, fontSize: 12 }} minTickGap={24} />
+            <YAxis tickFormatter={(v) => formatEuroCompact(Number(v))} tickLine={false} axisLine={false} tick={{ fill: AXIS, fontSize: 12 }} width={72} />
+            <ReferenceLine y={0} stroke="#33363c" />
+            {eventMarkers(result)}
+            <Tooltip
+              formatter={(v, name) => [formatEuro(Math.abs(Number(v)), { whole: true }), label(String(name))]}
+              labelFormatter={(year) => yearLabel(result, year)}
+              contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
+            />
+            {[...inKeys, ...FLOW_OUT].map((k) => (
+              <Bar key={k.key} dataKey={k.key} stackId="flows" fill={k.color} isAnimationActive={false} />
+            ))}
+            <Line type="monotone" dataKey="balance" stroke="#14171c" strokeWidth={2} dot={false} isAnimationActive={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
     </Card>
   );

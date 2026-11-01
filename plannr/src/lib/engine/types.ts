@@ -195,6 +195,20 @@ export interface ProjectionPoint {
   partnerAge: number | null;
   /** Neutral scenario, nominal: what the total is made of. */
   components: { woning: number; box3: number; polissen: number; bv: number; onderneming: number };
+  /**
+   * The household's money this year, in today's money: income by kind, taxes and spending.
+   * balance = income − tax − spending; a negative balance is paid from wealth.
+   */
+  flows: {
+    work: number;
+    aow: number;
+    pension: number;
+    other: number;
+    dividend: number;
+    tax: number;
+    spending: number;
+    balance: number;
+  };
 }
 
 export interface LifeEvent {
@@ -263,7 +277,10 @@ export interface PlanResult {
     zakelijk: {
       /** Whether the plan includes a company at all (BV or eenmanszaak); false hides everything zakelijk. */
       included: boolean;
+      /** Value of the shares after the box 2 tax still due when the BV pays out (paid-in capital comes back untaxed). */
       shareValue: number;
+      /** The same before that box 2 tax: equity × share percentage. */
+      shareValueGross: number;
       /** Ondernemingsvermogen of eenmanszaken (box 1). */
       soleTraders: { name: string; owner: "client" | "partner"; profit: number; taxableProfit: number; businessAssets: number }[];
       equity: number;

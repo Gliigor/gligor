@@ -2,11 +2,11 @@
 
 import { requireMember } from "@/lib/auth";
 import { calculatePlan } from "@/lib/engine";
-import { buildVariants, defaultParams, summarize, toOutcome, type ComparisonKind, type ComparisonOutcome, type ComparisonParams } from "@/lib/compare";
+import { buildVariants, COMPARISONS, defaultParams, summarize, toOutcome, type ComparisonKind, type ComparisonOutcome, type ComparisonParams } from "@/lib/compare";
 import { loadPlan } from "@/lib/plan/load";
 import { toEngineInput } from "@/lib/plan/to-engine-input";
 
-const KINDS: ComparisonKind[] = ["pensioen_financiering", "aflossen", "salaris_dividend", "schenken"];
+const KINDS = COMPARISONS.map((c) => c.kind);
 
 /** Runs one comparison for a plan. Every variant is calculated with calculatePlan(). */
 export async function compareChoices(planId: string, kind: ComparisonKind, rawParams: ComparisonParams | null): Promise<ComparisonOutcome> {
@@ -28,6 +28,8 @@ export async function compareChoices(planId: string, kind: ComparisonKind, rawPa
     repayAmount: finite(rawParams?.repayAmount) ?? defaults.repayAmount,
     salary: finite(rawParams?.salary) ?? defaults.salary,
     giftYears: finite(rawParams?.giftYears) ?? defaults.giftYears,
+    earlierAge: finite(rawParams?.earlierAge) ?? defaults.earlierAge,
+    laterAge: finite(rawParams?.laterAge) ?? defaults.laterAge,
   };
 
   const built = buildVariants(kind, input, params);
