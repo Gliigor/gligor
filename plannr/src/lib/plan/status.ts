@@ -2,7 +2,7 @@ import {
   ASSET_TYPES,
   getCashKind,
   PARTNER_FIELDS,
-  PARTNER_INCOME_FIELDS,
+  partnerFieldStep,
   PRIVE_FIELD_STEP,
   PRIVE_INPUT_FIELDS,
   SECTIONS,
@@ -10,6 +10,7 @@ import {
   STEPS,
   type AssetTypeDef,
   type FieldDef,
+  type PhaseKey,
   type Side,
   type StepKey,
 } from "./definitions";
@@ -64,7 +65,7 @@ export function findMissingFields(config: PlanConfig, inputs: PlanInputs, assets
   for (const field of PRIVE_INPUT_FIELDS) {
     if (!field.required || !isFieldVisible(field, config)) continue;
     if (isEmpty(inputs.prive[field.key as keyof typeof inputs.prive])) {
-      missing.push({ side: "prive", step: PRIVE_FIELD_STEP[field.key] ?? "gezin", id: `input.${field.key}`, label: field.label });
+      missing.push({ side: "prive", step: PRIVE_FIELD_STEP[field.key] ?? "client", id: `input.${field.key}`, label: field.label });
     }
   }
 
@@ -72,21 +73,21 @@ export function findMissingFields(config: PlanConfig, inputs: PlanInputs, assets
     for (const field of PARTNER_FIELDS) {
       if (!field.required) continue;
       if (isEmpty(inputs.partner[field.key as keyof typeof inputs.partner])) {
-        missing.push({ side: "prive", step: PARTNER_INCOME_FIELDS.includes(field.key) ? "inkomen" : "gezin", id: `partner.${field.key}`, label: `Partner: ${field.label}` });
+        missing.push({ side: "prive", step: partnerFieldStep(field.key), id: `partner.${field.key}`, label: `Partner: ${field.label}` });
       }
     }
   }
 
   if (config.sections.kinderen) {
     for (const k of inputs.kinderen) {
-      if (!k.naam.trim()) missing.push({ side: "prive", step: "gezin", id: `kind.${k.id}.naam`, label: "Kind: naam" });
-      if (isEmpty(k.geboortejaar)) missing.push({ side: "prive", step: "gezin", id: `kind.${k.id}.geboortejaar`, label: `${k.naam || "Kind"}: geboortejaar` });
+      if (!k.naam.trim()) missing.push({ side: "prive", step: "kinderen", id: `kind.${k.id}.naam`, label: "Kind: naam" });
+      if (isEmpty(k.geboortejaar)) missing.push({ side: "prive", step: "kinderen", id: `kind.${k.id}.geboortejaar`, label: `${k.naam || "Kind"}: geboortejaar` });
     }
     for (const g of inputs.schenkingen) {
       const child = inputs.kinderen.find((k) => k.id === g.kindId)?.naam || "Kind";
-      if (isEmpty(g.bedrag)) missing.push({ side: "prive", step: "gezin", id: `gift.${g.id}.bedrag`, label: `Schenking ${child}: bedrag` });
-      if (isEmpty(g.startjaar)) missing.push({ side: "prive", step: "gezin", id: `gift.${g.id}.startjaar`, label: `Schenking ${child}: startjaar` });
-      if (g.soort === "jaarlijks" && isEmpty(g.jaren)) missing.push({ side: "prive", step: "gezin", id: `gift.${g.id}.jaren`, label: `Schenking ${child}: aantal jaren` });
+      if (isEmpty(g.bedrag)) missing.push({ side: "prive", step: "kinderen", id: `gift.${g.id}.bedrag`, label: `Schenking ${child}: bedrag` });
+      if (isEmpty(g.startjaar)) missing.push({ side: "prive", step: "kinderen", id: `gift.${g.id}.startjaar`, label: `Schenking ${child}: startjaar` });
+      if (g.soort === "jaarlijks" && isEmpty(g.jaren)) missing.push({ side: "prive", step: "kinderen", id: `gift.${g.id}.jaren`, label: `Schenking ${child}: aantal jaren` });
     }
   }
 
@@ -94,8 +95,8 @@ export function findMissingFields(config: PlanConfig, inputs: PlanInputs, assets
     const kind = getCashKind(item.soort);
     if (!kind || !config.sections[kind.section]) continue;
     const name = item.omschrijving || kind.label;
-    if (isEmpty(item.bedrag)) missing.push({ side: "prive", step: "inkomen", id: `post.${item.id}.bedrag`, label: `${name}: bedrag` });
-    if (kind.oneOff && isEmpty(item.startjaar)) missing.push({ side: "prive", step: "inkomen", id: `post.${item.id}.startjaar`, label: `${name}: jaar` });
+    if (isEmpty(item.bedrag)) missing.push({ side: "prive", step: "posten", id: `post.${item.id}.bedrag`, label: `${name}: bedrag` });
+    if (kind.oneOff && isEmpty(item.startjaar)) missing.push({ side: "prive", step: "posten", id: `post.${item.id}.startjaar`, label: `${name}: jaar` });
   }
 
   for (const def of ASSET_TYPES) {
@@ -129,7 +130,7 @@ export type StepState = "complete" | "missing" | "open" | "not_applicable";
 export interface StepStatus {
   key: StepKey;
   label: string;
-  short: string;
+  phase: PhaseKey;
   state: StepState;
   missingCount: number;
 }
@@ -169,6 +170,6 @@ export function computeStepStatuses(args: {
         if (missingCount > 0 && visited.has(step.key)) state = "missing";
     }
 
-    return { key: step.key, label: step.label, short: step.short, state, missingCount };
+    return { key: step.key, label: step.label, phase: step.phase, state, missingCount };
   });
 }

@@ -7,12 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
-import { AlertTriangle, Check, FileText, Plus, Trash2 } from "@/components/ui/icons";
+import { Plus, Trash2 } from "@/components/ui/icons";
 import { addAsset, deleteAsset, setPlanSections, updateAsset, updatePlanInputs } from "@/lib/actions/plan";
 import {
   ASSET_TYPES,
   getAssetType,
   OWNER_OPTIONS,
+  PARTNER_FIELDS,
   PRIVE_FIELD_STEP,
   PRIVE_INPUT_FIELDS,
   SECTIONS,
@@ -39,6 +40,7 @@ import { SalaryHelper } from "./salary-helper";
 import { deriveBv, isExtended } from "@/lib/plan/bv";
 import { taxableBusinessProfit } from "@/lib/engine/mock-engine";
 import { SaveIndicator, useAutosave } from "../use-autosave";
+import { StepHeading } from "./step-heading";
 
 const domId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "-");
 
@@ -49,8 +51,11 @@ export function ControlStep({
   initialInputs,
   initialAssets,
   firmReturns,
+  heading,
 }: {
   part: PrivePart | "zakelijk" | "uitgangspunten";
+  /** The question at the top of the step. */
+  heading: { position: string; title: string; lead?: string; clientName: string };
   planId: string;
   config: PlanConfig;
   initialInputs: PlanInputs;
@@ -71,16 +76,6 @@ export function ControlStep({
     [config, inputs, assets, part],
   );
   const missingIds = useMemo(() => new Set(missing.map((m) => m.id)), [missing]);
-
-  const sideAssets = assets.filter((a) => a.side === side);
-  const partAssets = sideAssets.filter((a) => {
-    const def = getAssetType(a.type);
-    return def ? stepOfAssetType(def) === part : false;
-  });
-  const docCount =
-    (side === "prive"
-      ? inputs.fromDocument.filter((k) => (k.startsWith("partner.") ? part === "gezin" : PRIVE_FIELD_STEP[k] === part)).length
-      : 0) + partAssets.reduce((n, a) => n + (a.metadata._fromDocument?.length ?? 0), 0);
 
   /** Switches plan sections. Rows the server adds (e.g. the eigen woning) are merged in; nothing typed is lost. */
   async function toggleSections(patch: Partial<Record<SectionKey, boolean>>) {
@@ -194,7 +189,6 @@ export function ControlStep({
 
   const assetBlock = (def: AssetTypeDef, section: SectionKey) => {
     const rows = assets.filter((a) => a.type === def.type);
-    const typeMissing = missingIds.has(`type.${def.type}`);
     const total = rows.reduce((s, r) => s + (r.value ?? 0), 0);
     return (
       <div key={def.type} id={`veld-${domId(`type.${def.type}`)}`} className="scroll-mt-28 space-y-3">
@@ -202,14 +196,13 @@ export function ControlStep({
           <h4 className="flex items-center gap-2 text-sm font-semibold text-ink-800">
             {def.label}
             {def.kind === "schuld" ? <Badge>schuld</Badge> : null}
-            {typeMissing ? <Badge tone="warn">Ontbreekt</Badge> : null}
           </h4>
           {rows.length > 1 && def.valueField ? (
             <span className="text-xs text-ink-500 tabular">Totaal {formatEuro(total)}</span>
           ) : null}
         </div>
         {rows.length === 0 ? (
-          <p className={cn("text-sm", typeMissing ? "text-warn-600" : "text-ink-500")}>Nog niets ingevuld.</p>
+          <p className="text-sm text-ink-500">Nog niets ingevuld.</p>
         ) : null}
         {rows.map((row) => (
           <div key={row.id} className="rounded-lg border border-ink-100 bg-ink-50/50 p-3">
@@ -271,41 +264,28 @@ export function ControlStep({
     );
   };
 
-  /** One card for a privé topic: its fields, its core rows and the optional topics that belong to this step. */
-  const priveCard = (title: string, description: string, opts: { fields?: FieldDef[]; section: SectionKey; types?: AssetTypeDef[] }) => {
+  /**
+   * The rows of a privé topic, without a card around them. Compact: only topics that have rows
+   * are shown; everything else (empty or optional) sits in one "Toevoegen" menu.
+   */
+  const priveSection = (title: string, opts: { section: SectionKey; types?: AssetTypeDef[]; compact?: boolean }) => {
     const types = opts.types ?? [];
-    const core = types.filter((t) => !t.optional);
-    const optional = types.filter((t) => t.optional);
-    const shown = optional.filter((t) => assets.some((a) => a.type === t.type));
-    const fields = opts.fields ?? [];
+    const has = (t: AssetTypeDef) => assets.some((a) => a.type === t.type);
+    const shown = opts.compact ? types.filter(has) : types.filter((t) => !t.optional || has(t));
+    const addable = types.filter((t) => !shown.includes(t));
     return (
-      <Card key={title}>
-        <CardHeader title={title} description={description} />
-        <div className="space-y-5 p-4 sm:p-5">
-          {fields.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {fields.map((f) => (
-                <div key={f.key}>
-                  {inputField(f)}
-                  {f.key === "bruto_inkomen" ? <SalaryHelper idPrefix="client" onApply={(v) => setInput("bruto_inkomen", v)} /> : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {core.map((t) => assetBlock(t, t.sections.find((k) => config.sections[k]) ?? opts.section))}
-          {shown.map((t) => assetBlock(t, t.sections.find((k) => config.sections[k]) ?? opts.section))}
-          {optional.length > 0 ? (
-            <div className="border-t border-ink-100 pt-4">
-              <AddMenu
-                label="Onderwerp toevoegen"
-                options={optional.map((t) => ({ value: t.type, label: `${t.label}: ${t.description}` }))}
-                onPick={(type) => void addRow(type)}
-                disabled={adding !== null}
-              />
-            </div>
-          ) : null}
-        </div>
-      </Card>
+      <section key={title || opts.section} className="space-y-6">
+        {title ? <h2 className="font-display text-[1.35rem] font-semibold text-ink-900">{title}</h2> : null}
+        {shown.map((t) => assetBlock(t, t.sections.find((k) => config.sections[k]) ?? opts.section))}
+        {addable.length > 0 ? (
+          <AddMenu
+            label="Toevoegen"
+            options={addable.map((t) => ({ value: t.type, label: t.description ? `${t.label}: ${t.description}` : t.label }))}
+            onPick={(type) => void addRow(type)}
+            disabled={adding !== null}
+          />
+        ) : null}
+      </section>
     );
   };
 
@@ -320,7 +300,7 @@ export function ControlStep({
         <div className="text-sm font-medium text-ink-900" id={`${id}-label`}>
           {label}
         </div>
-        <div className="text-xs text-ink-500">{help}</div>
+        {help ? <div className="text-xs text-ink-500">{help}</div> : null}
       </div>
       <div role="radiogroup" aria-labelledby={`${id}-label`} className="flex overflow-hidden rounded-sm border border-ink-200">
         {[true, false].map((v) => (
@@ -478,125 +458,92 @@ export function ControlStep({
     );
   };
 
-  const intro: Record<typeof part, string> = {
-    gezin: "Wie horen bij het huishouden? Dit bepaalt met wie het plan rekent.",
-    woning: "De eigen woning en de hypotheek, zoals in box 1 van de IB-aangifte.",
-    inkomen: "Alle inkomsten per jaar: loon, pensioen, lijfrente en overige inkomsten. Samen vormen ze de kasstroom.",
-    uitgaven: "Wat het huishouden per jaar uitgeeft, in geld van nu.",
-    vermogen: "Spaargeld, beleggingen, ander vastgoed en schulden in box 3.",
-    zakelijk: "Controleer de zakelijke gegevens (opgebouwd zoals de jaarrekening) en vul aan wat ontbreekt.",
-    uitgangspunten: "Alle percentages waarmee het plan rekent, op één plek. Leeg laten: de grijze standaardwaarde van het kantoor.",
-  };
   const inflation = formatPct(inflationPct(inputs.uitgangspunten.rendement, firmReturns));
   const assumptionsNote = (text: string) => (
     <p className="text-sm text-ink-500">
       {text}{" "}
-      <Link href="uitgangspunten" className="font-medium text-brand-700 underline decoration-brand-700/30 hover:decoration-brand-700">
-        Aanpassen bij Uitgangspunten
+      <Link href="uitgangspunten" className="font-medium text-ink-900 underline decoration-gold-500 underline-offset-4">
+        Uitgangspunten
       </Link>
     </p>
   );
+  const clientName = heading.clientName;
+  const partnerName = inputs.partner.naam || "Partner";
+  const withPartner = config.sections.partner;
+
+  /** A money field of the client and, with a partner, the same field of the partner; labelled with their names. */
+  const perPerson = (key: "bruto_inkomen" | "pensioen_per_jaar", helper: boolean) => {
+    const def = PRIVE_INPUT_FIELDS.find((f) => f.key === key)!;
+    const partnerDef = PARTNER_FIELDS.find((f) => f.key === key)!;
+    const partnerId = `partner.${key}`;
+    return (
+      <div className="grid gap-7">
+        <div>
+          {inputField({ ...def, label: withPartner ? clientName : def.label })}
+          {helper ? <SalaryHelper idPrefix="client" onApply={(v) => setInput(key, v)} /> : null}
+        </div>
+        {withPartner ? (
+          <div>
+            <FieldInput
+              id={domId(partnerId)}
+              field={{ ...partnerDef, label: partnerName }}
+              value={inputs.partner[key] ?? null}
+              missing={missingIds.has(partnerId)}
+              fromDocument={inputs.fromDocument.includes(partnerId)}
+              onChange={(v) =>
+                saveInputs({
+                  ...inputs,
+                  partner: { ...inputs.partner, [key]: v },
+                  fromDocument: inputs.fromDocument.filter((k) => k !== partnerId),
+                })
+              }
+            />
+            {helper ? (
+              <SalaryHelper
+                idPrefix="partner"
+                onApply={(v) =>
+                  saveInputs({ ...inputs, partner: { ...inputs.partner, [key]: v }, fromDocument: inputs.fromDocument.filter((k) => k !== partnerId) })
+                }
+              />
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-ink-600">{intro[part]}</p>
-        <SaveIndicator status={status} />
-      </div>
+    <div className="space-y-8">
+      <StepHeading position={heading.position} title={heading.title} lead={heading.lead} aside={<SaveIndicator status={status} />} />
 
-      {part !== "uitgangspunten" ? <Summary missing={missing} docCount={docCount} /> : null}
+      {part === "client" ? <div className="grid gap-6 sm:grid-cols-2">{fieldsOf("client").map(inputField)}</div> : null}
 
-      {part === "gezin" ? (
+      {part === "partner" ? (
         <>
-          <Card>
-            <CardHeader title="Cliënt" description="Nodig voor de projectie" />
-            <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">{fieldsOf("gezin").map(inputField)}</div>
-          </Card>
-          <Card>
-            <CardHeader title="Huishouden" />
-            <div className="space-y-5 p-4 sm:p-5">
-              {yesNo(
-                "Partner meenemen in het plan?",
-                "Nee: het plan rekent alleen met de cliënt, ook als er wel een partner is.",
-                config.sections.partner,
-                (v) => toggleSections({ partner: v }),
-                "keuze-partner",
-              )}
-              {yesNo(
-                "Zijn er kinderen?",
-                "Met kinderen kun je schenkingen plannen en de gevolgen zien.",
-                config.sections.kinderen,
-                (v) => toggleSections({ kinderen: v }),
-                "keuze-kinderen",
-              )}
-            </div>
-          </Card>
+          {yesNo("Partner meenemen in het plan?", "", config.sections.partner, (v) => toggleSections({ partner: v }), "keuze-partner")}
           {config.sections.partner ? <PartnerCard inputs={inputs} missingIds={missingIds} onChange={saveInputs} /> : null}
+        </>
+      ) : null}
+
+      {part === "kinderen" ? (
+        <>
+          {yesNo("Kinderen meenemen in het plan?", "", config.sections.kinderen, (v) => toggleSections({ kinderen: v }), "keuze-kinderen")}
           {config.sections.kinderen ? (
             <ChildrenCard inputs={inputs} missingIds={missingIds} referenceYear={new Date().getFullYear()} onChange={saveInputs} />
           ) : null}
         </>
       ) : null}
 
-      {part === "woning" ? (
+      {part === "inkomen" ? perPerson("bruto_inkomen", true) : null}
+
+      {part === "pensioen" ? (
         <>
-          <Card className="p-4 sm:p-5">
-            {yesNo(
-              "Is er een eigen woning?",
-              "Een koopwoning waarin het huishouden zelf woont (box 1).",
-              config.sections.eigen_woning,
-              (v) => toggleSections({ eigen_woning: v }),
-              "keuze-woning",
-            )}
-          </Card>
-          {config.sections.eigen_woning
-            ? priveCard("Eigen woning & hypotheek", "WOZ-waarde, hypotheekdelen en renteaftrek", { section: "eigen_woning", types: typesOf("woning") })
-            : null}
+          {perPerson("pensioen_per_jaar", false)}
+          {priveSection("", { section: "pensioen", types: typesOf("pensioen"), compact: true })}
         </>
       ) : null}
 
-      {part === "inkomen" ? (
-        <>
-          {config.sections.inkomen
-            ? priveCard("Inkomen uit werk", "Bruto per jaar, zoals op de jaaropgaaf of in box 1 van de aangifte.", {
-                section: "inkomen",
-                fields: fieldsOf("inkomen", "inkomen"),
-              })
-            : null}
-          {config.sections.pensioen
-            ? priveCard("Pensioen & lijfrente", "Pensioen van de werkgever vanaf de pensioendatum; AOW rekent Plannr zelf.", {
-                section: "pensioen",
-                fields: fieldsOf("inkomen", "pensioen"),
-                types: typesOf("inkomen"),
-              })
-            : null}
-          {config.sections.partner ? (
-            <PartnerCard
-              part="inkomen"
-              inputs={inputs}
-              missingIds={missingIds}
-              onChange={saveInputs}
-              extra={(key) =>
-                key === "bruto_inkomen" ? (
-                  <SalaryHelper
-                    idPrefix="partner"
-                    onApply={(v) =>
-                      saveInputs({
-                        ...inputs,
-                        partner: { ...inputs.partner, bruto_inkomen: v },
-                        fromDocument: inputs.fromDocument.filter((k) => k !== "partner.bruto_inkomen"),
-                      })
-                    }
-                  />
-                ) : null
-              }
-            />
-          ) : null}
-          {config.sections.inkomen || config.sections.pensioen ? (
-            <CashItemsCard config={config} inputs={inputs} missingIds={missingIds} onChange={saveInputs} />
-          ) : null}
-        </>
-      ) : null}
+      {part === "posten" ? <CashItemsCard config={config} inputs={inputs} missingIds={missingIds} onChange={saveInputs} /> : null}
 
       {part === "uitgaven" ? (
         <>
@@ -606,16 +553,21 @@ export function ControlStep({
             fromDocument={inputs.fromDocument.includes("jaarlijkse_uitgaven")}
             onChange={saveInputs}
           />
-          {assumptionsNote(`De uitgaven stijgen elk jaar met de inflatie (${inflation}). Hoe ze veranderen na het pensioen, staat bij de uitgangspunten.`)}
+          {assumptionsNote(`De uitgaven stijgen elk jaar met de inflatie (${inflation}). Uitgaven na pensioen en de inflatie pas je aan bij`)}
+        </>
+      ) : null}
+
+      {part === "woning" ? (
+        <>
+          {yesNo("Eigen woning", "", config.sections.eigen_woning, (v) => toggleSections({ eigen_woning: v }), "keuze-woning")}
+          {config.sections.eigen_woning ? priveSection("Eigen woning & hypotheek", { section: "eigen_woning", types: typesOf("woning") }) : null}
         </>
       ) : null}
 
       {part === "vermogen" ? (
         <>
-          {config.sections.box3
-            ? priveCard("Vermogen box 3", "Spaargeld, beleggingen, overig onroerend goed en schulden", { section: "box3", types: typesOf("vermogen") })
-            : null}
-          {assumptionsNote("Het verwachte rendement per soort vermogen staat bij de uitgangspunten.")}
+          {config.sections.box3 ? priveSection("", { section: "box3", types: typesOf("vermogen"), compact: true }) : null}
+          {assumptionsNote("Het verwachte rendement per soort vermogen staat bij de")}
         </>
       ) : null}
 
@@ -626,7 +578,7 @@ export function ControlStep({
       {part === "zakelijk" ? (
         <>
           <Card>
-            <CardHeader title="Welke onderdelen?" description="Kies wat er voor dit bedrijf in het plan komt." />
+            <CardHeader title="Welke onderdelen?" />
             <div className="grid gap-x-6 gap-y-1 p-4 sm:grid-cols-2 sm:p-5">
               {SECTIONS.filter((x) => x.side === "zakelijk").map((x) => (
                 <label key={x.key} className="flex cursor-pointer items-start gap-3 rounded-lg px-1 py-2 hover:bg-ink-50">
@@ -637,10 +589,7 @@ export function ControlStep({
                     disabled={toggling}
                     onChange={(e) => toggleSections({ [x.key]: e.target.checked })}
                   />
-                  <span>
-                    <span className="block text-sm font-medium text-ink-900">{x.label}</span>
-                    <span className="block text-xs text-ink-500">{x.description}</span>
-                  </span>
+                  <span className="block text-sm font-medium text-ink-900">{x.label}</span>
                 </label>
               ))}
             </div>
@@ -649,49 +598,6 @@ export function ControlStep({
           {config.sections.eenmanszaak ? soleTraderCard() : null}
         </>
       ) : null}
-    </div>
-  );
-}
-
-function Summary({ missing, docCount }: { missing: { id: string; label: string }[]; docCount: number }) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <div
-        className={cn(
-          "rounded-xl border px-4 py-3",
-          missing.length > 0 ? "border-warn-600/30 bg-warn-50" : "border-ok-600/20 bg-ok-50",
-        )}
-      >
-        <div className={cn("flex items-center gap-2 font-medium", missing.length > 0 ? "text-warn-600" : "text-ok-600")}>
-          {missing.length > 0 ? <AlertTriangle className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-          {missing.length > 0
-            ? `${missing.length} verplicht${missing.length === 1 ? " veld ontbreekt" : "e velden ontbreken"}`
-            : "Alle verplichte velden zijn ingevuld"}
-        </div>
-        {missing.length > 0 ? (
-          <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-sm">
-            {missing.slice(0, 8).map((m) => (
-              <li key={m.id}>
-                <a href={`#veld-${domId(m.id)}`} className="text-warn-600 underline decoration-warn-600/40 hover:decoration-warn-600">
-                  {m.label}
-                </a>
-              </li>
-            ))}
-            {missing.length > 8 ? <li className="text-warn-600">en {missing.length - 8} meer</li> : null}
-          </ul>
-        ) : null}
-      </div>
-      <div className="rounded-xl border border-doc-600/20 bg-doc-50 px-4 py-3">
-        <div className="flex items-center gap-2 font-medium text-doc-600">
-          <FileText className="h-4 w-4" />
-          {docCount > 0 ? `${docCount} ${docCount === 1 ? "waarde" : "waarden"} uit document` : "Geen waarden uit documenten"}
-        </div>
-        <p className="mt-1 text-sm text-doc-600/80">
-          {docCount > 0
-            ? "Gemarkeerd met “uit document”. Controleer ze; na wijzigen verdwijnt de markering."
-            : "Upload stukken bij Documenten om velden vooraf in te vullen."}
-        </p>
-      </div>
     </div>
   );
 }

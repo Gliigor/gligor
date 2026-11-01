@@ -1,6 +1,5 @@
 "use client";
 
-import { Card, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { inputClass } from "@/components/ui/form";
 import { Trash2 } from "@/components/ui/icons";
@@ -55,12 +54,8 @@ export function CashItemsCard({
   const remove = (id: string) => onChange({ ...inputs, posten: inputs.posten.filter((x) => x.id !== id) });
 
   return (
-    <Card>
-      <CardHeader
-        title="Inkomsten en uitgaven in de tijd"
-        description="Posten met een eigen periode, bovenop het vaste inkomen en de vaste uitgaven. Bedragen in geld van nu; zonder groei bewegen ze mee met de inflatie."
-      />
-      <div className="space-y-6 p-4 sm:p-5">
+    <div>
+      <div className="space-y-8">
         {GROUPS.map(({ group, title, add: addLabel }) => {
           const rows = items.filter((x) => getCashKind(x.soort)?.group === group);
           const options = kinds.filter((k) => k.group === group);
@@ -165,7 +160,7 @@ export function CashItemsCard({
           );
         })}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -190,7 +185,7 @@ export function AddMenu({
         if (e.target.value) onPick(e.target.value);
       }}
       className={cn(
-        "h-9 cursor-pointer rounded-sm border border-ink-300 bg-white px-3 text-[13px] font-semibold text-ink-800 hover:border-ink-500 focus:outline-none focus:ring-2 focus:ring-gold-500/40",
+        "h-9 w-56 max-w-full cursor-pointer rounded-sm border border-ink-300 bg-white px-3 text-[13px] font-semibold text-ink-800 hover:border-ink-500 focus:outline-none focus:ring-2 focus:ring-gold-500/40",
         disabled && "opacity-50",
       )}
     >

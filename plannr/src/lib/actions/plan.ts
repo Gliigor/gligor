@@ -283,7 +283,7 @@ export async function createScenarioAction(planId: string): Promise<{ ok: false;
       title: `Scenario ${(count ?? 0) + 1}: ${String(base.title).replace(/^Scenario \d+: /, "")}`.slice(0, 200),
       scenario_van: root,
       status: "concept",
-      current_step: "gezin",
+      current_step: "client",
       config: { ...parsePlanConfig(base.config), visitedSteps: parsePlanConfig(base.config).visitedSteps },
       inputs: sanitizePlanInputs(base.inputs),
       created_by: member.userId,
@@ -313,7 +313,7 @@ export async function createScenarioAction(planId: string): Promise<{ ok: false;
     );
   }
   revalidatePath(`/clienten/${base.client_id}`);
-  redirect(`/clienten/${base.client_id}/plannen/${plan.id}/gezin`);
+  redirect(`/clienten/${base.client_id}/plannen/${plan.id}/client`);
 }
 
 /** Archives a plan (hidden from the plan list) or puts it back. */

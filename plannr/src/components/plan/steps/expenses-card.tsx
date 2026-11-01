@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { EXPENSE_CATEGORIES, EXPENSE_GROUPS, expenseTotal, groupTotal, usesCategories, type ExpenseKey } from "@/lib/plan/expenses";
 import type { PlanInputs } from "@/lib/plan/types";
@@ -63,16 +62,14 @@ export function ExpensesCard({
   );
 
   return (
-    <Card>
-      <CardHeader
-        title="Uitgaven van het huishouden"
-        description="Inclusief woonlasten (huur of hypotheek). Gebruik eventueel de uitgavensheet bij Downloads om de cliënt het zelf te laten invullen."
-        action={toggle("", mode, chooseMode, [
+    <div>
+      <div className="mb-6">
+        {toggle("", mode, chooseMode, [
           ["totaal", "Totaal"],
           ["categorie", "Per categorie"],
         ])}
-      />
-      <div className="space-y-5 p-4 sm:p-5">
+      </div>
+      <div className="space-y-5">
         {mode === "totaal" && !usesCategories(inputs.uitgaven) ? (
           <div className="max-w-sm">
             <FieldShell id="input-jaarlijkse_uitgaven" label="Totale uitgaven per jaar" missing={missing} fromDocument={fromDocument}>
@@ -135,6 +132,6 @@ export function ExpensesCard({
         </div>
         {total !== null ? <p className="-mt-3 text-right text-xs text-ink-500 tabular">{formatEuro(total / 12, { whole: true })} per maand</p> : null}
       </div>
-    </Card>
+    </div>
   );
 }

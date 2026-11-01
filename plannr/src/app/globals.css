@@ -98,3 +98,47 @@ body {
   outline: 2px solid var(--color-gold-500);
   outline-offset: 2px;
 }
+
+/* Moving between plan steps: a short, soft crossfade (React <ViewTransition name="plan-step">). */
+::view-transition-group(plan-step) {
+  animation-duration: 220ms;
+  animation-timing-function: ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* A link to a field ("Nog aan te vullen") briefly marks the field it lands on. */
+[id^="veld-"]:target {
+  animation: field-flash 1.6s ease-out;
+}
+@keyframes field-flash {
+  0%,
+  40% {
+    box-shadow: 0 0 0 6px var(--color-gold-300);
+    background: var(--color-warn-50);
+  }
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [role="tabpanel"] {
+    animation: none !important;
+  }
+}

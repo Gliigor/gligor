@@ -1,6 +1,5 @@
 "use client";
 
-import { Card, CardHeader } from "@/components/ui/card";
 import type { PlanInputs, ReturnPercents } from "@/lib/plan/types";
 import { FieldShell, NumberInput } from "../fields";
 import { InflationField, ReturnsFields } from "../returns-fields";
@@ -30,23 +29,17 @@ export function AssumptionsCards({
   const setRates = (rendement: ReturnPercents) => onChange({ ...inputs, uitgangspunten: { ...u, rendement } });
 
   return (
-    <>
-      <Card>
-        <CardHeader
-          title="Inflatie"
-          description="Alle bedragen vul je in geld van nu in. Uitgaven, inkomens, pensioenen en de AOW stijgen elk jaar met de inflatie; rendementen zijn daar niet voor gecorrigeerd."
-        />
-        <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
+    <div className="space-y-10">
+      <section className="space-y-4">
+        <h2 className="font-display text-[1.35rem] font-semibold text-ink-900">Inflatie</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <InflationField id="plan-inflatie" value={u.rendement} fallback={firmReturns} onChange={setRates} />
         </div>
-      </Card>
+      </section>
 
-      <Card>
-        <CardHeader
-          title="Uitgaven per levensfase"
-          description="De vaste uitgaven van het huishouden als percentage van nu. Veel planners rekenen met 90% na pensioen en 75% op latere leeftijd."
-        />
-        <div className="grid gap-4 p-4 sm:grid-cols-3 sm:p-5">
+      <section className="space-y-4">
+        <h2 className="font-display text-[1.35rem] font-semibold text-ink-900">Uitgaven per levensfase</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
           <FieldShell id="patroon-pensioen" label="Na pensioen">
             <NumberInput
               id="patroon-pensioen"
@@ -75,17 +68,14 @@ export function AssumptionsCards({
             />
           </FieldShell>
         </div>
-      </Card>
+      </section>
 
-      <Card>
-        <CardHeader
-          title="Verwacht rendement"
-          description="Realistisch verwacht rendement (RVR) per soort vermogen, per jaar. Het neutrale scenario rekent hiermee; het pessimistische en optimistische scenario liggen daar een vaste marge onder en boven."
-        />
-        <div className="p-4 sm:p-5">
+      <section className="space-y-4">
+        <h2 className="font-display text-[1.35rem] font-semibold text-ink-900">Verwacht rendement</h2>
+        <div>
           <ReturnsFields idPrefix="plan-rvr" value={u.rendement} fallback={firmReturns} onChange={setRates} withBv={withBv} />
         </div>
-      </Card>
-    </>
+      </section>
+    </div>
   );
 }

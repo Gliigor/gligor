@@ -25,13 +25,14 @@ test("missing fields follow the configuration", () => {
 test("zakelijk is only a step for clients with a company; missing fields land on their own step", () => {
   const args = { config: DEFAULT_PLAN_CONFIG, inputs: parsePlanInputs({}), assets: [], documentCount: 0, exportCount: 0 };
   const without = computeStepStatuses({ ...args, hasCompany: false });
-  assert.deepEqual(without.map((s) => s.key), ["documenten", "gezin", "woning", "inkomen", "uitgaven", "vermogen", "uitgangspunten", "resultaten", "rapport"]);
+  assert.deepEqual(without.map((s) => s.key), ["documenten", "client", "partner", "kinderen", "inkomen", "pensioen", "posten", "uitgaven", "woning", "vermogen", "uitgangspunten", "resultaten", "rapport"]);
   const withCompany = computeStepStatuses({ ...args, hasCompany: true });
   assert.ok(withCompany.some((s) => s.key === "zakelijk"));
 
   const missing = findMissingFields(DEFAULT_PLAN_CONFIG, parsePlanInputs({}), []);
   const stepOf = (id: string) => missing.find((m) => m.id === id)?.step;
-  assert.equal(stepOf("input.geboortejaar"), "gezin");
+  assert.equal(stepOf("input.geboortejaar"), "client");
+  assert.equal(stepOf("input.pensioen_per_jaar"), "pensioen");
   assert.equal(stepOf("type.eigen_woning"), "woning");
   assert.equal(stepOf("input.bruto_inkomen"), "inkomen");
   assert.equal(stepOf("input.jaarlijkse_uitgaven"), "uitgaven");

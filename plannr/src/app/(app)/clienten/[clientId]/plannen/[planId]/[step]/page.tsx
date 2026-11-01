@@ -1,3 +1,4 @@
+import { ViewTransition } from "react";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
@@ -8,6 +9,9 @@ import { clientHasCompany, findMissingFields, hasZakelijkStep } from "@/lib/plan
 import { toEngineInput } from "@/lib/plan/to-engine-input";
 import { StepVisit } from "@/components/plan/step-visit";
 import { StepNav } from "@/components/plan/steps/step-nav";
+import { StepHeading } from "@/components/plan/steps/step-heading";
+import { stepCopy } from "@/components/plan/steps/step-copy";
+import { cn } from "@/components/ui/cn";
 import { DocumentsStep } from "@/components/plan/steps/documents-step";
 import { ControlStep } from "@/components/plan/steps/control-step";
 import { ResultsView } from "@/components/plan/steps/results-view";
@@ -25,6 +29,8 @@ export async function generateMetadata({ params }: PageProps<"/clienten/[clientI
   return { title: STEPS.find((s) => s.key === step)?.label ?? "Plan" };
 }
 
+const domId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "-");
+
 export default async function StepPage({ params }: PageProps<"/clienten/[clientId]/plannen/[planId]/[step]">) {
   const { clientId, planId, step } = await params;
   const base = `/clienten/${clientId}/plannen/${planId}`;
@@ -41,8 +47,29 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
   const prev = steps[index - 1]?.key;
   const next = steps[index + 1]?.key;
 
+  const copy = stepCopy(step, {
+    client: bundle.client.first_name,
+    partner: config.sections.partner ? inputs.partner.naam || "partner" : null,
+    hasCompany: zakelijk,
+  });
+  const position = `Stap ${index + 1} van ${steps.length}`;
+  // Questions sit in a narrow column; documents, results and the report use the full width.
+  const wide = step === "documenten" || step === "resultaten" || step === "rapport" || step === "zakelijk";
+
+  async function calculate() {
+    const engineInput = toEngineInput({
+      config,
+      inputs,
+      assets,
+      referenceYear: new Date().getFullYear(),
+      clientName: bundle!.client.first_name,
+      firmReturns: member.firm.rendement_standaard,
+    });
+    return { engineInput, result: await calculatePlan(engineInput) };
+  }
+
   let body: React.ReactNode;
-  let nav: React.ReactNode = <StepNav baseHref={base} prev={prev} next={next} />;
+  let nav: React.ReactNode = <StepNav baseHref={base} prev={prev} next={next} enterHint={!wide || step === "zakelijk"} />;
 
   switch (step) {
     case "documenten":
@@ -82,16 +109,21 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
         break;
       }
     // falls through
-    case "gezin":
-    case "woning":
+    case "client":
+    case "partner":
+    case "kinderen":
     case "inkomen":
+    case "pensioen":
+    case "posten":
     case "uitgaven":
+    case "woning":
     case "vermogen":
     case "uitgangspunten":
       body = (
         <ControlStep
           key={step}
           part={step}
+          heading={{ position, title: copy.title, lead: copy.lead, clientName: bundle.client.first_name }}
           planId={planId}
           config={config}
           initialInputs={inputs}
@@ -101,55 +133,43 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
       );
       break;
     case "resultaten": {
-      const engineInput = toEngineInput({
-        config,
-        inputs,
-        assets,
-        referenceYear: new Date().getFullYear(),
-        clientName: bundle.client.first_name,
-        firmReturns: member.firm.rendement_standaard,
-      });
-      const result = await calculatePlan(engineInput);
-      const insights = deriveInsights(engineInput, result);
-      const missing = findMissingFields(config, inputs, assets);
+      const { engineInput, result } = await calculate();
+      const stepLabel = new Map(steps.map((x) => [x.key, x.label]));
+      const missing = findMissingFields(config, inputs, assets)
+        .filter((m) => stepLabel.has(m.step))
+        .map((m) => ({ id: m.id, label: m.label, stepLabel: stepLabel.get(m.step)!, href: `${base}/${m.step}#veld-${domId(m.id)}` }));
       body = (
-        <div className="space-y-4">
-          {missing.length > 0 ? (
-            <p className="rounded-lg border border-warn-600/30 bg-warn-50 px-3 py-2 text-sm text-warn-600">
-              Er {missing.length === 1 ? "ontbreekt nog 1 verplicht veld" : `ontbreken nog ${missing.length} verplichte velden`}; lege
-              velden tellen als € 0. Vul ze aan bij{" "}
-              {steps
-                .filter((x) => missing.some((m) => m.step === x.key))
-                .map((x, i, list) => (
-                  <span key={x.key}>
-                    {i > 0 ? (i === list.length - 1 ? " en " : ", ") : null}
-                    <Link className="underline" href={`${base}/${x.key}`}>
-                      {x.label}
-                    </Link>
-                  </span>
-                ))}
-              .
-            </p>
-          ) : null}
-          <ResultsView
-            result={result}
-            insightsSlot={<InsightsPanel planId={planId} insights={insights} initialHidden={config.hiddenInsights} />}
-            choicesSlot={<ChoicesPanel planId={planId} withBv={result.wealth.zakelijk.included && config.sections.bv} />}
-          />
+        <ResultsView
+          result={result}
+          insights={deriveInsights(engineInput, result)}
+          missing={missing}
+          choicesSlot={<ChoicesPanel planId={planId} withBv={result.wealth.zakelijk.included && config.sections.bv} />}
+        />
+      );
+      break;
+    }
+    case "rapport": {
+      const { engineInput, result } = await calculate();
+      body = (
+        <div className="space-y-8">
+          <ReportStep planId={planId} initialSections={config.reportSections} exports={bundle.exports} withZakelijk={zakelijk} />
+          <InsightsPanel planId={planId} insights={deriveInsights(engineInput, result)} initialHidden={config.hiddenInsights} />
         </div>
       );
       break;
     }
-    case "rapport":
-      body = <ReportStep planId={planId} initialSections={config.reportSections} exports={bundle.exports} withZakelijk={zakelijk} />;
-      break;
   }
 
+  // ControlStep renders its own heading (with the save state); the other steps get it here.
+  const ownHeading = step === "documenten" || step === "resultaten" || step === "rapport" || (step === "zakelijk" && !zakelijk);
   return (
-    <div className="space-y-6">
-      <StepVisit planId={planId} step={step} />
-      {body}
-      {nav}
-    </div>
+    <ViewTransition key={step} name="plan-step" share="auto" enter="auto" default="none">
+      <div className={cn("space-y-10", !wide && "max-w-[680px]")}>
+        <StepVisit planId={planId} step={step} />
+        {ownHeading ? <StepHeading position={position} title={copy.title} lead={copy.lead} /> : null}
+        {body}
+        {nav}
+      </div>
+    </ViewTransition>
   );
 }

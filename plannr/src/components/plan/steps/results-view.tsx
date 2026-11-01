@@ -17,8 +17,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import Link from "next/link";
 import { Card, CardHeader } from "@/components/ui/card";
+import { cn } from "@/components/ui/cn";
 import { AlertTriangle } from "@/components/ui/icons";
+import type { Insight, InsightTone } from "@/lib/insights";
 import type { PlanResult } from "@/lib/engine/types";
 import { formatEuro, formatEuroCompact, formatPercent } from "@/lib/format";
 
@@ -39,46 +42,64 @@ const PARTS = [
   { key: "onderneming", label: "Eenmanszaak", color: "#E87BA4" },
 ] as const;
 
+const TONE_DOT: Record<InsightTone, string> = { aandacht: "#9a5f08", kans: "#22704a", info: "#98938a" };
+
 const CHART_EVENTS = new Set(["pensioen", "aow", "rentevast"]);
 
-/** Vertical markers for retirement, AOW and the end of fixed-rate periods, labelled at the top. */
+/** Quiet vertical markers for retirement, AOW and the end of fixed-rate periods; what they mean shows on hover. */
 function eventMarkers(result: PlanResult) {
-  return result.projection.events.filter((e) => CHART_EVENTS.has(e.kind)).map((e, i) => (
-    <ReferenceLine
-      key={`${e.year}-${e.label}`}
-      x={e.year}
-      stroke="#98938A"
-      strokeDasharray="3 3"
-      label={{ value: e.shortLabel, position: "insideTopLeft", fill: "#4a4e55", fontSize: 10, dy: (i % 3) * 12 }}
-    />
-  ));
+  return result.projection.events
+    .filter((e) => CHART_EVENTS.has(e.kind))
+    .map((e) => <ReferenceLine key={`${e.year}-${e.label}`} x={e.year} stroke="#C8C0B0" strokeDasharray="2 4" />);
 }
 
-function yearLabel(points: PlanResult["projection"]["points"], year: unknown) {
-  const p = points.find((x) => x.year === year);
+/** Tooltip title: the year, the ages and what happens that year. */
+function yearLabel(result: PlanResult, year: unknown) {
+  const p = result.projection.points.find((x) => x.year === year);
   if (!p) return String(year);
   const ages = [p.age !== null ? `cliënt ${p.age}` : null, p.partnerAge !== null ? `partner ${p.partnerAge}` : null].filter(Boolean);
-  return ages.length ? `${year} · ${ages.join(", ")}` : String(year);
+  const events = result.projection.events.filter((e) => e.year === year).map((e) => e.shortLabel);
+  return [String(year), ages.join(", "), events.join(", ")].filter(Boolean).join(" · ");
 }
+
+export interface MissingLink {
+  id: string;
+  label: string;
+  stepLabel: string;
+  href: string;
+}
+
+type Tab = "overzicht" | "vermogen" | "kasstroom" | "belasting" | "gezin" | "keuzes";
 
 export function ResultsView({
   result,
-  insightsSlot,
+  insights = [],
+  missing = [],
   choicesSlot,
 }: {
   result: PlanResult;
-  insightsSlot?: React.ReactNode;
+  insights?: Insight[];
+  /** Fields that are switched on but still empty, with a link to their step. */
+  missing?: MissingLink[];
   choicesSlot?: React.ReactNode;
 }) {
+  const [tab, setTab] = useState<Tab>("overzicht");
+  const [allInsights, setAllInsights] = useState(false);
   const w = result.wealth;
   const zakelijk = w.zakelijk.included;
+  const family = result.household.persons.length > 1 || result.gifts !== null;
   const tiles = [
-    { label: "Totaal vermogen", value: formatEuro(w.total, { whole: true }), hint: "" },
-    { label: "Vermogen privé", value: formatEuro(w.prive.total, { whole: true }), hint: "" },
-    { label: "Vermogen zakelijk", value: formatEuro(w.zakelijk.total, { whole: true }), hint: "" },
     { label: "Netto inkomen", value: formatEuro(result.income.net, { whole: true }), hint: "per jaar, na belasting" },
     { label: "Saldo", value: formatEuro(result.income.balance, { whole: true }), hint: "per jaar, na uitgaven" },
     { label: "Belastingdruk", value: formatPercent(result.taxes.effectiveRate), hint: "van het bruto inkomen" },
+  ];
+  const tabs: { key: Tab; label: string; hidden?: boolean }[] = [
+    { key: "overzicht", label: "Overzicht" },
+    { key: "vermogen", label: "Vermogen" },
+    { key: "kasstroom", label: "Kasstroom" },
+    { key: "belasting", label: "Belasting" },
+    { key: "gezin", label: "Gezin", hidden: !family },
+    { key: "keuzes", label: "Keuzes" },
   ];
 
   const wealthBars = [
@@ -93,19 +114,10 @@ export function ResultsView({
     { name: "Saldo", value: result.income.balance },
   ];
   const taxBars = result.taxes.lines.filter((l) => zakelijk || l.box !== 2).map((l) => ({ name: `Box ${l.box}`, value: l.tax, label: l.label }));
+  const shownInsights = allInsights ? insights : insights.slice(0, 3);
 
   return (
-    <div className="space-y-5">
-      {result.warnings.length > 0 ? (
-        <div className="rounded-xl border border-warn-600/30 bg-warn-50 px-4 py-3 text-sm text-warn-600">
-          {result.warnings.map((m) => (
-            <p key={m} className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {m}
-            </p>
-          ))}
-        </div>
-      ) : null}
-
+    <div className="space-y-8">
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-ink-200 bg-ink-200 lg:grid-cols-[1.35fr_1fr_1fr_1fr]">
         <div className="col-span-2 bg-night px-5 py-5 text-ink-50 sm:px-6 sm:py-6 lg:col-span-1">
           <div className="eyebrow !text-gold-500">Totaal netto vermogen</div>
@@ -116,7 +128,7 @@ export function ResultsView({
             </div>
           ) : null}
         </div>
-        {tiles.slice(3).map((t) => (
+        {tiles.map((t) => (
           <div key={t.label} className="bg-white px-4 py-4 last:col-span-2 sm:px-6 sm:py-6 lg:last:col-span-1">
             <div className="eyebrow">{t.label}</div>
             <div className="mt-2 font-display text-[1.6rem] font-semibold leading-none text-ink-900 tabular sm:text-[2rem]">{t.value}</div>
@@ -125,45 +137,134 @@ export function ResultsView({
         ))}
       </div>
 
-      {insightsSlot}
-
-      <ProjectionCard result={result} />
-
-      <CompositionCard result={result} />
-
-      <CashFlowCard result={result} />
-
-      {choicesSlot}
-
-      {result.household.persons.length > 1 || result.gifts ? <HouseholdCard result={result} /> : null}
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <BarCard title={zakelijk ? "Vermogen privé vs. zakelijk" : "Vermogen per onderdeel"} description="Netto waarden vandaag" data={wealthBars} />
-        <BarCard title="Inkomsten vs. uitgaven" description="Per jaar, na belasting" data={incomeBars} />
+      <div role="tablist" aria-label="Onderdelen van de resultaten" className="-mx-1 flex gap-7 overflow-x-auto border-b border-ink-200 px-1">
+        {tabs
+          .filter((t) => !t.hidden)
+          .map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              className={cn(
+                "-mb-px shrink-0 border-b-2 pb-3 text-sm transition-colors",
+                tab === t.key ? "border-gold-500 font-semibold text-ink-900" : "border-transparent text-ink-500 hover:text-ink-900",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <BarCard
-          title="Indicatie belastingdruk per box"
-          description={`Totaal ${formatEuro(result.taxes.total, { whole: true })} · effectief ${formatPercent(result.taxes.effectiveRate)} van het bruto inkomen`}
-          data={taxBars}
-        />
-        <Card>
-          <CardHeader title="Box 3 toelichting" description="Forfaitair stelsel (indicatief)" />
-          <dl className="divide-y divide-ink-100 text-sm">
-            {[
-              ["Rendementsgrondslag", result.taxes.box3.base],
-              ["Forfaitair rendement", result.taxes.box3.deemedReturn],
-              ["Heffingsvrij vermogen", result.taxes.box3.exemption],
-              ["Grondslag sparen en beleggen", result.taxes.box3.taxableBase],
-            ].map(([k, v]) => (
-              <div key={k as string} className="flex justify-between gap-4 px-4 py-2.5 sm:px-5">
-                <dt className="text-ink-600">{k}</dt>
-                <dd className="font-medium tabular">{formatEuro(v as number, { whole: true })}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
+      <div role="tabpanel" key={tab} className="animate-[tab-in_200ms_ease-out]">
+        {tab === "overzicht" ? (
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0 space-y-6">
+              {result.warnings.length > 0 ? (
+                <div className="space-y-1 border-l-2 border-warn-600 bg-warn-50 px-4 py-3 text-sm text-warn-600">
+                  {result.warnings.map((m) => (
+                    <p key={m} className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {m}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+              <ProjectionCard result={result} />
+            </div>
+            <div className="space-y-6">
+              {missing.length > 0 ? (
+                <div className="border border-warn-100 bg-warn-50 px-5 py-4">
+                  <h3 className="text-sm font-semibold text-warn-600">Nog aan te vullen · {missing.length}</h3>
+                  <p className="mt-1 text-xs text-ink-600">Aangezet, maar nog leeg. Lege velden tellen als € 0.</p>
+                  <ul className="mt-3 divide-y divide-warn-100 text-[13px]">
+                    {missing.slice(0, 8).map((m) => (
+                      <li key={m.id}>
+                        <Link href={m.href} className="flex items-baseline justify-between gap-3 py-2 text-ink-800 hover:text-ink-900">
+                          <span className="min-w-0">{m.label}</span>
+                          <span className="shrink-0 text-xs text-ink-500">{m.stepLabel} →</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  {missing.length > 8 ? <p className="pt-2 text-xs text-ink-500">en {missing.length - 8} meer</p> : null}
+                </div>
+              ) : null}
+              <Card>
+                <CardHeader title="Aandachtspunten" />
+                {insights.length === 0 ? (
+                  <p className="px-5 py-5 text-sm text-ink-500">Geen bijzondere aandachtspunten.</p>
+                ) : (
+                  <ul className="divide-y divide-ink-100 px-5">
+                    {shownInsights.map((i) => (
+                      <li key={i.id} className="py-3">
+                        <div className="flex items-baseline gap-3 text-[13.5px]">
+                          <span className="h-[7px] w-[7px] shrink-0 -translate-y-px rounded-full" style={{ background: TONE_DOT[i.tone] }} aria-hidden="true" />
+                          <span className="flex-1 font-medium text-ink-900">{i.title}</span>
+                          {i.amount ? <span className="tabular text-ink-600">{formatEuro(i.amount.value, { whole: true })}</span> : null}
+                        </div>
+                        {allInsights ? <p className="mt-1 pl-5 text-[13px] text-ink-600">{i.body}</p> : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {insights.length > 3 || (insights.length > 0 && !allInsights) ? (
+                  <button
+                    type="button"
+                    onClick={() => setAllInsights((x) => !x)}
+                    className="w-full border-t border-ink-100 px-5 py-3 text-left text-[13px] font-medium text-ink-700 hover:text-ink-900"
+                  >
+                    {allInsights ? "Minder tonen" : insights.length > 3 ? `Alle ${insights.length} aandachtspunten met uitleg →` : "Uitleg tonen →"}
+                  </button>
+                ) : null}
+              </Card>
+            </div>
+          </div>
+        ) : null}
+
+        {tab === "vermogen" ? (
+          <div className="space-y-6">
+            <CompositionCard result={result} />
+            <BarCard title={zakelijk ? "Vermogen privé vs. zakelijk" : "Vermogen per onderdeel"} description="Netto waarden vandaag" data={wealthBars} />
+          </div>
+        ) : null}
+
+        {tab === "kasstroom" ? (
+          <div className="space-y-6">
+            <CashFlowCard result={result} />
+            <BarCard title="Inkomsten vs. uitgaven" description="Per jaar, na belasting" data={incomeBars} />
+          </div>
+        ) : null}
+
+        {tab === "belasting" ? (
+          <div className="grid gap-6 lg:grid-cols-2">
+            <BarCard
+              title="Indicatie belastingdruk per box"
+              description={`Totaal ${formatEuro(result.taxes.total, { whole: true })} · effectief ${formatPercent(result.taxes.effectiveRate)} van het bruto inkomen`}
+              data={taxBars}
+            />
+            <Card>
+              <CardHeader title="Box 3" description="Forfaitair stelsel (indicatief)" />
+              <dl className="divide-y divide-ink-100 text-sm">
+                {[
+                  ["Rendementsgrondslag", result.taxes.box3.base],
+                  ["Forfaitair rendement", result.taxes.box3.deemedReturn],
+                  ["Heffingsvrij vermogen", result.taxes.box3.exemption],
+                  ["Grondslag sparen en beleggen", result.taxes.box3.taxableBase],
+                ].map(([k, v]) => (
+                  <div key={k as string} className="flex justify-between gap-4 px-4 py-2.5 sm:px-5">
+                    <dt className="text-ink-600">{k}</dt>
+                    <dd className="font-medium tabular">{formatEuro(v as number, { whole: true })}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
+          </div>
+        ) : null}
+
+        {tab === "gezin" && family ? <HouseholdCard result={result} /> : null}
+
+        {tab === "keuzes" ? choicesSlot : null}
       </div>
 
       <p className="text-xs text-ink-400">
@@ -276,11 +377,6 @@ function ProjectionCard({ result }: { result: PlanResult }) {
                 {s.label}
               </li>
             ))}
-            {result.projection.events.length > 0 ? (
-              <li className="w-full text-ink-500">
-                Stippellijnen: {result.projection.events.map((e) => `${e.label} in ${e.year}`).join(" · ")}
-              </li>
-            ) : null}
           </ul>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={points} margin={{ top: 8, right: 72, bottom: 0, left: 0 }}>
@@ -295,7 +391,7 @@ function ProjectionCard({ result }: { result: PlanResult }) {
               />
               <Tooltip
                 formatter={(v, name) => [formatEuro(Number(v), { whole: true }), sc[name as keyof typeof sc]?.label ?? String(name)]}
-                labelFormatter={(year) => yearLabel(points, year)}
+                labelFormatter={(year) => yearLabel(result, year)}
                 contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
               />
               {eventMarkers(result)}
@@ -478,7 +574,7 @@ function CashFlowCard({ result }: { result: PlanResult }) {
               <YAxis tickFormatter={(v) => formatEuroCompact(Number(v))} tickLine={false} axisLine={false} tick={{ fill: AXIS, fontSize: 12 }} width={72} />
               <Tooltip
                 formatter={(v, name) => [formatEuro(Number(v), { whole: true }), series.find((x) => x.key === name)?.label ?? String(name)]}
-                labelFormatter={(year) => yearLabel(points, year)}
+                labelFormatter={(year) => yearLabel(result, year)}
                 contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
               />
               {eventMarkers(result)}
@@ -540,7 +636,7 @@ function CompositionCard({ result }: { result: PlanResult }) {
                   formatEuro(Number(v), { whole: true }),
                   name === "totaal" ? "Totaal" : (PARTS.find((x) => x.key === name)?.label ?? String(name)),
                 ]}
-                labelFormatter={(year) => yearLabel(points, year)}
+                labelFormatter={(year) => yearLabel(result, year)}
                 contentStyle={{ borderRadius: 2, borderColor: "#e2dbcc", fontSize: 13 }}
               />
               {eventMarkers(result)}

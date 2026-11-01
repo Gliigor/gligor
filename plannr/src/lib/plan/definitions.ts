@@ -51,48 +51,77 @@ export const SECTIONS: SectionDef[] = [
   },
 ];
 
-export const STEP_KEYS = ["documenten", "gezin", "woning", "inkomen", "uitgaven", "vermogen", "zakelijk", "uitgangspunten", "resultaten", "rapport"] as const;
+export const STEP_KEYS = [
+  "documenten",
+  "client",
+  "partner",
+  "kinderen",
+  "inkomen",
+  "pensioen",
+  "posten",
+  "uitgaven",
+  "woning",
+  "vermogen",
+  "zakelijk",
+  "uitgangspunten",
+  "resultaten",
+  "rapport",
+] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
 
-export const STEPS: { key: StepKey; label: string; short: string }[] = [
-  { key: "documenten", label: "Documenten", short: "Docs" },
-  { key: "gezin", label: "Gezin", short: "Gezin" },
-  { key: "woning", label: "Woning", short: "Woning" },
-  { key: "inkomen", label: "Inkomen", short: "Inkomen" },
-  { key: "uitgaven", label: "Uitgaven", short: "Uitgaven" },
-  { key: "vermogen", label: "Vermogen", short: "Vermogen" },
-  { key: "zakelijk", label: "Zakelijk", short: "Zakelijk" },
-  { key: "uitgangspunten", label: "Uitgangspunten", short: "Aannames" },
-  { key: "resultaten", label: "Resultaten", short: "Result." },
-  { key: "rapport", label: "Rapport", short: "Rapport" },
+/** The five phases the steps are grouped in (the step plan on the left). */
+export const PHASES = [
+  { key: "documenten", label: "Documenten" },
+  { key: "huishouden", label: "Huishouden" },
+  { key: "geld", label: "Inkomen & uitgaven" },
+  { key: "vermogen", label: "Vermogen" },
+  { key: "uitkomst", label: "Uitkomst" },
+] as const;
+export type PhaseKey = (typeof PHASES)[number]["key"];
+
+export const STEPS: { key: StepKey; label: string; phase: PhaseKey }[] = [
+  { key: "documenten", label: "Stukken", phase: "documenten" },
+  { key: "client", label: "Cliënt", phase: "huishouden" },
+  { key: "partner", label: "Partner", phase: "huishouden" },
+  { key: "kinderen", label: "Kinderen", phase: "huishouden" },
+  { key: "inkomen", label: "Inkomen uit werk", phase: "geld" },
+  { key: "pensioen", label: "Pensioen", phase: "geld" },
+  { key: "posten", label: "In de tijd", phase: "geld" },
+  { key: "uitgaven", label: "Uitgaven", phase: "geld" },
+  { key: "woning", label: "Woning", phase: "vermogen" },
+  { key: "vermogen", label: "Sparen & beleggen", phase: "vermogen" },
+  { key: "zakelijk", label: "Bedrijf", phase: "vermogen" },
+  { key: "uitgangspunten", label: "Uitgangspunten", phase: "uitkomst" },
+  { key: "resultaten", label: "Resultaten", phase: "uitkomst" },
+  { key: "rapport", label: "Rapport", phase: "uitkomst" },
 ];
 
-/** Older step URLs (before the step-by-step privé flow) and where they lead now. */
-export const LEGACY_STEPS: Record<string, StepKey> = { configuratie: "documenten", prive: "gezin" };
+/** Older step URLs and where they lead now. */
+export const LEGACY_STEPS: Record<string, StepKey> = { configuratie: "documenten", prive: "client", gezin: "client" };
 
-/** The privé steps that each show part of the privé data. */
-export type PrivePart = "gezin" | "woning" | "inkomen" | "uitgaven" | "vermogen";
-export const PRIVE_PARTS: PrivePart[] = ["gezin", "woning", "inkomen", "uitgaven", "vermogen"];
+/** The steps that show part of the privé data. */
+export type PrivePart = "client" | "partner" | "kinderen" | "inkomen" | "pensioen" | "posten" | "uitgaven" | "woning" | "vermogen";
 
 /** Which step a privé input field is filled in. */
 export const PRIVE_FIELD_STEP: Record<string, PrivePart> = {
-  geboortejaar: "gezin",
-  pensioenleeftijd: "gezin",
-  functie: "gezin",
+  geboortejaar: "client",
+  pensioenleeftijd: "client",
+  functie: "client",
   bruto_inkomen: "inkomen",
-  pensioen_per_jaar: "inkomen",
+  pensioen_per_jaar: "pensioen",
   jaarlijkse_uitgaven: "uitgaven",
 };
 
-/** Partner fields filled in at Inkomen; the rest belong to Gezin. */
-export const PARTNER_INCOME_FIELDS = ["bruto_inkomen", "pensioen_per_jaar"];
+/** Partner fields are filled in on the Partner step, except income and pension. */
+export const PARTNER_FIELD_STEP: Record<string, PrivePart> = { bruto_inkomen: "inkomen", pensioen_per_jaar: "pensioen" };
+export const partnerFieldStep = (key: string): PrivePart => PARTNER_FIELD_STEP[key] ?? "partner";
 
 /** Which step a privé asset type is filled in (everything else: vermogen). */
 const ASSET_TYPE_STEP: Record<string, PrivePart> = {
   eigen_woning: "woning",
   hypotheek: "woning",
   spaarrekening_eigen_woning: "woning",
-  lijfrente: "inkomen",
+  lijfrente: "pensioen",
 };
 
 export function stepOfAssetType(def: { type: string; side: Side }): StepKey {

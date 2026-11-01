@@ -8,6 +8,7 @@ import { ReturnsFields, InflationField } from "@/components/plan/returns-fields"
 import type { ReturnPercents } from "@/lib/plan/types";
 import { REPORT_SECTIONS, type ReportSectionKey } from "@/lib/plan/definitions";
 import {
+  testAiConnectionAction,
   invitePlannerAction,
   revokeInvitationAction,
   setAiReaderAction,
@@ -116,6 +117,37 @@ export function AiReaderSwitch({ enabled, available, unavailableReason }: { enab
       </div>
       {!available ? <p className="text-sm text-warn-600">Nog niet beschikbaar. {unavailableReason}</p> : null}
       {result?.error ? <FormError message={result.error} /> : null}
+    </div>
+  );
+}
+
+export function AiConnectionTest() {
+  const [res, setRes] = useState<Awaited<ReturnType<typeof testAiConnectionAction>> | null>(null);
+  const [pending, start] = useTransition();
+  return (
+    <div className="space-y-3 border-t border-ink-100 pt-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => start(async () => setRes(await testAiConnectionAction()))}
+          className="h-9 rounded-sm border border-ink-300 bg-white px-4 text-[13px] font-semibold text-ink-900 hover:bg-ink-50 disabled:opacity-50"
+        >
+          {pending ? "Bezig met testen…" : "Verbinding met AWS testen"}
+        </button>
+        <span className="text-sm text-ink-500">Stuurt alleen het woord &ldquo;OK&rdquo; naar elk model, geen documenten.</span>
+      </div>
+      {res?.error ? <FormError message={res.error} /> : null}
+      {res?.results ? (
+        <ul className="space-y-2 text-sm" aria-live="polite">
+          {res.results.map((r) => (
+            <li key={r.model} className={cn("border-l-2 px-3 py-1.5", r.ok ? "border-ok-600 bg-ok-50" : "border-danger-600 bg-danger-50")}>
+              <span className="font-medium">{r.ok ? "Werkt" : "Werkt niet"}</span> · {r.role} <code className="text-xs text-ink-500">{r.model}</code>
+              {r.message ? <p className="mt-1 text-ink-700">{r.message}</p> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
