@@ -4,14 +4,14 @@
 // engine is replaced by a licensed rekenkern.
 
 import { ASSUMPTIONS } from "@/lib/engine/assumptions";
-import { progressiveTax } from "@/lib/engine/tax-math";
 import type { PlanInput, PlanResult } from "@/lib/engine/types";
 import { formatEuro } from "@/lib/format";
 
-export type ComparisonKind = "pensioen_financiering" | "aflossen" | "salaris_dividend" | "schenken";
+export type ComparisonKind = "stoppen" | "pensioen_financiering" | "aflossen" | "salaris_dividend" | "schenken";
 
 /** `bv`: the choice is only about a BV, so it is left out for clients without one. */
 export const COMPARISONS: { kind: ComparisonKind; label: string; question: string; bv?: boolean }[] = [
+  { kind: "stoppen", label: "Wanneer stoppen", question: "Wat betekent eerder of later stoppen met werken voor uw vermogen?" },
   { kind: "pensioen_financiering", label: "Na pensioen: box 3 of BV", question: "Waaruit betaalt u uw uitgaven na het stoppen met werken het voordeligst?", bv: true },
   { kind: "aflossen", label: "Aflossen of beleggen", question: "Spaargeld gebruiken om de hypotheek af te lossen, of laten staan?" },
   { kind: "salaris_dividend", label: "Salaris of dividend", question: "Welke verhouding tussen salaris en dividend uit de BV levert netto het meest op?", bv: true },
@@ -25,6 +25,9 @@ export interface ComparisonParams {
   salary?: number;
   /** schenken: number of years to give the yearly tax-free amount. */
   giftYears?: number;
+  /** stoppen: the earlier and the later age to compare with the planned one. */
+  earlierAge?: number;
+  laterAge?: number;
 }
 
 export interface Variant {
@@ -38,8 +41,6 @@ export interface VariantOutcome {
   label: string;
   endWealth: number;
   endWealthReal: number;
-  /** End wealth minus the box 2 tax still due on the BV when it is paid out. */
-  endWealthAfterLatent: number;
   taxesPaid: number;
   netIncomeNow: number;
   taxNow: number;
@@ -47,6 +48,10 @@ export interface VariantOutcome {
   fundedFromBox3: number;
   fundedFromBv: number;
   depletedYear: number | null;
+  /** Wealth in the year the client stops working (neutral). */
+  wealthAtStop: number | null;
+  /** Average yearly balance (income − tax − spending) after stopping, in today's money. */
+  balanceAfterStop: number | null;
   /** Neutral scenario, for the chart. */
   points: { year: number; value: number }[];
 }
@@ -81,6 +86,10 @@ export function defaultParams(kind: ComparisonKind, input: PlanInput): Compariso
       return { salary: ASSUMPTIONS.insights.gebruikelijkLoon };
     case "schenken":
       return { giftYears: 10 };
+    case "stoppen": {
+      const planned = input.household.client.retirementAge ?? 67;
+      return { earlierAge: Math.max(50, planned - 2), laterAge: Math.min(75, planned + 2) };
+    }
     default:
       return {};
   }
@@ -94,6 +103,22 @@ export function buildVariants(
 ): { variants: Variant[] } | { reason: string } {
   const s = input.scope;
   switch (kind) {
+    case "stoppen": {
+      const planned = input.household.client.retirementAge;
+      if (!input.household.client.birthYear || !planned) {
+        return { reason: "Vul eerst het geboortejaar en de gewenste stopleeftijd in bij Cliënt." };
+      }
+      const age = (a: number | undefined, fallback: number) => Math.min(75, Math.max(50, Math.round(a ?? fallback)));
+      const at = (a: number) => {
+        const v = clone(input);
+        v.household.client.retirementAge = a;
+        return v;
+      };
+      const ages = [...new Set([age(params.earlierAge, planned - 2), planned, age(params.laterAge, planned + 2)])].sort((x, y) => x - y);
+      return {
+        variants: ages.map((a) => ({ key: a === planned ? "gepland" : `stop-${a}`, label: a === planned ? `Stoppen op ${a} (gepland)` : `Stoppen op ${a}`, input: at(a) })),
+      };
+    }
     case "pensioen_financiering": {
       const hasBv = (s.balans || s.bv) && input.zakelijk.companies.length > 0;
       if (!hasBv) return { reason: "Deze vergelijking vraagt om een BV met liquide middelen (vink BV en Balans BV aan in stap 1)." };
@@ -185,14 +210,13 @@ export function buildVariants(
 
 export function toOutcome(v: Variant, r: PlanResult): VariantOutcome {
   const last = r.projection.points[r.projection.points.length - 1];
-  const people = r.household.fiscalPartners ? 2 : 1;
-  const latentBox2 = progressiveTax(Math.max(0, r.projection.summary.endBvValue) / people, ASSUMPTIONS.box2.brackets) * people;
+  const stopYear = r.retirement.retirementYear;
+  const after = stopYear !== null ? r.projection.points.filter((p) => p.year >= stopYear) : [];
   return {
     key: v.key,
     label: v.label,
     endWealth: last?.neutraal ?? 0,
     endWealthReal: last?.neutraalReeel ?? 0,
-    endWealthAfterLatent: (last?.neutraal ?? 0) - latentBox2,
     taxesPaid: r.projection.summary.taxesPaid,
     netIncomeNow: r.income.net,
     taxNow: r.taxes.total,
@@ -200,12 +224,15 @@ export function toOutcome(v: Variant, r: PlanResult): VariantOutcome {
     fundedFromBox3: r.projection.summary.fundedFromBox3,
     fundedFromBv: r.projection.summary.fundedFromBv,
     depletedYear: r.projection.summary.depletedYear,
+    wealthAtStop: stopYear !== null ? (r.projection.points.find((p) => p.year === stopYear)?.neutraal ?? null) : null,
+    balanceAfterStop: after.length > 0 ? Math.round(after.reduce((x, p) => x + p.flows.balance, 0) / after.length) : null,
     points: r.projection.points.map((p) => ({ year: p.year, value: p.neutraal })),
   };
 }
 
 const METRICS: Record<ComparisonKind, ComparisonOutcome["metrics"]> = {
-  pensioen_financiering: ["endWealth", "endWealthReal", "endWealthAfterLatent", "taxesPaid", "fundedFromBox3", "fundedFromBv", "depletedYear"],
+  stoppen: ["wealthAtStop", "balanceAfterStop", "endWealth", "endWealthReal", "taxesPaid", "depletedYear"],
+  pensioen_financiering: ["endWealth", "endWealthReal", "taxesPaid", "fundedFromBox3", "fundedFromBv", "depletedYear"],
   aflossen: ["netIncomeNow", "taxNow", "endWealth", "endWealthReal", "taxesPaid"],
   salaris_dividend: ["netIncomeNow", "taxNow", "endWealth", "taxesPaid"],
   schenken: ["giftsGiven", "taxesPaid", "endWealth", "endWealthReal"],
@@ -214,7 +241,8 @@ const METRICS: Record<ComparisonKind, ComparisonOutcome["metrics"]> = {
 export const METRIC_LABELS: Record<ComparisonOutcome["metrics"][number], { label: string; better: "high" | "low" | "none" }> = {
   endWealth: { label: "Vermogen aan het eind (neutraal)", better: "high" },
   endWealthReal: { label: "Idem, in koopkracht van nu", better: "high" },
-  endWealthAfterLatent: { label: "Vermogen na latente box 2-belasting op de BV", better: "high" },
+  wealthAtStop: { label: "Vermogen bij stoppen", better: "high" },
+  balanceAfterStop: { label: "Jaarlijks over of tekort na stoppen (gemiddeld, geld van nu)", better: "high" },
   taxesPaid: { label: "Belasting over de hele periode", better: "low" },
   netIncomeNow: { label: "Netto inkomen dit jaar", better: "high" },
   taxNow: { label: "Belasting dit jaar", better: "low" },
@@ -230,12 +258,22 @@ export function summarize(kind: ComparisonKind, params: ComparisonParams, varian
   const euro = (n: number) => formatEuro(Math.abs(n), { whole: true });
   let conclusion = "";
 
-  if (kind === "pensioen_financiering") {
-    // Judge on wealth after the box 2 tax that is only postponed by leaving money in the BV.
-    const ranked = [...variants].sort((x, y) => y.endWealthAfterLatent - x.endWealthAfterLatent);
+  if (kind === "stoppen") {
+    const planned = variants.find((v) => v.key === "gepland") ?? variants[0];
+    const parts = variants
+      .filter((v) => v !== planned)
+      .map((v) => {
+        const diff = v.endWealthReal - planned.endWealthReal;
+        const depleted = v.depletedYear !== null ? ` Het vrij beschikbare vermogen raakt dan op in ${v.depletedYear}.` : "";
+        return `${v.label} geeft in ${endYear} ${euro(diff)} ${diff >= 0 ? "meer" : "minder"} vermogen (in geld van nu) dan stoppen zoals gepland.${depleted}`;
+      });
+    conclusion = `${parts.join(" ")} Het verschil komt door de jaren met of zonder inkomen uit werk, en de jaren dat het vermogen wel of niet hoeft bij te springen.`;
+  } else if (kind === "pensioen_financiering") {
+    // Wealth already counts the box 2 tax still due on what stays in the BV.
+    const ranked = [...variants].sort((x, y) => y.endWealth - x.endWealth);
     const top = ranked[0];
     const worst = ranked[ranked.length - 1];
-    const diff = top.endWealthAfterLatent - worst.endWealthAfterLatent;
+    const diff = top.endWealth - worst.endWealth;
     const why =
       top.key === "box3_first"
         ? " Geld in de BV groeit door zonder box 3-heffing en wordt pas belast bij uitkering; door eerst box 3 aan te spreken wordt die belasting uitgesteld en kan het rendement erover doorlopen."

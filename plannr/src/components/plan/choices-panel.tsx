@@ -85,6 +85,16 @@ export function ChoicesPanel({ planId, withBv }: { planId: string; withBv: boole
       <div className="space-y-5 p-5 sm:p-6">
         <p className="font-display text-lg text-ink-800">{meta.question}</p>
 
+        {kind === "stoppen" ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ParamRow label="Eerder stoppen op (leeftijd)">
+              <NumberInput id="param-earlier" kind="integer" value={p.earlierAge ?? null} onChange={(v) => setParam({ earlierAge: v ?? undefined })} />
+            </ParamRow>
+            <ParamRow label="Later stoppen op (leeftijd)">
+              <NumberInput id="param-later" kind="integer" value={p.laterAge ?? null} onChange={(v) => setParam({ laterAge: v ?? undefined })} />
+            </ParamRow>
+          </div>
+        ) : null}
         {kind === "aflossen" ? (
           <ParamRow label="Bedrag om af te lossen uit spaargeld">
             <NumberInput id="param-repay" kind="money" value={p.repayAmount ?? null} onChange={(v) => setParam({ repayAmount: v ?? 0 })} />
@@ -169,7 +179,7 @@ function Outcome({ outcome }: { outcome: ComparisonOutcome }) {
                     const val = value(m, i);
                     return (
                       <td key={variant.key} className={cn("px-3 py-2.5 text-right", best === i && "font-semibold text-ink-900")}>
-                        {m === "depletedYear" ? (val ?? "niet") : formatEuro(val ?? 0, { whole: true })}
+                        {m === "depletedYear" ? (val ?? "niet") : val === null ? "—" : formatEuro(val, { whole: true })}
                         {best === i ? <Check className="ml-1 inline h-3.5 w-3.5 text-gold-500" aria-label="beste" /> : null}
                       </td>
                     );

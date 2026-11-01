@@ -806,7 +806,7 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
               <Table
                 s={s}
                 rows={[
-                  ["Aandelen BV (indicatieve waarde)", w.zakelijk.shareValue],
+                  ["Aandelen BV (na box 2-belasting bij uitkeren)", w.zakelijk.shareValue],
                   ...w.zakelijk.soleTraders.map((t): [string, number] => [`${t.name} (ondernemingsvermogen)`, t.businessAssets]),
                 ]}
                 total={["Netto vermogen zakelijk", w.zakelijk.total]}
@@ -975,13 +975,16 @@ function SectionBody({ k, data, hs, s }: { k: ReportSectionKey; data: ReportData
                 total={
                   c.heldByHolding
                     ? undefined
-                    : ["Indicatieve waarde aandelen", (c.equity * c.sharePercentage) / 100]
+                    : ["Eigen vermogen × belang (vóór box 2)", (c.equity * c.sharePercentage) / 100]
                 }
               />
             </View>
           ))}
           {w.zakelijk.companies.length > 1 ? (
-            <Table s={s} rows={[]} total={["Waarde aandelen in box 2 (totaal)", w.zakelijk.shareValue]} />
+            <Table s={s} rows={[]} total={["Waarde aandelen na box 2-belasting (totaal)", w.zakelijk.shareValue]} />
+          ) : null}
+          {w.zakelijk.companies.length === 1 && !w.zakelijk.companies[0].heldByHolding ? (
+            <Table s={s} rows={[]} total={["Waarde aandelen na box 2-belasting", w.zakelijk.shareValue]} />
           ) : null}
           {w.zakelijk.soleTraders.map((t, i) => (
             <View key={`ez-${i}`} style={s.section} wrap={false}>

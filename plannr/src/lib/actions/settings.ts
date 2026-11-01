@@ -158,21 +158,6 @@ export async function suggestFromWebsiteAction(website: string): Promise<ActionR
   }
 }
 
-export async function setAiReaderAction(enabled: boolean): Promise<ActionResult> {
-  const member = await requireOwner();
-  if (enabled && !getAiReaderStatus().configured) {
-    return { ok: false, error: "De AI-lezer is op deze server nog niet ingesteld." };
-  }
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("firms")
-    .update({ ai_extraction_enabled: enabled, ai_extraction_changed_at: new Date().toISOString() })
-    .eq("id", member.firm.id);
-  if (error) return { ok: false, error: "Opslaan is niet gelukt." };
-  revalidatePath("/", "layout");
-  return { ok: true, message: enabled ? "Automatisch uitlezen staat aan." : "Automatisch uitlezen staat uit." };
-}
-
 /** Asks each configured Bedrock model for one word, so the owner can check the AWS setup. */
 export async function testAiConnectionAction(): Promise<{ ok: boolean; error?: string; results?: PingResult[]; region?: string }> {
   await requireOwner();

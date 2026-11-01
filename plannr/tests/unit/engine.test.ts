@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { calculatePlan } from "@/lib/engine";
-import { box3Tax, progressiveTax } from "@/lib/engine/mock-engine";
+import { box2Tax, box3Tax, progressiveTax } from "@/lib/engine/mock-engine";
 import { toEngineInput } from "@/lib/plan/to-engine-input";
 import { DEFAULT_PLAN_CONFIG, type AssetRow, type PlanConfig, type PlanInputs } from "@/lib/plan/types";
 
@@ -41,8 +41,16 @@ test("calculates a DGA plan deterministically", async () => {
   assert.deepEqual(a, b);
   assert.equal(a.wealth.prive.eigenWoningNet, 450_000);
   assert.equal(a.wealth.prive.box3Net, 420_000);
-  assert.equal(a.wealth.zakelijk.shareValue, 1_200_000);
-  assert.equal(a.wealth.total, 450_000 + 420_000 + 1_200_000);
+  // The shares count after the box 2 tax still due when the BV pays out.
+  assert.equal(a.wealth.zakelijk.shareValueGross, 1_200_000);
+  const net = 1_200_000 - box2Tax(1_200_000, 1);
+  assert.ok(Math.abs(a.wealth.zakelijk.shareValue - net) < 1);
+  assert.ok(Math.abs(a.wealth.total - (450_000 + 420_000 + net)) < 1);
+  // Year flows add up: income − tax − spending = balance.
+  for (const p of a.projection.points) {
+    const f = p.flows;
+    assert.ok(Math.abs(f.work + f.aow + f.pension + f.other + f.dividend - f.tax - f.spending - f.balance) <= 3, `flows ${p.year}`);
+  }
   assert.equal(a.income.dividendReceived, 50_000);
   assert.equal(a.taxes.lines.length, 3);
   assert.equal(a.projection.points.length, 31);

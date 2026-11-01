@@ -78,8 +78,7 @@ export default async function StepPage({ params }: PageProps<"/clienten/[clientI
           firmId={member.firm.id}
           planId={planId}
           documents={bundle.documents}
-          aiReader={member.firm.ai_extraction_enabled && getAiReaderStatus().configured}
-          isOwner={member.isOwner}
+          aiReader={getAiReaderStatus().configured}
           priveEnabled
           zakelijkEnabled={zakelijk}
         />

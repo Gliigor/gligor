@@ -156,27 +156,34 @@ export function mockCalculate(input: PlanInput): PlanResult {
   const anyZakelijk = s.bv || s.balans || s.resultaat || s.pensioenEigenBeheer || s.dividend;
   const companies = (anyZakelijk ? input.zakelijk.companies : []).map((c) => ({
     ...c,
-    owner: (c.owner === "partner" && hasPartner ? "partner" : "client") as Role,
+    owner: (hasPartner ? c.owner : "client") as Owner,
   }));
+  /** The person who draws the DGA salary: the shareholder, or the client for jointly held shares. */
+  const directorOf = (c: { owner: Owner }): Role => (c.owner === "partner" ? "partner" : "client");
   const pct = (c: { sharePercentage: number }) => c.sharePercentage / 100;
   // A werkmaatschappij held by a holding is not in box 2 itself: its value sits in the holding's
   // deelneming, and its profit (dividend to the holding is tax-free) adds to the group.
   const direct = companies.filter((c) => !c.heldByHolding);
-  const shareValue = direct.reduce((sum, c) => sum + (s.balans ? c.equity : 0) * pct(c), 0);
+  const shareValueGross = direct.reduce((sum, c) => sum + (s.balans ? c.equity : 0) * pct(c), 0);
+  const paidIn = direct.reduce((sum, c) => sum + c.paidInCapital * pct(c), 0);
+  /**
+   * What the shares are worth privately: the BV's value minus the box 2 tax due when it is paid out,
+   * as if paid out at once. Paid-in capital comes back untaxed. A holding that only holds the ODV is worth about 0.
+   */
+  const afterLatentBox2 = (gross: number) => gross - box2Tax(Math.max(0, gross - paidIn), fiscal ? 2 : 1);
+  const shareValue = afterLatentBox2(shareValueGross);
   const equity = s.balans ? companies.reduce((sum, c) => sum + c.equity, 0) : 0;
   const liquidAssets = s.balans ? companies.reduce((sum, c) => sum + c.liquidAssets, 0) : 0;
   const ownLiquid = s.balans ? direct.reduce((sum, c) => sum + c.liquidAssets * pct(c), 0) : 0;
   const pensionObligation = s.pensioenEigenBeheer ? companies.reduce((sum, c) => sum + c.pensionObligation, 0) : 0;
-  const dgaSalaryOf = (role: Role) => (s.bv ? companies.filter((c) => c.owner === role).reduce((sum, c) => sum + c.dgaSalary, 0) : 0);
-  const dividendOf = (role: Role) => (s.dividend ? direct.filter((c) => c.owner === role).reduce((sum, c) => sum + c.dividend * pct(c), 0) : 0);
+  const dgaSalaryOf = (role: Role) => (s.bv ? companies.filter((c) => directorOf(c) === role).reduce((sum, c) => sum + c.dgaSalary, 0) : 0);
+  const dividendOf = (role: Role) => (s.dividend ? direct.reduce((sum, c) => sum + c.dividend * pct(c) * share(c.owner, role), 0) : 0);
   const retainedOf = (role: Role) =>
     s.resultaat
-      ? companies
-          .filter((c) => c.owner === role)
-          .reduce(
-            (sum, c) => sum + Math.max(0, c.resultAfterTax - (s.dividend && !c.heldByHolding ? c.dividend : 0)) * pct(c),
-            0,
-          )
+      ? companies.reduce(
+          (sum, c) => sum + Math.max(0, c.resultAfterTax - (s.dividend && !c.heldByHolding ? c.dividend : 0)) * pct(c) * share(c.owner, role),
+          0,
+        )
       : 0;
 
   // Eenmanszaken: taxable profit in box 1 of the owner while the business runs.
@@ -477,7 +484,8 @@ export function mockCalculate(input: PlanInput): PlanResult {
   // --- Projection -------------------------------------------------------------------
   const funding = input.strategy?.retirementFunding ?? "box3_first";
   const allowances = fiscal ? 2 : roles.length;
-  const bvRest = shareValue - ownLiquid;
+  // The BV's value apart from its cash (gross); latent box 2 tax is deducted per year on the whole.
+  const bvRest = shareValueGross - ownLiquid;
   const points: ProjectionPoint[] = [];
   // Private wealth in three pots: savings, investments (net of box 3 debts) and other real estate,
   // each at its own realistic expected return; the scenarios add a spread.
@@ -499,6 +507,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
     // Household income this year, in today's money (mortgage costs are part of the expenses).
     let netToday = 0;
     let box1Today = 0;
+    const flowToday = { work: 0, aow: 0, pension: 0, other: 0 };
     let retainedToday = 0;
     let regularDividend = 0;
     for (const { role, p } of people) {
@@ -518,6 +527,11 @@ export function mockCalculate(input: PlanInput): PlanResult {
       const tax = Math.max(0, taxGross - interest * a.box1.hypotheekrenteAftrekTarief - giftDeduction(f.deductibleGifts, gross, deductionRate));
       box1Today += tax;
       netToday += labour + biz.profit + pension + aow + f.box1 - f.lijfrenteContribution + f.taxFree - tax;
+      flowToday.work += labour + biz.profit;
+      flowToday.aow += aow;
+      flowToday.pension += pension;
+      // Lijfrente payouts, other items and tax-free income, minus lijfrente premiums paid.
+      flowToday.other += f.box1 + f.taxFree - f.lijfrenteContribution;
       if (working) {
         regularDividend += dividendOf(role);
         retainedToday += retainedOf(role);
@@ -591,13 +605,14 @@ export function mockCalculate(input: PlanInput): PlanResult {
         }
       }
       const houseNet = s.eigenWoning ? st.house - mortgageDebt : 0;
-      totals[key] = round(st.savings + st.invested + st.realEstate + st.bvLiquid + bvRest + houseNet + policyWealth[t] + tbsValue + businessAssets);
+      const bvNet = companies.length > 0 ? afterLatentBox2(st.bvLiquid + bvRest) : 0;
+      totals[key] = round(st.savings + st.invested + st.realEstate + bvNet + houseNet + policyWealth[t] + tbsValue + businessAssets);
       if (key === "neutraal") {
         components = {
           woning: round(houseNet),
           box3: round(st.savings + st.invested + st.realEstate),
           polissen: round(policyWealth[t] + tbsValue),
-          bv: round(st.bvLiquid + bvRest),
+          bv: round(bvNet),
           onderneming: round(businessAssets),
         };
       }
@@ -614,6 +629,21 @@ export function mockCalculate(input: PlanInput): PlanResult {
       spending: round(spendingToday * priceIndex + giftsTotalIn(year)),
       partnerAge: hasPartner && h.partner?.birthYear ? year - h.partner.birthYear : null,
       components,
+      flows: (() => {
+        const spendingWithGifts = spendingToday + giftsTotalIn(year) / priceIndex;
+        const tax = box1Today + regularBox2Today;
+        const income = flowToday.work + flowToday.aow + flowToday.pension + flowToday.other + regularDividend;
+        return {
+          work: round(flowToday.work),
+          aow: round(flowToday.aow),
+          pension: round(flowToday.pension),
+          other: round(flowToday.other),
+          dividend: round(regularDividend),
+          tax: round(tax),
+          spending: round(s.inkomen ? spendingWithGifts : 0),
+          balance: round(s.inkomen ? income - tax - spendingWithGifts : 0),
+        };
+      })(),
     });
   }
 
@@ -684,6 +714,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
       zakelijk: {
         included: anyZakelijk || s.eenmanszaak,
         shareValue: round(shareValue),
+        shareValueGross: round(shareValueGross),
         soleTraders: soleTraders.map((t) => ({
           name: t.name,
           owner: t.owner,
