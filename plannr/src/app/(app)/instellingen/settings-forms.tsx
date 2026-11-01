@@ -4,10 +4,11 @@ import { useActionState, useState, useTransition } from "react";
 import { FormError, FormSuccess, Input, Label } from "@/components/ui/form";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { cn } from "@/components/ui/cn";
-import { ReturnsFields } from "@/components/plan/returns-fields";
+import { ReturnsFields, InflationField } from "@/components/plan/returns-fields";
 import type { ReturnPercents } from "@/lib/plan/types";
 import { REPORT_SECTIONS, type ReportSectionKey } from "@/lib/plan/definitions";
 import {
+  testAiConnectionAction,
   invitePlannerAction,
   revokeInvitationAction,
   setAiReaderAction,
@@ -120,6 +121,37 @@ export function AiReaderSwitch({ enabled, available, unavailableReason }: { enab
   );
 }
 
+export function AiConnectionTest() {
+  const [res, setRes] = useState<Awaited<ReturnType<typeof testAiConnectionAction>> | null>(null);
+  const [pending, start] = useTransition();
+  return (
+    <div className="space-y-3 border-t border-ink-100 pt-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => start(async () => setRes(await testAiConnectionAction()))}
+          className="h-9 rounded-sm border border-ink-300 bg-white px-4 text-[13px] font-semibold text-ink-900 hover:bg-ink-50 disabled:opacity-50"
+        >
+          {pending ? "Bezig met testen…" : "Verbinding met AWS testen"}
+        </button>
+        <span className="text-sm text-ink-500">Stuurt alleen het woord &ldquo;OK&rdquo; naar elk model, geen documenten.</span>
+      </div>
+      {res?.error ? <FormError message={res.error} /> : null}
+      {res?.results ? (
+        <ul className="space-y-2 text-sm" aria-live="polite">
+          {res.results.map((r) => (
+            <li key={r.model} className={cn("border-l-2 px-3 py-1.5", r.ok ? "border-ok-600 bg-ok-50" : "border-danger-600 bg-danger-50")}>
+              <span className="font-medium">{r.ok ? "Werkt" : "Werkt niet"}</span> · {r.role} <code className="text-xs text-ink-500">{r.model}</code>
+              {r.message ? <p className="mt-1 text-ink-700">{r.message}</p> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 export function FirmReportSectionsForm({ initial }: { initial: ReportSectionKey[] }) {
   const [value, setValue] = useState<ReportSectionKey[]>(initial);
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -167,6 +199,9 @@ export function FirmReturnsForm({ initial }: { initial: ReturnPercents }) {
   const [pending, start] = useTransition();
   return (
     <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <InflationField id="kantoor-inflatie" value={value} onChange={setValue} />
+      </div>
       <ReturnsFields idPrefix="kantoor-rvr" value={value} onChange={setValue} />
       <div className="flex items-center gap-3">
         <button

@@ -24,8 +24,8 @@ export function InsightsPanel({ planId, insights, initialHidden }: { planId: str
   return (
     <Card>
       <CardHeader
-        title="Aandachtspunten"
-        description="Kansen en risico's op basis van de ingevulde gegevens. Vink uit wat niet in het rapport hoort."
+        title="Aandachtspunten in het rapport"
+        description="Vink uit wat de cliënt niet hoeft te zien."
         action={<SaveIndicator status={status} />}
       />
       {insights.length === 0 ? (

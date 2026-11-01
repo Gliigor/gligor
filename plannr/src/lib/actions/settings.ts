@@ -12,6 +12,7 @@ import { exampleDesigns, MAX_WISH_LENGTH, type ReportDesign } from "@/lib/house-
 import { designWithBedrock } from "@/lib/house-style/ai-designer";
 import { toReportLogo } from "@/lib/pdf/render";
 import { getAiDesignerStatus, getAiReaderStatus } from "@/lib/extraction/ai/config";
+import { pingBedrock, type PingResult } from "@/lib/extraction/ai/ping";
 import { parseReturns } from "@/lib/plan/types";
 import { REPORT_SECTION_KEYS } from "@/lib/plan/definitions";
 import { sanitizeKeyList } from "@/lib/plan/sanitize";
@@ -170,6 +171,15 @@ export async function setAiReaderAction(enabled: boolean): Promise<ActionResult>
   if (error) return { ok: false, error: "Opslaan is niet gelukt." };
   revalidatePath("/", "layout");
   return { ok: true, message: enabled ? "Automatisch uitlezen staat aan." : "Automatisch uitlezen staat uit." };
+}
+
+/** Asks each configured Bedrock model for one word, so the owner can check the AWS setup. */
+export async function testAiConnectionAction(): Promise<{ ok: boolean; error?: string; results?: PingResult[]; region?: string }> {
+  await requireOwner();
+  const status = getAiReaderStatus();
+  if (!status.configured) return { ok: false, error: status.reason };
+  const results = await pingBedrock(status.config);
+  return { ok: results.every((r) => r.ok), results, region: status.config.region };
 }
 
 export async function setFirmReportSectionsAction(raw: unknown): Promise<ActionResult> {

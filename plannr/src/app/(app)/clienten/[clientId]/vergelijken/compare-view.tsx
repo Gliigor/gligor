@@ -24,6 +24,7 @@ export function CompareView({ clientId, columns }: { clientId: string; columns: 
       value: (c) => `${Math.round(c.assumptions.retiredPct * 100)}% / ${Math.round(c.assumptions.laterPct * 100)}%`,
     },
     { label: "Verwacht rendement beleggingen", value: (c) => formatPercent(c.assumptions.investmentsReturn) },
+    { label: "Inflatie", value: (c) => formatPercent(c.assumptions.inflation) },
     { label: "Posten met een periode", value: (c) => String(c.assumptions.items) },
   ];
   const assumptionRows = rows.filter((row) => columns.some((c) => row.value(c) !== row.value(columns[0])));

@@ -59,8 +59,8 @@ test("a one-off expense lowers wealth once, a period expense every year", async 
   const base = await run();
   const once = await run([item("eenmalige_uitgave", 50_000, { persoon: null, startjaar: 2027 })]);
   const diff = (y: number) => point(base, y).neutraal - point(once, y).neutraal;
-  // Entered in today's money: €50.000 costs €51.000 in 2027 after 2% inflation.
-  assert.ok(diff(2027) > 50_900 && diff(2027) < 51_100, `diff ${diff(2027)}`);
+  // Entered in today's money: €50.000 costs €51.150 in 2027 after 2,3% inflation.
+  assert.ok(diff(2027) > 51_050 && diff(2027) < 51_250, `diff ${diff(2027)}`);
   assert.equal(point(once, 2027).spending - point(base, 2027).spending > 49_000, true);
   assert.equal(point(once, 2028).spending, point(base, 2028).spending);
 });

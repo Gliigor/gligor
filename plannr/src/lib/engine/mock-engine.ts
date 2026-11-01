@@ -120,6 +120,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
 
   const rates: ReturnRates = { ...a.rvr, ...input.returns };
   const pattern = { ...a.spendingPattern, ...input.spendingPattern };
+  const inflation = input.inflation ?? a.inflation;
 
   /** Share of an item that belongs to `role`. */
   const share = (owner: Owner, role: Role): number => {
@@ -202,7 +203,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
 
   // --- Items over time, policies and loans to the own BV ------------------------------
   const ref = input.referenceYear;
-  const indexAt = (t: number) => Math.pow(1 + a.inflation, t);
+  const indexAt = (t: number) => Math.pow(1 + inflation, t);
   const personOf = (role: Role) => people.find((x) => x.role === role)?.p ?? null;
   const items = input.prive.cashItems.filter((it) => it.amount > 0 && (it.person !== "partner" || hasPartner));
   const startOf = (it: CashFlowItem) => {
@@ -491,7 +492,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
 
   for (let t = 0; t <= a.projectionYears; t++) {
     const year = input.referenceYear + t;
-    const priceIndex = Math.pow(1 + a.inflation, t);
+    const priceIndex = Math.pow(1 + inflation, t);
     const totals = {} as Record<ScenarioKey, number>;
     let components = { woning: 0, box3: 0, polissen: 0, bv: 0, onderneming: 0 };
 
@@ -681,6 +682,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
         total: round(priveTotal),
       },
       zakelijk: {
+        included: anyZakelijk || s.eenmanszaak,
         shareValue: round(shareValue),
         soleTraders: soleTraders.map((t) => ({
           name: t.name,
@@ -745,6 +747,7 @@ export function mockCalculate(input: PlanInput): PlanResult {
         SCENARIO_KEYS.map((k) => [k, { label: a.scenarios[k].label, returnRate: rates.investments + a.scenarioSpread[k] }]),
       ) as Record<ScenarioKey, { label: string; returnRate: number }>,
       returns: rates,
+      inflation,
       events: lifeEvents,
       points,
       summary: {

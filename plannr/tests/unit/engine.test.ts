@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { calculatePlan } from "@/lib/engine";
 import { box3Tax, progressiveTax } from "@/lib/engine/mock-engine";
 import { toEngineInput } from "@/lib/plan/to-engine-input";
-import { DEFAULT_PLAN_CONFIG, type AssetRow, type PlanConfig } from "@/lib/plan/types";
+import { DEFAULT_PLAN_CONFIG, type AssetRow, type PlanConfig, type PlanInputs } from "@/lib/plan/types";
 
 function asset(type: string, value: number | null, metadata: Record<string, unknown> = {}): AssetRow {
   return { id: type, firm_id: "f", plan_id: "p", side: type === "bv_aandelen" ? "zakelijk" : "prive", type, tax_box: null, label: "", value, metadata, source: "handmatig", sort_order: 0 };
@@ -22,13 +22,8 @@ const dgaAssets = [
   asset("bv_aandelen", null, { bv_naam: "Holding B.V.", aandelen_percentage: 100, eigen_vermogen: 1_200_000, liquide_middelen: 400_000, resultaat_na_belasting: 180_000, odv_waarde: 250_000, salaris_dga: 60_000, dividenduitkering: 50_000 }),
 ];
 
-const dgaInput = () =>
-  toEngineInput({
-    config: dgaConfig,
-    inputs: { uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: null, laterLeeftijd: null, laterPct: null } }, uitgaven: {}, prive: { geboortejaar: 1972, pensioenleeftijd: 67, bruto_inkomen: 0, jaarlijkse_uitgaven: 70_000, pensioen_per_jaar: 20_000 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] },
-    assets: dgaAssets,
-    referenceYear: 2026,
-  });
+const dgaInputs: PlanInputs = { uitgangspunten: { rendement: {}, uitgavenpatroon: { pensioenPct: null, laterLeeftijd: null, laterPct: null } }, uitgaven: {}, prive: { geboortejaar: 1972, pensioenleeftijd: 67, bruto_inkomen: 0, jaarlijkse_uitgaven: 70_000, pensioen_per_jaar: 20_000 }, partner: {}, kinderen: [], schenkingen: [], posten: [], fromDocument: [] };
+const dgaInput = () => toEngineInput({ config: dgaConfig, inputs: dgaInputs, assets: dgaAssets, referenceYear: 2026 });
 
 test("progressive tax applies brackets", () => {
   assert.equal(progressiveTax(0, [{ upTo: null, rate: 0.5 }]), 0);
@@ -62,6 +57,32 @@ test("out-of-scope sections are ignored", async () => {
   const r = await calculatePlan(input);
   assert.equal(r.wealth.zakelijk.total, 0);
   assert.equal(r.income.dividendReceived, 0);
+  assert.equal(r.wealth.zakelijk.included, false);
+});
+
+test("inflation: plan overrides firm default, and expenses grow with it", async () => {
+  const at = (inflatie: number | null, firm: number | null) =>
+    toEngineInput({
+      config: dgaConfig,
+      inputs: { ...dgaInputs, uitgangspunten: { rendement: { inflatie }, uitgavenpatroon: { pensioenPct: null, laterLeeftijd: null, laterPct: null } } },
+      assets: dgaAssets,
+      referenceYear: 2026,
+      firmReturns: { inflatie: firm },
+    }).inflation;
+  assert.equal(at(null, null), undefined, "engine default");
+  assert.equal(at(null, 2.5), 0.025);
+  assert.equal(at(3, 2.5), 0.03);
+
+  const low = dgaInput();
+  low.inflation = 0.01;
+  const high = dgaInput();
+  high.inflation = 0.04;
+  const [a, b] = await Promise.all([calculatePlan(low), calculatePlan(high)]);
+  assert.equal(a.projection.inflation, 0.01);
+  // Year 10, both before retirement: expenses of 70.000 in today's money.
+  const y = (r: typeof a) => r.projection.points[10].spending;
+  assert.ok(Math.abs(y(a) - 70_000 * 1.01 ** 10) < 2, `spending ${y(a)}`);
+  assert.ok(Math.abs(y(b) - 70_000 * 1.04 ** 10) < 2, `spending ${y(b)}`);
 });
 
 test("fiscal partners split box 2 and get two box 3 allowances", async () => {

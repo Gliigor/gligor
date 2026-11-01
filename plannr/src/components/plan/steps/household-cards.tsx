@@ -1,12 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader } from "@/components/ui/card";
 import { inputClass } from "@/components/ui/form";
 import { cn } from "@/components/ui/cn";
 import { Plus, Trash2 } from "@/components/ui/icons";
 import { ASSUMPTIONS } from "@/lib/engine/assumptions";
-import { GIFT_KINDS, PARTNER_FIELDS, PARTNER_INCOME_FIELDS } from "@/lib/plan/definitions";
+import { GIFT_KINDS, PARTNER_FIELDS, partnerFieldStep } from "@/lib/plan/definitions";
 import type { ChildInput, GiftPlanInput, PlanInputs } from "@/lib/plan/types";
 import { formatEuro } from "@/lib/format";
 import { FieldInput, FieldShell, NumberInput } from "../fields";
@@ -14,53 +13,40 @@ import { FieldInput, FieldShell, NumberInput } from "../fields";
 const domId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "-");
 const newId = () => crypto.randomUUID().slice(0, 18);
 
+/** Who the partner is; income and pension are asked on their own steps. */
 export function PartnerCard({
   inputs,
   missingIds,
   onChange,
-  part = "gezin",
-  extra,
 }: {
   inputs: PlanInputs;
   missingIds: Set<string>;
   onChange: (next: PlanInputs) => void;
-  /** Gezin: who the partner is. Inkomen: the partner's income and pension. */
-  part?: "gezin" | "inkomen";
-  extra?: (fieldKey: string) => React.ReactNode;
 }) {
-  const fields = PARTNER_FIELDS.filter((f) => PARTNER_INCOME_FIELDS.includes(f.key) === (part === "inkomen"));
-  const name = inputs.partner.naam || "partner";
+  const fields = PARTNER_FIELDS.filter((f) => partnerFieldStep(f.key) === "partner");
   return (
-    <Card>
-      <CardHeader
-        title={part === "inkomen" ? `Inkomen ${name}` : "Partner"}
-        description={part === "inkomen" ? "Bruto per jaar, zoals op de jaaropgaaf." : "Wie de partner is. Inkomen en pensioen vul je in bij Inkomen."}
-      />
-      <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-        {fields.map((field) => {
-          const id = `partner.${field.key}`;
-          return (
-            <div key={field.key}>
-              <FieldInput
-                id={domId(id)}
-                field={field}
-                value={inputs.partner[field.key as keyof typeof inputs.partner] ?? null}
-                missing={missingIds.has(id)}
-                fromDocument={inputs.fromDocument.includes(id)}
-                onChange={(v) =>
-                  onChange({
-                    ...inputs,
-                    partner: { ...inputs.partner, [field.key]: v },
-                    fromDocument: inputs.fromDocument.filter((k) => k !== id),
-                  })
-                }
-              />
-              {extra?.(field.key)}
-            </div>
-          );
-        })}
-      </div>
-    </Card>
+    <div className="grid gap-6 sm:grid-cols-2">
+      {fields.map((field) => {
+        const id = `partner.${field.key}`;
+        return (
+          <FieldInput
+            key={field.key}
+            id={domId(id)}
+            field={field}
+            value={inputs.partner[field.key as keyof typeof inputs.partner] ?? null}
+            missing={missingIds.has(id)}
+            fromDocument={inputs.fromDocument.includes(id)}
+            onChange={(v) =>
+              onChange({
+                ...inputs,
+                partner: { ...inputs.partner, [field.key]: v },
+                fromDocument: inputs.fromDocument.filter((k) => k !== id),
+              })
+            }
+          />
+        );
+      })}
+    </div>
   );
 }
 
@@ -81,12 +67,8 @@ export function ChildrenCard({
     onChange({ ...inputs, schenkingen: inputs.schenkingen.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
 
   return (
-    <Card>
-      <CardHeader
-        title="Kinderen & schenkingen"
-        description={`Ouders mogen een kind jaarlijks ${formatEuro(ASSUMPTIONS.schenking.vrijstellingKind, { whole: true })} belastingvrij schenken; eenmalig ${formatEuro(ASSUMPTIONS.schenking.eenmaligVerhoogd, { whole: true })} als het kind 18 tot 40 jaar is.`}
-      />
-      <div className="space-y-4 p-5 sm:p-6">
+    <div>
+      <div className="space-y-4">
         {inputs.kinderen.length === 0 ? <p className="text-sm text-ink-500">Nog geen kinderen toegevoegd.</p> : null}
         {inputs.kinderen.map((child) => {
           const gifts = inputs.schenkingen.filter((g) => g.kindId === child.id);
@@ -238,6 +220,6 @@ export function ChildrenCard({
           <Plus className="h-4 w-4" /> Kind toevoegen
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }

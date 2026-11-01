@@ -14,8 +14,6 @@ const nlYear = new Intl.NumberFormat("nl-NL", { useGrouping: false, maximumFract
 export function FieldShell({
   id,
   label,
-  help,
-  missing,
   fromDocument,
   children,
 }: {
@@ -37,16 +35,15 @@ export function FieldShell({
             <FileText className="h-3 w-3" /> uit document
           </Badge>
         ) : null}
-        {missing ? <Badge tone="warn">Ontbreekt</Badge> : null}
       </div>
       {children}
-      {help ? <p className="mt-1 text-xs text-ink-500">{help}</p> : null}
     </div>
   );
 }
 
-function fieldBorder(missing?: boolean, fromDocument?: boolean) {
-  if (missing) return "border-warn-600 bg-warn-50 focus:border-warn-600 focus:ring-warn-100";
+// Empty required fields are not marked while filling in; the results list them under "Nog aan te vullen".
+// Help texts stay in the definitions for a later info icon, but are not shown for now.
+function fieldBorder(_missing?: boolean, fromDocument?: boolean) {
   if (fromDocument) return "border-doc-600/40 bg-doc-50/60";
   return "";
 }

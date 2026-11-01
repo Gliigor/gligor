@@ -12,6 +12,7 @@ import {
   type PlanInputs,
   type PlanRow,
 } from "./types";
+import { clientHasCompany, configForClient } from "./status";
 
 export interface PlanBundle {
   plan: PlanRow;
@@ -40,7 +41,8 @@ export const loadPlan = cache(async (planId: string): Promise<PlanBundle | null>
   return {
     plan,
     client: client.data,
-    config: parsePlanConfig(plan.config),
+    // Without a company the zakelijk sections are off everywhere.
+    config: configForClient(parsePlanConfig(plan.config), clientHasCompany(client.data)),
     inputs: parsePlanInputs(plan.inputs),
     assets: (assets.data ?? []).map((a) => normalizeAsset(a as Record<string, unknown>)),
     documents: (documents.data ?? []) as DocumentRow[],

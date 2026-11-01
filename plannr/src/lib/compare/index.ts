@@ -10,10 +10,11 @@ import { formatEuro } from "@/lib/format";
 
 export type ComparisonKind = "pensioen_financiering" | "aflossen" | "salaris_dividend" | "schenken";
 
-export const COMPARISONS: { kind: ComparisonKind; label: string; question: string }[] = [
-  { kind: "pensioen_financiering", label: "Na pensioen: box 3 of BV", question: "Waaruit betaalt u uw uitgaven na het stoppen met werken het voordeligst?" },
+/** `bv`: the choice is only about a BV, so it is left out for clients without one. */
+export const COMPARISONS: { kind: ComparisonKind; label: string; question: string; bv?: boolean }[] = [
+  { kind: "pensioen_financiering", label: "Na pensioen: box 3 of BV", question: "Waaruit betaalt u uw uitgaven na het stoppen met werken het voordeligst?", bv: true },
   { kind: "aflossen", label: "Aflossen of beleggen", question: "Spaargeld gebruiken om de hypotheek af te lossen, of laten staan?" },
-  { kind: "salaris_dividend", label: "Salaris of dividend", question: "Welke verhouding tussen salaris en dividend uit de BV levert netto het meest op?" },
+  { kind: "salaris_dividend", label: "Salaris of dividend", question: "Welke verhouding tussen salaris en dividend uit de BV levert netto het meest op?", bv: true },
   { kind: "schenken", label: "Schenken aan kinderen", question: "Wat doet schenken met uw vermogen en de belasting?" },
 ];
 

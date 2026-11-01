@@ -7,7 +7,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { ChevronRight } from "@/components/ui/icons";
 import { formatDateTime } from "@/lib/format";
 import { EU_REGIONS, getAiReaderStatus } from "@/lib/extraction/ai/config";
-import { AiReaderSwitch, FirmForm, FirmReportSectionsForm, FirmReturnsForm, InviteForm, RevokeButton } from "./settings-forms";
+import { AiConnectionTest, AiReaderSwitch, FirmForm, FirmReportSectionsForm, FirmReturnsForm, InviteForm, RevokeButton } from "./settings-forms";
 import { firmReportSections, parseReturns } from "@/lib/plan/types";
 
 export const metadata = { title: "Instellingen" };
@@ -45,8 +45,8 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader
-          title="Verwacht rendement (RVR)"
-          description="Realistisch verwacht rendement per soort vermogen, per jaar. Dit is de startwaarde voor alle plannen van het kantoor; per plan aan te passen. Leeg laten: de waarde die grijs staat."
+          title="Inflatie en verwacht rendement"
+          description="Inflatie en realistisch verwacht rendement (RVR) per soort vermogen, per jaar. Dit is de startwaarde voor alle plannen van het kantoor; per plan aan te passen bij Uitgangspunten. Leeg laten: de waarde die grijs staat."
         />
         <div className="p-4 sm:p-5">
           <FirmReturnsForm initial={parseReturns(member.firm.rendement_standaard)} />
@@ -82,6 +82,7 @@ export default async function SettingsPage() {
             <li>Plannr telt de overgenomen bedragen na tegen de totalen in het document. Klopt dat niet, dan leest een sterker model het document nog een keer; blijft er een verschil, dan zie je dat bij het document. Maximaal 5 documenten per soort per plan.</li>
             <li>Zet je dit aan, vermeld AWS dan als subverwerker in je verwerkersovereenkomst en privacyverklaring.</li>
           </ul>
+          {reader.configured ? <AiConnectionTest /> : null}
           {member.firm.ai_extraction_changed_at ? (
             <p className="text-xs text-ink-400">Laatst gewijzigd op {formatDateTime(member.firm.ai_extraction_changed_at)}</p>
           ) : null}

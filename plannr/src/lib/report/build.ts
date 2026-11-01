@@ -8,6 +8,7 @@ import { deriveInsights } from "@/lib/insights";
 import { toHouseStyle, type HouseStyle } from "@/lib/house-style/types";
 import type { ReportSectionKey } from "@/lib/plan/definitions";
 import { toEngineInput } from "@/lib/plan/to-engine-input";
+import { clientHasCompany, configForClient } from "@/lib/plan/status";
 import { normalizeAsset, parsePlanConfig, parsePlanInputs, type ClientRow, type PlanRow, type ReturnPercents } from "@/lib/plan/types";
 import { fullName } from "@/lib/format";
 import { MAX_COMPARE, toColumn, type ScenarioColumn } from "@/lib/scenarios";
@@ -44,7 +45,8 @@ export async function buildReport(
   ]);
   if (!client || !firm) return null;
 
-  const config = parsePlanConfig(plan.config);
+  const hasCompany = clientHasCompany(client);
+  const config = configForClient(parsePlanConfig(plan.config), hasCompany);
   const now = opts.now ?? new Date();
   const engineInput = toEngineInput({
     config,
@@ -72,7 +74,7 @@ export async function buildReport(
       }
       const { data: rows } = await supabase.from("assets").select("*").eq("plan_id", p.id);
       const input = toEngineInput({
-        config: parsePlanConfig(p.config),
+        config: configForClient(parsePlanConfig(p.config), hasCompany),
         inputs: parsePlanInputs(p.inputs),
         assets: (rows ?? []).map((a) => normalizeAsset(a)),
         referenceYear: now.getFullYear(),
@@ -101,10 +103,11 @@ export async function buildReport(
       plannerName: opts.plannerName ?? null,
       generatedAt: now,
       result,
-      // A family section only makes sense with a partner or children.
+      // A family section only makes sense with a partner or children, a business overview only with a company.
       sections: (opts.sections ?? config.reportSections).filter(
         (k) =>
           (k !== "schenkingen" || result.household.persons.length > 1 || result.gifts !== null) &&
+          (k !== "zakelijk_overzicht" || result.wealth.zakelijk.included) &&
           (k !== "scenarios" || scenarios.length > 1),
       ),
       insights,

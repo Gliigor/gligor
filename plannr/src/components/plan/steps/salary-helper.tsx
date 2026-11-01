@@ -19,12 +19,12 @@ export function SalaryHelper({ idPrefix, onApply }: { idPrefix: string; onApply:
         onClick={() => setOpen(true)}
         className="mt-1.5 text-xs font-semibold text-ink-700 underline decoration-gold-500 underline-offset-4 hover:text-ink-900"
       >
-        Rekenhulp: van loonstrook naar jaarloon
+        + Uitrekenen vanaf loonstrook
       </button>
     );
   }
   return (
-    <div className="mt-2 space-y-3 rounded-sm border border-ink-200 bg-ink-50 p-3">
+    <div data-no-enter-next className="mt-2 space-y-3 rounded-sm border border-ink-200 bg-ink-50 p-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <FieldShell id={`${idPrefix}-maandloon`} label="Bruto maandloon">
           <NumberInput id={`${idPrefix}-maandloon`} kind="money" value={monthly} onChange={setMonthly} />

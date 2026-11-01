@@ -1,7 +1,6 @@
 // Side-by-side comparison of plans (a base plan and its scenarios). Every plan
 // is calculated with calculatePlan(); this file only picks the figures to show.
 
-import { ASSUMPTIONS } from "@/lib/engine/assumptions";
 import type { PlanInput, PlanResult } from "@/lib/engine/types";
 
 export const MAX_COMPARE = 3;
@@ -18,6 +17,7 @@ export interface ScenarioColumn {
     retiredPct: number;
     laterPct: number;
     investmentsReturn: number;
+    inflation: number;
     items: number;
   };
   metrics: {
@@ -40,7 +40,7 @@ export function toColumn(plan: { id: string; title: string; scenario_van?: strin
   const ref = result.referenceYear;
   const retYear = result.retirement.retirementYear;
   const retired = retYear !== null ? pts.filter((p) => p.year >= retYear) : [];
-  const real = (p: (typeof pts)[number]) => p.spending / Math.pow(1 + ASSUMPTIONS.inflation, p.year - ref);
+  const real = (p: (typeof pts)[number]) => p.spending / Math.pow(1 + result.projection.inflation, p.year - ref);
   const last = pts[pts.length - 1];
   return {
     planId: plan.id,
@@ -53,6 +53,7 @@ export function toColumn(plan: { id: string; title: string; scenario_van?: strin
       retiredPct: input.spendingPattern?.retiredPct ?? 1,
       laterPct: input.spendingPattern?.laterPct ?? 1,
       investmentsReturn: result.projection.returns.investments,
+      inflation: result.projection.inflation,
       items: input.prive.cashItems.length,
     },
     metrics: {

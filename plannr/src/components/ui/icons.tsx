@@ -1,6 +1,7 @@
 // Re-exported icons so the rest of the app has one import location.
 export {
   ArrowRight,
+  MoreHorizontal,
   ArrowLeft,
   Check,
   AlertTriangle,

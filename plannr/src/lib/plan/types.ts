@@ -28,8 +28,11 @@ export interface ReturnPercents {
   vastgoed?: number | null;
   bv?: number | null;
   woning?: number | null;
+  /** Yearly inflation in percent (stored with the returns: firm default and plan override). */
+  inflatie?: number | null;
 }
 export const RETURN_KEYS = ["sparen", "beleggingen", "vastgoed", "bv", "woning"] as const;
+const PERCENT_KEYS = [...RETURN_KEYS, "inflatie"] as const;
 
 export interface FirmRow {
   id: string;
@@ -375,7 +378,7 @@ export function parsePlanInputs(raw: unknown): PlanInputs {
 export function parseReturns(raw: unknown): ReturnPercents {
   const obj = isRecord(raw) ? raw : {};
   const out: ReturnPercents = {};
-  for (const k of RETURN_KEYS) {
+  for (const k of PERCENT_KEYS) {
     const v = num(obj[k]);
     out[k] = v !== null && v >= -10 && v <= 20 ? Math.round(v * 100) / 100 : null;
   }

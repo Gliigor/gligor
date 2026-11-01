@@ -5,7 +5,8 @@
 export const ASSUMPTIONS = {
   label: "Indicatieve uitgangspunten (gebaseerd op regels 2025), prototype",
   projectionYears: 30,
-  inflation: 0.02,
+  /** Average Dutch consumer price inflation (CBS CPI) over roughly the last 25 years. */
+  inflation: 0.023,
   /** Yearly value growth of the eigen woning. */
   houseValueGrowth: 0.02,
 
