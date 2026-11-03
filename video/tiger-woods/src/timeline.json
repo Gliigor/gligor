@@ -1,0 +1,237 @@
+{
+ "fps": 30,
+ "duration": 50.0,
+ "phrases": [
+  {
+   "id": "s01",
+   "t0": 0.3,
+   "t1": 2.174,
+   "text": "Hoe goed was Tiger Woods op zijn best?"
+  },
+  {
+   "id": "s02",
+   "t0": 2.55,
+   "t1": 4.443,
+   "text": "In 2000 won hij de U.S. Open,"
+  },
+  {
+   "id": "s03",
+   "t0": 4.6,
+   "t1": 6.347,
+   "text": "met vijftien slagen voorsprong."
+  },
+  {
+   "id": "s04",
+   "t0": 7.15,
+   "t1": 8.805,
+   "text": "In golf wint de laagste score."
+  },
+  {
+   "id": "s05",
+   "t0": 9.25,
+   "t1": 10.709,
+   "text": "Tiger eindigde op min twaalf."
+  },
+  {
+   "id": "s06",
+   "t0": 11.3,
+   "t1": 12.931,
+   "text": "Zijn dichtste achtervolgers?"
+  },
+  {
+   "id": "s07",
+   "t0": 13.75,
+   "t1": 14.321,
+   "text": "Plus drie."
+  },
+  {
+   "id": "s08",
+   "t0": 15.3,
+   "t1": 16.587,
+   "text": "Dat verschil zie je hier."
+  },
+  {
+   "id": "s09",
+   "t0": 17.05,
+   "t1": 19.554,
+   "text": "Dezelfde baan. Dezelfde omstandigheden."
+  },
+  {
+   "id": "s10",
+   "t0": 20.05,
+   "t1": 21.405,
+   "text": "Een compleet ander niveau."
+  },
+  {
+   "id": "s11",
+   "t0": 23.15,
+   "t1": 24.805,
+   "text": "En het bleef niet bij één toernooi."
+  },
+  {
+   "id": "s12",
+   "t0": 25.15,
+   "t1": 27.647,
+   "text": "Dat jaar won hij negen keer op de PGA Tour."
+  },
+  {
+   "id": "s13",
+   "t0": 30.15,
+   "t1": 32.27,
+   "text": "Daarna maakte hij de Tiger Slam compleet:"
+  },
+  {
+   "id": "s14",
+   "t0": 32.55,
+   "t1": 35.986,
+   "text": "vier opeenvolgende majors, de belangrijkste toernooien in golf."
+  },
+  {
+   "id": "s15",
+   "t0": 37.0,
+   "t1": 38.812,
+   "text": "Alle vier de titels tegelijk in handen,"
+  },
+  {
+   "id": "s16",
+   "t0": 39.05,
+   "t1": 40.899,
+   "text": "verspreid over twee kalenderjaren."
+  },
+  {
+   "id": "s17",
+   "t0": 42.55,
+   "t1": 43.922,
+   "text": "Hoe dominantie eruitziet?"
+  },
+  {
+   "id": "s18",
+   "t0": 44.45,
+   "t1": 45.41,
+   "text": "Een rood shirt."
+  },
+  {
+   "id": "s19",
+   "t0": 46.25,
+   "t1": 47.712,
+   "text": "En vijftien slagen ruimte."
+  }
+ ],
+ "subs": [
+  {
+   "t0": 0.3,
+   "t1": 2.52,
+   "text": "Hoe goed was Tiger Woods op zijn best?"
+  },
+  {
+   "t0": 2.55,
+   "t1": 4.57,
+   "text": "In 2000 won hij de U.S. Open,"
+  },
+  {
+   "t0": 4.6,
+   "t1": 6.947,
+   "text": "met vijftien slagen voorsprong."
+  },
+  {
+   "t0": 7.15,
+   "t1": 9.22,
+   "text": "In golf wint de laagste score."
+  },
+  {
+   "t0": 9.25,
+   "t1": 11.27,
+   "text": "Tiger eindigde op min twaalf."
+  },
+  {
+   "t0": 11.3,
+   "t1": 13.531,
+   "text": "Zijn dichtste achtervolgers?"
+  },
+  {
+   "t0": 13.75,
+   "t1": 14.921,
+   "text": "Plus drie."
+  },
+  {
+   "t0": 15.3,
+   "t1": 17.02,
+   "text": "Dat verschil zie je hier."
+  },
+  {
+   "t0": 17.05,
+   "t1": 17.943,
+   "text": "Dezelfde baan."
+  },
+  {
+   "t0": 17.973,
+   "t1": 20.02,
+   "text": "Dezelfde omstandigheden."
+  },
+  {
+   "t0": 20.05,
+   "t1": 22.005,
+   "text": "Een compleet ander niveau."
+  },
+  {
+   "t0": 23.15,
+   "t1": 25.12,
+   "text": "En het bleef niet bij één toernooi."
+  },
+  {
+   "t0": 25.15,
+   "t1": 26.725,
+   "text": "Dat jaar won hij negen keer"
+  },
+  {
+   "t0": 26.755,
+   "t1": 28.247,
+   "text": "op de PGA Tour."
+  },
+  {
+   "t0": 30.15,
+   "t1": 31.021,
+   "text": "Daarna maakte hij"
+  },
+  {
+   "t0": 31.051,
+   "t1": 32.52,
+   "text": "de Tiger Slam compleet:"
+  },
+  {
+   "t0": 32.55,
+   "t1": 33.961,
+   "text": "vier opeenvolgende majors,"
+  },
+  {
+   "t0": 33.991,
+   "t1": 36.586,
+   "text": "de belangrijkste toernooien in golf."
+  },
+  {
+   "t0": 37.0,
+   "t1": 39.02,
+   "text": "Alle vier de titels tegelijk in handen,"
+  },
+  {
+   "t0": 39.05,
+   "t1": 41.499,
+   "text": "verspreid over twee kalenderjaren."
+  },
+  {
+   "t0": 42.55,
+   "t1": 44.42,
+   "text": "Hoe dominantie eruitziet?"
+  },
+  {
+   "t0": 44.45,
+   "t1": 46.01,
+   "text": "Een rood shirt."
+  },
+  {
+   "t0": 46.25,
+   "t1": 48.312,
+   "text": "En vijftien slagen ruimte."
+  }
+ ]
+}

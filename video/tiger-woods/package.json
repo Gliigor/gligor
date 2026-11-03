@@ -1,0 +1,31 @@
+{
+  "name": "tiger-woods-short",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render:picture": "remotion render src/index.ts TigerShortClean out/picture_clean.mp4 --codec=h264 --crf=16 --concurrency=4 --gl=swangle --timeout=300000 --props={\"subs\":false,\"audio\":null}",
+    "render:subs": "remotion render src/index.ts SubsOnly out/subs_overlay.mov --codec=prores --prores-profile=4444 --pixel-format=yuva444p10le --image-format=png --props={\"subs\":true,\"audio\":null,\"titles\":false,\"world\":false}",
+    "deliver": "./deliver.sh",
+    "tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@react-three/fiber": "^9.8.2",
+    "@react-three/postprocessing": "^3.2.2",
+    "@remotion/bundler": "^4.0.540",
+    "@remotion/cli": "^4.0.540",
+    "@remotion/renderer": "^4.0.540",
+    "@remotion/three": "^4.0.540",
+    "@types/react": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "postprocessing": "^6.39.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.540",
+    "three": "^0.187.0",
+    "typescript": "^7.0.2"
+  }
+}
