@@ -1,21 +1,24 @@
-import { Action, GameState, PILES, Source, WILD, fits, needs, top } from "./engine";
+import { Action, GameState, PILES, Source, WILD, fits, needs, top, tops } from "./engine";
 
 type Step = Source & { to: number };
 
 /**
  * Finds the cards needed to raise build pile `to` until the stock card fits,
- * using hand cards first, then discard tops, then Pepes. Returns the steps or null.
+ * using hand cards first, then discard tops, then Pepes (never two Pepes in a row). Returns the steps or null.
  */
 function chainToStock(s: GameState, id: string, to: number, target: number): Step[] | null {
   const me = s.players.find((p) => p.id === id)!;
   const hand = me.hand.map((card, i) => ({ card, i, used: false }));
   const discards = me.discards.map((d) => [...d]);
   const steps: Step[] = [];
+  let prev = top(s.builds[to]); // card on top of the pile so far
   for (let need = s.builds[to].length + 1; need < target; need++) {
+    const wildOk = prev !== WILD;
     const exact = hand.find((h) => !h.used && h.card === need);
     const pile = discards.findIndex((d) => top(d) === need);
-    const wild = hand.find((h) => !h.used && h.card === WILD);
-    const wildPile = discards.findIndex((d) => top(d) === WILD);
+    const wild = wildOk ? hand.find((h) => !h.used && h.card === WILD) : undefined;
+    const wildPile = wildOk ? discards.findIndex((d) => top(d) === WILD) : -1;
+    prev = exact || pile >= 0 ? need : WILD;
     if (exact) {
       exact.used = true;
       steps.push({ from: "hand", i: exact.i, to });
@@ -39,6 +42,12 @@ function chainToStock(s: GameState, id: string, to: number, target: number): Ste
 export function botMove(s: GameState, id: string): Action {
   const me = s.players.find((p) => p.id === id)!;
   const need = needs(s);
+  const onTop = tops(s);
+  /** A pile a Pepe may go on, preferring ones that don't help the next player; -1 if none. */
+  const pepePile = () => {
+    const open = need.map((n, i) => i).filter((i) => onTop[i] !== WILD);
+    return open.find((i) => !gifts(need[i])) ?? open[0] ?? -1;
+  };
   const stock = top(me.stock)!;
   const idx = s.players.findIndex((p) => p.id === id);
   const rival = top(s.players[(idx + 1) % s.players.length].stock);
@@ -47,8 +56,8 @@ export function botMove(s: GameState, id: string): Action {
 
   // 1. Stock card fits right now.
   if (stock === WILD) {
-    const safe = need.findIndex((n) => !gifts(n));
-    return { type: "play", from: "stock", to: safe >= 0 ? safe : 0 };
+    const to = pepePile();
+    if (to >= 0) return { type: "play", from: "stock", to };
   }
   const direct = need.indexOf(stock);
   if (direct >= 0) return { type: "play", from: "stock", to: direct };
@@ -69,8 +78,8 @@ export function botMove(s: GameState, id: string): Action {
   me.hand.forEach((card, i) => {
     if (card === WILD) {
       // Pepes are worth keeping; only spend one when the deck is drying up.
-      const to = need.findIndex((n) => !gifts(n));
-      if (scarce) options.push({ step: { from: "hand", i, to: to >= 0 ? to : 0 }, cost: 3 });
+      const to = pepePile();
+      if (scarce && to >= 0) options.push({ step: { from: "hand", i, to }, cost: 3 });
       return;
     }
     const to = need.indexOf(card);
@@ -109,7 +118,8 @@ export function botMove(s: GameState, id: string): Action {
 export function safeMove(s: GameState, id: string): Action {
   const me = s.players.find((p) => p.id === id)!;
   const stock = top(me.stock);
-  const to = stock === undefined ? -1 : needs(s).findIndex((n) => fits(stock, n));
+  const onTop = tops(s);
+  const to = stock === undefined ? -1 : needs(s).findIndex((n, i) => fits(stock, n, onTop[i]));
   if (to >= 0) return { type: "play", from: "stock", to };
   return me.hand.length ? { type: "discard", i: 0, to: 0 } : { type: "pass" };
 }

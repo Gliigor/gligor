@@ -17,7 +17,8 @@ const rules = (
       The four <b>build piles</b> in the middle go up in order from 1 to 12. A pile that reaches 12 is cleared away.
     </li>
     <li>
-      <b>Pepes are wild</b> — a Pepe counts as whatever number the pile needs.
+      <b>Pepes are wild</b> — a Pepe counts as whatever number the pile needs, but you can't put a Pepe on top of
+      another Pepe.
     </li>
     <li>
       Your turn starts with 5 cards in hand. Play as many as you like onto the build piles: from your hand, the top of
@@ -86,7 +87,9 @@ const Game = ({ c, v }: { c: Ctl; v: GameState }) => {
     if (!myTurn) return;
     if (!sel || picked === undefined) return toast("Tap one of your cards first", { id: "pepebo-hint" });
     const need = v.builds[to].length + 1;
-    if (!fits(picked, need)) return toast.error(`That pile needs a ${need}`, { id: "pepebo-hint" });
+    if (picked === WILD && top(v.builds[to]) === WILD)
+      return toast.error("A Pepe can't go on another Pepe", { id: "pepebo-hint" });
+    if (!fits(picked, need, top(v.builds[to]))) return toast.error(`That pile needs a ${need}`, { id: "pepebo-hint" });
     c.act({ type: "play", to, ...sel });
   };
 
@@ -161,7 +164,7 @@ const Game = ({ c, v }: { c: Ctl; v: GameState }) => {
                   as={t === WILD ? b.length : undefined}
                   size="lg"
                   empty="1"
-                  glow={myTurn && picked !== undefined && fits(picked, need)}
+                  glow={myTurn && picked !== undefined && fits(picked, need, t)}
                   onClick={myTurn ? () => onBuild(i) : undefined}
                   label={`Build pile ${i + 1}, needs ${need}`}
                 />

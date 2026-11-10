@@ -7,7 +7,8 @@
 // - Everyone gets a face-down stock pile; only its top card is visible.
 //   First to play their whole stock pile wins.
 // - In the middle are 4 build piles, each built up in order from 1 to 12.
-//   A finished pile (12) is cleared away. Pepes count as any number.
+//   A finished pile (12) is cleared away. Pepes count as any number, but a
+//   Pepe can't go on top of another Pepe.
 // - On your turn, fill your hand to 5 cards, then play as many cards as you
 //   like onto the build piles: from your hand, the top of your stock pile, or
 //   the top of one of your 4 discard piles.
@@ -88,7 +89,9 @@ export const newGame = (): GameState => ({
 export const cardName = (c: number) => (c === WILD ? "a Pepe" : `a ${c}`);
 export const top = (pile: number[]): number | undefined => pile[pile.length - 1];
 export const needs = (s: GameState) => s.builds.map((b) => b.length + 1);
-export const fits = (card: number, need: number) => card === WILD || card === need;
+/** Can `card` go on a build pile that needs `need` and has `onTop` as its top card? A Pepe can't go on a Pepe. */
+export const fits = (card: number, need: number, onTop?: number) => (card === WILD ? onTop !== WILD : card === need);
+export const tops = (s: GameState) => s.builds.map((b) => top(b));
 export const playerName = (s: GameState, id: string | null) => s.players.find((p) => p.id === id)?.name ?? "?";
 
 function shuffle<T>(a: T[]): T[] {
@@ -202,7 +205,8 @@ export function apply(s: GameState, pid: string, a: Action): GameState {
       const card = a.from === "hand" ? src?.[a.i] : src && top(src);
       if (card === undefined) throw new Error("There's no card there.");
       const need = build.length + 1;
-      if (!fits(card, need)) throw new Error(`That pile needs ${cardName(need)}.`);
+      if (card === WILD && top(build) === WILD) throw new Error("A Pepe can't go on another Pepe.");
+      if (!fits(card, need, top(build))) throw new Error(`That pile needs ${cardName(need)}.`);
 
       let next = patch(s, pid, (p) => {
         if (a.from === "hand") return { ...p, hand: p.hand.filter((_, i) => i !== a.i) };
