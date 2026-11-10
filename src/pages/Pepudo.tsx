@@ -392,7 +392,9 @@ const Lobby = ({ c, v, onLeave }: { c: Controller; v: GameState; onLeave: () => 
           {c.isHost && (
             <>
               <p className="text-xs text-[#a9c7a0]">
-                {c.code ? "Send your colleague the link (or the code)." : "Opening room…"}
+                {c.code
+                  ? "Send your colleague the link (or the code), then come back to this page — the game runs here."
+                  : "Opening room…"}
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button className={`${btn} bg-[#b7f27a] py-2 text-[#0d2b1b]`} disabled={!c.code} onClick={share}>
@@ -465,12 +467,21 @@ const Table = ({ c, onLeave }: { c: Controller; onLeave: () => void }) => {
 
   const statusBar =
     c.status === "connecting" ? (
-      <p className="rounded-xl bg-black/30 p-3 text-center text-sm">Connecting…</p>
-    ) : c.status === "error" || c.status === "closed" ? (
+      <p className="animate-pulse rounded-xl bg-black/30 p-3 text-center text-sm">
+        {c.isHost ? (v && c.code ? "Reconnecting…" : "Opening room…") : v ? "Reconnecting…" : "Connecting…"}
+      </p>
+    ) : c.status === "no-host" ? (
+      <p className="rounded-xl border border-[#e6a23c]/50 bg-[#e6a23c]/10 p-3 text-center text-sm">
+        {v ? "Waiting for the host to come back…" : `Looking for room ${c.code}…`}
+        <span className="mt-1 block text-xs text-[#cfe0c4]">
+          The host needs to have the Pepudo page open on their screen. Still trying.
+        </span>
+      </p>
+    ) : c.status === "error" ? (
       <div className="rounded-xl border border-red-400/40 bg-red-900/30 p-3 text-center text-sm">
-        {c.status === "closed" ? "Lost connection to the host." : "Couldn't connect."}{" "}
+        {c.isHost ? "Couldn't open a room. Check your internet connection." : "Couldn't join this room."}{" "}
         <button className="font-bold underline" onClick={c.retry}>
-          Retry
+          Try again
         </button>
       </div>
     ) : null;
@@ -480,7 +491,7 @@ const Table = ({ c, onLeave }: { c: Controller; onLeave: () => void }) => {
       <Felt>
         <Title small />
         <div className="mt-8 space-y-3">
-          {statusBar ?? <p className="text-center">Joining room {c.code}…</p>}
+          {statusBar ?? <p className="animate-pulse text-center">Joining room {c.code}…</p>}
           <button className="w-full text-center text-sm text-[#9fc79a] underline" onClick={onLeave}>
             Back
           </button>

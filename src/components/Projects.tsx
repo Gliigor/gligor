@@ -41,8 +41,8 @@ const projects = [
     title: "Pepudo",
     hook: "Liar's dice with frogs — for the coffee break.",
     description:
-      "Perudo with a smug frog as the wild face. Open a room, send the link to a colleague and bluff it out in the browser — peer-to-peer, no accounts. Or practise against bots.",
-    tags: ["React", "WebRTC", "Game"],
+      "Perudo with a smug frog as the wild face. Open a room, send the link to a colleague and bluff it out in the browser — no accounts, no app. Or practise against bots.",
+    tags: ["React", "Multiplayer", "Game"],
     githubUrl: "https://github.com",
     liveUrl: "/#/pepudo",
   },

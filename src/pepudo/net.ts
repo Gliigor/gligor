@@ -1,19 +1,39 @@
-// Multiplayer over WebRTC via PeerJS (uses the free public PeerJS broker for
-// the handshake only; game traffic goes directly between browsers). The host's
-// browser runs the game and sends every guest a view with only their own dice.
+// Online play. The host's browser runs the game; guests send their moves to
+// the host and get back a view with only their own dice. Messages travel
+// through a relay (see relay.ts) and are encrypted per guest (see crypto.ts).
+//
+// The link is built to survive phones: guests keep knocking until the host
+// answers, both sides resync every few seconds, and sockets are re-opened
+// when a backgrounded page comes back.
 import { useCallback, useEffect, useRef, useState } from "react";
-import Peer, { DataConnection } from "peerjs";
 import { toast } from "sonner";
 import { Action, GameState, addPlayer, apply, newGame, removePlayer, setOnline, viewFor } from "./engine";
 import { botMove, botName } from "./bot";
+import { Sealed, loadIdentity, pidOf, seal, sharedKey, unseal } from "./crypto";
+import { Relay, openRelay } from "./relay";
 
-const PEER_PREFIX = "gligor-pepudo-";
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
+const hostTopic = (code: string) => `gligor-pepudo/v1/${code}/host`;
+const guestTopic = (code: string, pid: string) => `gligor-pepudo/v1/${code}/p/${pid}`;
 
-type ToHost = { t: "hello"; pid: string; name: string } | { t: "action"; action: Action };
-type ToGuest = { t: "state"; state: GameState } | { t: "error"; msg: string };
+const SYNC_EVERY = 8000; // guest -> host heartbeat
+const HOST_SILENT = 20000; // guest gives up waiting and knocks again
+const GUEST_SILENT = 25000; // host marks a guest as gone
+const GUEST_ACTIONS = ["bid", "dudo", "calza", "next", "rematch"];
 
-export type NetStatus = "offline" | "connecting" | "open" | "error" | "closed";
+// guest -> host (plain): knock on the door.  guest -> host (sealed): GuestBody.
+type Hello = { t: "hello"; pid: string; pub: string; name: string; n: number };
+type GuestBody = { n: number } & ({ k: "action"; action: Action } | { k: "sync"; sv: number } | { k: "bye" });
+// host -> guest (plain): Welcome with the host's public key.  host -> guest (sealed): HostBody.
+type HostBody = { v: number } & (
+  | { k: "state"; sv: number; state: GameState }
+  | { k: "ok" }
+  | { k: "error"; msg: string }
+  | { k: "reject"; msg: string }
+);
+
+/** offline = bots only · connecting = reaching the relay · no-host = relay ok, host silent */
+export type NetStatus = "offline" | "connecting" | "open" | "no-host" | "error";
 
 export interface Controller {
   view: GameState | null;
@@ -27,53 +47,61 @@ export interface Controller {
   retry?: () => void;
 }
 
-// Optional self-hosted PeerJS broker (VITE_PEER_HOST=host[:port]); defaults to the free cloud one.
-const peerOptions = () => {
-  const env = import.meta.env.VITE_PEER_HOST as string | undefined;
-  if (!env) return { debug: 1 };
-  const [host, port] = env.split(":");
-  const local = host === "localhost" || host === "127.0.0.1";
-  return { debug: 1, host, port: port ? Number(port) : local ? 9000 : 443, secure: !local, path: "/" };
-};
-
-const FATAL = ["network", "server-error", "socket-error", "socket-closed", "browser-incompatible", "ssl-unavailable"];
-
 const randomCode = () =>
   Array.from({ length: 4 }, () => CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]).join("");
 
-/** Stable per-tab player id, so a page reload rejoins the same seat. */
-export function getPid(): string {
-  const make = () => `p-${Math.random().toString(36).slice(2, 10)}`;
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const parse = (s: string) => {
   try {
-    let id = sessionStorage.getItem("pepudo-pid");
-    if (!id) {
-      id = make();
-      sessionStorage.setItem("pepudo-pid", id);
-    }
-    return id;
+    return JSON.parse(s);
   } catch {
-    return make();
+    return null;
   }
+};
+
+interface Guest {
+  key: CryptoKey;
+  lastN: number;
+  seen: number;
 }
 
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
 export function useHostGame(name: string, online: boolean): Controller {
-  const [me] = useState(getPid);
+  const [me] = useState(() => `host-${Math.random().toString(36).slice(2, 10)}`);
   const [state, setState] = useState<GameState>(() => addPlayer(newGame(), { id: me, name, bot: false }));
   const stateRef = useRef(state);
-  const conns = useRef(new Map<string, DataConnection>());
+  const sv = useRef(0); // state version, so guests can tell if they're behind
+  const seq = useRef(Date.now()); // message counter, to drop duplicates
+  const guests = useRef(new Map<string, Guest>());
+  const relay = useRef<Relay | null>(null);
+  const codeRef = useRef("");
   const [code, setCode] = useState<string | null>(null);
   const [status, setStatus] = useState<NetStatus>(online ? "connecting" : "offline");
   const [attempt, setAttempt] = useState(0);
 
-  const commit = useCallback((next: GameState) => {
-    stateRef.current = next;
-    setState(next);
-    conns.current.forEach((c, pid) => {
-      if (c.open) c.send({ t: "state", state: viewFor(next, pid) } satisfies ToGuest);
-    });
+  const sendTo = useCallback(async (pid: string, body: Record<string, unknown>) => {
+    const g = guests.current.get(pid);
+    if (!g || !relay.current) return;
+    const sealed = await seal(g.key, { ...body, v: ++seq.current });
+    relay.current?.publish(guestTopic(codeRef.current, pid), JSON.stringify({ t: "m", ...sealed }));
   }, []);
+
+  const sendState = useCallback(
+    (pid: string) => {
+      const view = viewFor(stateRef.current, pid);
+      return sendTo(pid, { k: "state", sv: sv.current, state: { ...view, log: view.log.slice(-12) } });
+    },
+    [sendTo],
+  );
+
+  const commit = useCallback(
+    (next: GameState) => {
+      stateRef.current = next;
+      sv.current++;
+      setState(next);
+      guests.current.forEach((_, pid) => void sendState(pid));
+    },
+    [sendState],
+  );
 
   const run = useCallback(
     (pid: string, a: Action): string | null => {
@@ -87,94 +115,131 @@ export function useHostGame(name: string, online: boolean): Controller {
     [commit],
   );
 
-  // Network: open a room and accept guests.
+  // Network: open a room and listen for guests.
   useEffect(() => {
     if (!online) return;
-    let destroyed = false;
-    const roomCode = randomCode();
-    const peer = new Peer(PEER_PREFIX + roomCode, peerOptions());
-    let opened = false;
-    let reconnects = 0;
+    let dead = false;
+    const room = randomCode();
+    codeRef.current = room;
     setStatus("connecting");
+    const identity = loadIdentity();
+    const helloSeen = new Map<string, number>();
 
-    peer.on("open", () => {
-      opened = true;
-      reconnects = 0;
-      setCode(roomCode);
-      setStatus("open");
-    });
-    // Lost the broker (not the players): try to get back so new guests can still join.
-    peer.on("disconnected", () => {
-      if (!destroyed && opened && reconnects++ < 5) setTimeout(() => !destroyed && peer.reconnect(), 1500);
-    });
-    peer.on("error", (err) => {
-      if (err.type === "unavailable-id") {
-        peer.destroy();
-        setAttempt((n) => n + 1);
+    const drop = (pid: string) => {
+      guests.current.delete(pid);
+      const s = stateRef.current;
+      const who = s.players.find((p) => p.id === pid);
+      if (!who) return;
+      commit(s.phase === "lobby" ? removePlayer(s, pid) : setOnline(s, pid, false));
+      toast(`${who.name} left`);
+    };
+
+    const onHello = async (msg: Hello) => {
+      if (typeof msg.pid !== "string" || typeof msg.pub !== "string" || typeof msg.n !== "number") return;
+      if (msg.n <= (helloSeen.get(msg.pid) ?? 0)) return; // same knock via another broker
+      if ((await pidOf(msg.pub)) !== msg.pid) return;
+      helloSeen.set(msg.pid, msg.n);
+      const { pub, priv } = await identity;
+      const key = await sharedKey(priv, msg.pub);
+      if (dead) return;
+      const known = guests.current.get(msg.pid);
+      // Anything the guest sealed before this knock is stale (e.g. a late "bye" from a previous visit).
+      guests.current.set(msg.pid, { key, lastN: Math.max(known?.lastN ?? 0, msg.n), seen: Date.now() });
+      relay.current?.publish(guestTopic(room, msg.pid), JSON.stringify({ t: "welcome", pub }));
+
+      const guestName = String(msg.name || "Guest").slice(0, 16);
+      const s = stateRef.current;
+      const existing = s.players.find((p) => p.id === msg.pid);
+      if (existing) {
+        const rename = s.phase === "lobby" && existing.name !== guestName;
+        if (!existing.online || rename) commit(setOnline(s, msg.pid, true, rename ? guestName : undefined));
+        else void sendState(msg.pid);
         return;
       }
-      if (err.type === "peer-unavailable") return; // a guest vanished; harmless
-      if (destroyed) return;
-      if (FATAL.includes(err.type) && !opened) {
-        setStatus("error");
-        toast.error("Couldn't open a room — the network may block it. Try again or use another connection.");
-      } else if (!FATAL.includes(err.type)) {
-        toast.error(`Connection problem: ${err.message}`);
+      try {
+        commit(addPlayer(s, { id: msg.pid, name: guestName, bot: false }));
+        toast(`${guestName} joined`);
+      } catch (e) {
+        await sendTo(msg.pid, { k: "reject", msg: errMsg(e) });
+        guests.current.delete(msg.pid);
       }
-    });
-
-    peer.on("connection", (conn) => {
-      let pid: string | null = null;
-      const send = (m: ToGuest) => conn.open && conn.send(m);
-
-      conn.on("data", (raw) => {
-        const msg = raw as ToHost;
-        if (msg?.t === "hello" && typeof msg.pid === "string") {
-          const guestName = String(msg.name || "Guest").slice(0, 16);
-          const s = stateRef.current;
-          const existing = s.players.find((p) => p.id === msg.pid);
-          if (existing) {
-            pid = msg.pid;
-            conns.current.get(pid)?.close();
-            conns.current.set(pid, conn);
-            commit(setOnline(s, pid, true, s.phase === "lobby" ? guestName : undefined));
-          } else {
-            try {
-              const next = addPlayer(s, { id: msg.pid, name: guestName, bot: false });
-              pid = msg.pid;
-              conns.current.set(pid, conn);
-              commit(next);
-              toast(`${guestName} joined`);
-            } catch (e) {
-              send({ t: "error", msg: errMsg(e) });
-              setTimeout(() => conn.close(), 500);
-            }
-          }
-        } else if (msg?.t === "action" && pid) {
-          const err = run(pid, msg.action);
-          if (err) send({ t: "error", msg: err });
-        }
-      });
-
-      conn.on("close", () => {
-        if (!pid || conns.current.get(pid) !== conn) return;
-        conns.current.delete(pid);
-        const s = stateRef.current;
-        const who = s.players.find((p) => p.id === pid);
-        if (!who) return;
-        commit(s.phase === "lobby" ? removePlayer(s, pid) : setOnline(s, pid, false));
-        toast(`${who.name} left`);
-      });
-    });
-
-    const map = conns.current;
-    return () => {
-      destroyed = true;
-      map.forEach((c) => c.close());
-      map.clear();
-      peer.destroy();
     };
-  }, [online, attempt, commit, run]);
+
+    const onSealed = async (msg: { pid: string } & Sealed) => {
+      const g = guests.current.get(msg.pid);
+      if (!g) return;
+      let body: GuestBody;
+      try {
+        body = await unseal<GuestBody>(g.key, msg);
+      } catch {
+        return;
+      }
+      if (dead || !(body.n > g.lastN)) return;
+      g.lastN = body.n;
+      g.seen = Date.now();
+      const s = stateRef.current;
+      const player = s.players.find((p) => p.id === msg.pid);
+      if (!player) return;
+      if (body.k === "bye") return drop(msg.pid);
+      if (!player.online) commit(setOnline(s, msg.pid, true));
+      if (body.k === "action") {
+        const ok = body.action && GUEST_ACTIONS.includes(body.action.type);
+        const err = ok ? run(msg.pid, body.action) : "Only the host can do that.";
+        if (err) void sendTo(msg.pid, { k: "error", msg: err });
+      } else if (body.k === "sync") {
+        if (body.sv !== sv.current) void sendState(msg.pid);
+        else void sendTo(msg.pid, { k: "ok" });
+      }
+    };
+
+    // Handle messages strictly one at a time, so a join and a move can't interleave.
+    let queue: Promise<unknown> = Promise.resolve();
+    const r = openRelay(
+      [hostTopic(room)],
+      (_topic, payload) => {
+        const msg = parse(payload);
+        if (!msg || dead) return;
+        queue = queue
+          .then(() => (msg.t === "hello" ? onHello(msg) : msg.t === "m" ? onSealed(msg) : undefined))
+          .catch(() => undefined);
+      },
+      (links) => {
+        if (dead) return;
+        if (links > 0) {
+          setCode(room);
+          setStatus("open");
+          guests.current.forEach((_, pid) => void sendState(pid)); // catch everyone up after a reconnect
+        } else {
+          setStatus((s) => (s === "error" ? s : "connecting"));
+        }
+      },
+    );
+    relay.current = r;
+
+    const giveUp = setTimeout(() => setStatus((s) => (s === "connecting" ? "error" : s)), 15000);
+    const sweep = setInterval(() => {
+      const s = stateRef.current;
+      guests.current.forEach((g, pid) => {
+        if (Date.now() - g.seen < GUEST_SILENT) return;
+        const p = s.players.find((x) => x.id === pid);
+        if (s.phase === "lobby") drop(pid);
+        else if (p?.online) commit(setOnline(stateRef.current, pid, false));
+      });
+    }, 5000);
+
+    const all = guests.current;
+    return () => {
+      dead = true;
+      clearTimeout(giveUp);
+      clearInterval(sweep);
+      const goodbyes = [...all.keys()].map((pid) => sendTo(pid, { k: "reject", msg: "The host closed the room." }));
+      void Promise.allSettled(goodbyes).then(() => {
+        all.clear();
+        r.close();
+        if (relay.current === r) relay.current = null;
+      });
+    };
+  }, [online, attempt, commit, run, sendState, sendTo]);
 
   // Bots play their turns; a disconnected human gets auto-played after a while.
   useEffect(() => {
@@ -211,14 +276,15 @@ export function useHostGame(name: string, online: boolean): Controller {
   const kick = useCallback(
     (id: string) => {
       try {
-        conns.current.get(id)?.close();
-        conns.current.delete(id);
+        void sendTo(id, { k: "reject", msg: "The host removed you from the room." }).then(() =>
+          guests.current.delete(id),
+        );
         commit(removePlayer(stateRef.current, id));
       } catch (e) {
         toast.error(errMsg(e));
       }
     },
-    [commit],
+    [commit, sendTo],
   );
 
   return {
@@ -235,51 +301,134 @@ export function useHostGame(name: string, online: boolean): Controller {
 }
 
 export function useGuestGame(name: string, code: string): Controller {
-  const [me] = useState(getPid);
+  const [me, setMe] = useState("");
   const [view, setView] = useState<GameState | null>(null);
   const [status, setStatus] = useState<NetStatus>("connecting");
   const [attempt, setAttempt] = useState(0);
-  const connRef = useRef<DataConnection | null>(null);
+  const post = useRef<((body: Record<string, unknown>) => Promise<boolean>) | null>(null);
 
   useEffect(() => {
-    let destroyed = false;
+    let dead = false;
+    let done = false; // rejected / room closed: stop knocking
+    let key: CryptoKey | null = null;
+    let hostPub = "";
+    let lastV = 0;
+    let sv = -1;
+    let n = Date.now();
+    let heard = 0;
+    let lastSync = 0;
+    let linkedAt = 0;
+    let links = 0;
+    let r: Relay | null = null;
+    let timer: ReturnType<typeof setInterval> | undefined;
     setStatus("connecting");
-    const peer = new Peer(peerOptions());
+    setView(null);
 
-    peer.on("open", () => {
-      const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
-      connRef.current = conn;
-      conn.on("open", () => {
-        setStatus("open");
-        conn.send({ t: "hello", pid: me, name } satisfies ToHost);
-      });
-      conn.on("data", (raw) => {
-        const msg = raw as ToGuest;
-        if (msg?.t === "state") setView(msg.state);
-        else if (msg?.t === "error") toast.error(msg.msg);
-      });
-      conn.on("close", () => {
-        if (!destroyed) setStatus("closed");
-      });
-    });
-    peer.on("error", (err) => {
-      if (destroyed) return;
-      if (err.type === "disconnected" || (connRef.current?.open && FATAL.includes(err.type))) return; // broker hiccup; the game link is direct
-      toast.error(err.type === "peer-unavailable" ? `Room ${code} not found (or the host left).` : `Connection problem: ${err.message}`);
-      setStatus("error");
-    });
+    void (async () => {
+      const id = await loadIdentity("pepudo-id");
+      if (dead) return;
+      setMe(id.pid);
+      const toHost = hostTopic(code);
+
+      const send = async (body: Record<string, unknown>) => {
+        if (!key || !r || links === 0) return false;
+        const sealed = await seal(key, { ...body, n: ++n });
+        r.publish(toHost, JSON.stringify({ t: "m", pid: id.pid, ...sealed }));
+        return true;
+      };
+      post.current = send;
+
+      const tick = () => {
+        if (dead || done || !r || links === 0) return;
+        const now = Date.now();
+        const silent = now - Math.max(heard, linkedAt) > (key ? HOST_SILENT : 8000);
+        if (silent) setStatus("no-host");
+        if (!key || silent) {
+          r.publish(toHost, JSON.stringify({ t: "hello", pid: id.pid, pub: id.pub, name, n: ++n } satisfies Hello));
+        } else if (now - lastSync >= SYNC_EVERY) {
+          lastSync = now;
+          void send({ k: "sync", sv });
+        }
+      };
+
+      const onMessage = async (payload: string) => {
+        const msg = parse(payload);
+        if (!msg || dead || done) return;
+        if (msg.t === "welcome" && typeof msg.pub === "string") {
+          if (!hostPub) {
+            hostPub = msg.pub;
+            key = await sharedKey(id.priv, msg.pub);
+          }
+          if (msg.pub === hostPub) heard = Date.now();
+          return;
+        }
+        if (msg.t !== "m" || !key) return;
+        let body: HostBody;
+        try {
+          body = await unseal<HostBody>(key, msg);
+        } catch {
+          return;
+        }
+        if (dead || !(body.v > lastV)) return; // duplicate via another broker, or out of date
+        lastV = body.v;
+        heard = Date.now();
+        if (body.k === "state") {
+          sv = body.sv;
+          setView(body.state);
+          setStatus("open");
+        } else if (body.k === "ok") {
+          setStatus("open");
+        } else if (body.k === "error") {
+          toast.error(body.msg);
+        } else if (body.k === "reject") {
+          done = true;
+          setStatus("error");
+          toast.error(body.msg);
+        }
+      };
+
+      let queue: Promise<unknown> = Promise.resolve();
+      r = openRelay(
+        [guestTopic(code, id.pid)],
+        (_topic, payload) => {
+          queue = queue.then(() => onMessage(payload)).catch(() => undefined);
+        },
+        (count) => {
+          if (dead || done) return;
+          const was = links;
+          links = count;
+          if (count === 0) return setStatus("connecting");
+          if (was === 0) {
+            // (Re)connected: knock or resync right away instead of waiting for the timer.
+            linkedAt = Date.now();
+            lastSync = 0;
+            setStatus((s) => (!key ? "connecting" : s === "connecting" || s === "error" ? "open" : s));
+          }
+          tick();
+        },
+      );
+      timer = setInterval(tick, 2500);
+    })();
+
+    const giveUp = setTimeout(() => setStatus((s) => (s === "connecting" ? "error" : s)), 15000);
 
     return () => {
-      destroyed = true;
-      connRef.current = null;
-      peer.destroy();
+      dead = true;
+      clearTimeout(giveUp);
+      clearInterval(timer);
+      const leaving = post.current;
+      post.current = null;
+      const relayToClose = r;
+      void Promise.resolve(done ? false : leaving?.({ k: "bye" }))
+        .catch(() => false)
+        .then(() => setTimeout(() => relayToClose?.close(), 300));
     };
-  }, [code, name, me, attempt]);
+  }, [code, name, attempt]);
 
   const act = useCallback((a: Action) => {
-    const c = connRef.current;
-    if (c?.open) c.send({ t: "action", action: a } satisfies ToHost);
-    else toast.error("Not connected to the host.");
+    void (post.current?.({ k: "action", action: a }) ?? Promise.resolve(false)).then((sent) => {
+      if (!sent) toast.error("Not connected — trying to reconnect…");
+    });
   }, []);
 
   return { view, me, isHost: false, code, status, act, retry: () => setAttempt((n) => n + 1) };
