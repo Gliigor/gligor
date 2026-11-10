@@ -43,8 +43,8 @@ export interface GameDef<S extends BaseState, A extends { type: string }> {
   /** A move that is always legal, in case the bot picks a bad one. */
   safeMove: (s: S, pid: string) => A;
   botName: (taken: string[]) => string;
-  /** How long a bot "thinks", in ms. */
-  botDelay: () => number;
+  /** How long a bot "thinks", in ms. Gets the state so it can wait for an animation to finish. */
+  botDelay: (s: S) => number;
 }
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -303,7 +303,7 @@ export function useHostGame<S extends BaseState, A extends { type: string }>(
       takenOver.current = null;
       return;
     }
-    const delay = p.bot || takenOver.current === p.id ? def.botDelay() : AWAY_GRACE;
+    const delay = p.bot || takenOver.current === p.id ? def.botDelay(state) : AWAY_GRACE;
     const t = setTimeout(() => {
       const s = stateRef.current;
       if (def.toMove(s) !== p.id) return;
