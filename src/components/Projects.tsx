@@ -55,6 +55,15 @@ const projects = [
     githubUrl: "https://github.com",
     liveUrl: "/#/pepebo",
   },
+  {
+    title: "Pepe 7",
+    hook: "Hit or stay. Seven different numbers and you win the round.",
+    description:
+      "A push-your-luck card game for 2–6 players: take cards until you stop or draw a number twice and bust. Freeze, Flip Three and Second Chance cards shake things up, and the 7 is a Pepe. First to 200 wins. Play online with a room link, or against bots.",
+    tags: ["React", "Multiplayer", "Game"],
+    githubUrl: "https://github.com",
+    liveUrl: "/#/pepe7",
+  },
 ];
 
 const Projects = () => {
