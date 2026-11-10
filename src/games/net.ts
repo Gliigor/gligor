@@ -1,4 +1,4 @@
-// Online play. The host's browser runs the game; guests send their moves to
+// Online play, shared by all the games. The host's browser runs the game; guests send their moves to
 // the host and get back a view with only their own dice. Messages travel
 // through a relay (see relay.ts) and are encrypted per guest (see crypto.ts).
 //
@@ -7,26 +7,59 @@
 // when a backgrounded page comes back.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Action, GameState, addPlayer, apply, newGame, removePlayer, setOnline, viewFor } from "./engine";
-import { botMove, botName } from "./bot";
 import { Sealed, loadIdentity, pidOf, seal, sharedKey, unseal } from "./crypto";
 import { Relay, openRelay } from "./relay";
 
+export interface BasePlayer {
+  id: string;
+  name: string;
+  bot: boolean;
+  online: boolean;
+}
+
+export interface BaseState {
+  /** "lobby" before the game starts; anything else once it's running. */
+  phase: string;
+  players: BasePlayer[];
+}
+
+/** Everything the networking needs to know about a game. */
+export interface GameDef<S extends BaseState, A extends { type: string }> {
+  /** Short id, used for relay topics. */
+  id: string;
+  maxPlayers: number;
+  create: () => S;
+  addPlayer: (s: S, p: { id: string; name: string; bot: boolean }) => S;
+  removePlayer: (s: S, id: string) => S;
+  /** Applies a move; throws an Error with a friendly message if it isn't allowed. */
+  apply: (s: S, pid: string, a: A) => S;
+  /** What one player is allowed to see. */
+  viewFor: (s: S, pid: string) => S;
+  /** Action types only the host may send. */
+  hostOnly: string[];
+  /** The player the game is waiting on right now, or null. */
+  toMove: (s: S) => string | null;
+  botMove: (s: S, pid: string) => A;
+  /** A move that is always legal, in case the bot picks a bad one. */
+  safeMove: (s: S, pid: string) => A;
+  botName: (taken: string[]) => string;
+  /** How long a bot "thinks", in ms. */
+  botDelay: () => number;
+}
+
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
-const hostTopic = (code: string) => `gligor-pepudo/v1/${code}/host`;
-const guestTopic = (code: string, pid: string) => `gligor-pepudo/v1/${code}/p/${pid}`;
 
 const SYNC_EVERY = 8000; // guest -> host heartbeat
 const HOST_SILENT = 20000; // guest gives up waiting and knocks again
 const GUEST_SILENT = 25000; // host marks a guest as gone
-const GUEST_ACTIONS = ["bid", "dudo", "calza", "next", "rematch"];
+const AWAY_GRACE = 12000; // a disconnected player's turn is auto-played after this
 
 // guest -> host (plain): knock on the door.  guest -> host (sealed): GuestBody.
 type Hello = { t: "hello"; pid: string; pub: string; name: string; n: number };
-type GuestBody = { n: number } & ({ k: "action"; action: Action } | { k: "sync"; sv: number } | { k: "bye" });
+type GuestBody<A> = { n: number } & ({ k: "action"; action: A } | { k: "sync"; sv: number } | { k: "bye" });
 // host -> guest (plain): Welcome with the host's public key.  host -> guest (sealed): HostBody.
-type HostBody = { v: number } & (
-  | { k: "state"; sv: number; state: GameState }
+type HostBody<S> = { v: number } & (
+  | { k: "state"; sv: number; state: S }
   | { k: "ok" }
   | { k: "error"; msg: string }
   | { k: "reject"; msg: string }
@@ -35,17 +68,30 @@ type HostBody = { v: number } & (
 /** offline = bots only · connecting = reaching the relay · no-host = relay ok, host silent */
 export type NetStatus = "offline" | "connecting" | "open" | "no-host" | "error";
 
-export interface Controller {
-  view: GameState | null;
+export interface Controller<S extends BaseState, A extends { type: string }> {
+  view: S | null;
   me: string;
   isHost: boolean;
   code: string | null;
   status: NetStatus;
-  act: (a: Action) => void;
+  act: (a: A) => void;
   addBot?: () => void;
   kick?: (id: string) => void;
   retry?: () => void;
 }
+
+const setOnline = <S extends BaseState>(s: S, id: string, online: boolean, name?: string): S => ({
+  ...s,
+  players: s.players.map((p) => (p.id === id ? { ...p, online, name: name ?? p.name } : p)),
+});
+
+const trimLog = <S,>(view: S): S => {
+  const log = (view as { log?: unknown }).log;
+  return Array.isArray(log) ? { ...view, log: log.slice(-12) } : view;
+};
+
+const hostTopic = (game: string, code: string) => `gligor-${game}/v1/${code}/host`;
+const guestTopic = (game: string, code: string, pid: string) => `gligor-${game}/v1/${code}/p/${pid}`;
 
 const randomCode = () =>
   Array.from({ length: 4 }, () => CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]).join("");
@@ -65,9 +111,13 @@ interface Guest {
   seen: number;
 }
 
-export function useHostGame(name: string, online: boolean): Controller {
+export function useHostGame<S extends BaseState, A extends { type: string }>(
+  def: GameDef<S, A>,
+  name: string,
+  online: boolean,
+): Controller<S, A> {
   const [me] = useState(() => `host-${Math.random().toString(36).slice(2, 10)}`);
-  const [state, setState] = useState<GameState>(() => addPlayer(newGame(), { id: me, name, bot: false }));
+  const [state, setState] = useState<S>(() => def.addPlayer(def.create(), { id: me, name, bot: false }));
   const stateRef = useRef(state);
   const sv = useRef(0); // state version, so guests can tell if they're behind
   const seq = useRef(Date.now()); // message counter, to drop duplicates
@@ -78,23 +128,25 @@ export function useHostGame(name: string, online: boolean): Controller {
   const [status, setStatus] = useState<NetStatus>(online ? "connecting" : "offline");
   const [attempt, setAttempt] = useState(0);
 
-  const sendTo = useCallback(async (pid: string, body: Record<string, unknown>) => {
+  const sendTo = useCallback(
+    async (pid: string, body: Record<string, unknown>) => {
     const g = guests.current.get(pid);
     if (!g || !relay.current) return;
     const sealed = await seal(g.key, { ...body, v: ++seq.current });
-    relay.current?.publish(guestTopic(codeRef.current, pid), JSON.stringify({ t: "m", ...sealed }));
-  }, []);
+    relay.current?.publish(guestTopic(def.id, codeRef.current, pid), JSON.stringify({ t: "m", ...sealed }));
+    },
+    [def],
+  );
 
   const sendState = useCallback(
     (pid: string) => {
-      const view = viewFor(stateRef.current, pid);
-      return sendTo(pid, { k: "state", sv: sv.current, state: { ...view, log: view.log.slice(-12) } });
+      return sendTo(pid, { k: "state", sv: sv.current, state: trimLog(def.viewFor(stateRef.current, pid)) });
     },
-    [sendTo],
+    [sendTo, def],
   );
 
   const commit = useCallback(
-    (next: GameState) => {
+    (next: S) => {
       stateRef.current = next;
       sv.current++;
       setState(next);
@@ -104,15 +156,15 @@ export function useHostGame(name: string, online: boolean): Controller {
   );
 
   const run = useCallback(
-    (pid: string, a: Action): string | null => {
+    (pid: string, a: A): string | null => {
       try {
-        commit(apply(stateRef.current, pid, a));
+        commit(def.apply(stateRef.current, pid, a));
         return null;
       } catch (e) {
         return errMsg(e);
       }
     },
-    [commit],
+    [commit, def],
   );
 
   // Network: open a room and listen for guests.
@@ -130,7 +182,7 @@ export function useHostGame(name: string, online: boolean): Controller {
       const s = stateRef.current;
       const who = s.players.find((p) => p.id === pid);
       if (!who) return;
-      commit(s.phase === "lobby" ? removePlayer(s, pid) : setOnline(s, pid, false));
+      commit(s.phase === "lobby" ? def.removePlayer(s, pid) : setOnline(s, pid, false));
       toast(`${who.name} left`);
     };
 
@@ -145,7 +197,7 @@ export function useHostGame(name: string, online: boolean): Controller {
       const known = guests.current.get(msg.pid);
       // Anything the guest sealed before this knock is stale (e.g. a late "bye" from a previous visit).
       guests.current.set(msg.pid, { key, lastN: Math.max(known?.lastN ?? 0, msg.n), seen: Date.now() });
-      relay.current?.publish(guestTopic(room, msg.pid), JSON.stringify({ t: "welcome", pub }));
+      relay.current?.publish(guestTopic(def.id, room, msg.pid), JSON.stringify({ t: "welcome", pub }));
 
       const guestName = String(msg.name || "Guest").slice(0, 16);
       const s = stateRef.current;
@@ -157,7 +209,7 @@ export function useHostGame(name: string, online: boolean): Controller {
         return;
       }
       try {
-        commit(addPlayer(s, { id: msg.pid, name: guestName, bot: false }));
+        commit(def.addPlayer(s, { id: msg.pid, name: guestName, bot: false }));
         toast(`${guestName} joined`);
       } catch (e) {
         await sendTo(msg.pid, { k: "reject", msg: errMsg(e) });
@@ -168,9 +220,9 @@ export function useHostGame(name: string, online: boolean): Controller {
     const onSealed = async (msg: { pid: string } & Sealed) => {
       const g = guests.current.get(msg.pid);
       if (!g) return;
-      let body: GuestBody;
+      let body: GuestBody<A>;
       try {
-        body = await unseal<GuestBody>(g.key, msg);
+        body = await unseal<GuestBody<A>>(g.key, msg);
       } catch {
         return;
       }
@@ -183,7 +235,7 @@ export function useHostGame(name: string, online: boolean): Controller {
       if (body.k === "bye") return drop(msg.pid);
       if (!player.online) commit(setOnline(s, msg.pid, true));
       if (body.k === "action") {
-        const ok = body.action && GUEST_ACTIONS.includes(body.action.type);
+        const ok = body.action && typeof body.action.type === "string" && !def.hostOnly.includes(body.action.type);
         const err = ok ? run(msg.pid, body.action) : "Only the host can do that.";
         if (err) void sendTo(msg.pid, { k: "error", msg: err });
       } else if (body.k === "sync") {
@@ -195,7 +247,7 @@ export function useHostGame(name: string, online: boolean): Controller {
     // Handle messages strictly one at a time, so a join and a move can't interleave.
     let queue: Promise<unknown> = Promise.resolve();
     const r = openRelay(
-      [hostTopic(room)],
+      [hostTopic(def.id, room)],
       (_topic, payload) => {
         const msg = parse(payload);
         if (!msg || dead) return;
@@ -239,24 +291,30 @@ export function useHostGame(name: string, online: boolean): Controller {
         if (relay.current === r) relay.current = null;
       });
     };
-  }, [online, attempt, commit, run, sendState, sendTo]);
+  }, [online, attempt, commit, run, sendState, sendTo, def]);
 
   // Bots play their turns; a disconnected human gets auto-played after a while.
+  const takenOver = useRef<string | null>(null);
   useEffect(() => {
-    if (state.phase !== "bidding" || !state.turn) return;
-    const p = state.players.find((x) => x.id === state.turn);
-    if (!p || (!p.bot && p.online)) return;
-    const delay = p.bot ? 900 + Math.random() * 1300 : 12000;
+    if (state.phase === "lobby") return;
+    const turn = def.toMove(state);
+    const p = state.players.find((x) => x.id === turn);
+    if (!p || (!p.bot && p.online)) {
+      takenOver.current = null;
+      return;
+    }
+    const delay = p.bot || takenOver.current === p.id ? def.botDelay() : AWAY_GRACE;
     const t = setTimeout(() => {
       const s = stateRef.current;
-      if (s.phase !== "bidding" || s.turn !== p.id) return;
-      if (run(p.id, botMove(s, p.id))) run(p.id, { type: "dudo" });
+      if (def.toMove(s) !== p.id) return;
+      takenOver.current = p.id;
+      if (run(p.id, def.botMove(s, p.id))) run(p.id, def.safeMove(s, p.id));
     }, delay);
     return () => clearTimeout(t);
-  }, [state, run]);
+  }, [state, run, def]);
 
   const act = useCallback(
-    (a: Action) => {
+    (a: A) => {
       const err = run(me, a);
       if (err) toast.error(err);
     },
@@ -267,11 +325,11 @@ export function useHostGame(name: string, online: boolean): Controller {
     const s = stateRef.current;
     try {
       const id = `bot-${Math.random().toString(36).slice(2, 8)}`;
-      commit(addPlayer(s, { id, name: botName(s.players.map((p) => p.name)), bot: true }));
+      commit(def.addPlayer(s, { id, name: def.botName(s.players.map((p) => p.name)), bot: true }));
     } catch (e) {
       toast.error(errMsg(e));
     }
-  }, [commit]);
+  }, [commit, def]);
 
   const kick = useCallback(
     (id: string) => {
@@ -279,16 +337,16 @@ export function useHostGame(name: string, online: boolean): Controller {
         void sendTo(id, { k: "reject", msg: "The host removed you from the room." }).then(() =>
           guests.current.delete(id),
         );
-        commit(removePlayer(stateRef.current, id));
+        commit(def.removePlayer(stateRef.current, id));
       } catch (e) {
         toast.error(errMsg(e));
       }
     },
-    [commit, sendTo],
+    [commit, sendTo, def],
   );
 
   return {
-    view: viewFor(state, me),
+    view: def.viewFor(state, me),
     me,
     isHost: true,
     code,
@@ -300,9 +358,13 @@ export function useHostGame(name: string, online: boolean): Controller {
   };
 }
 
-export function useGuestGame(name: string, code: string): Controller {
+export function useGuestGame<S extends BaseState, A extends { type: string }>(
+  def: GameDef<S, A>,
+  name: string,
+  code: string,
+): Controller<S, A> {
   const [me, setMe] = useState("");
-  const [view, setView] = useState<GameState | null>(null);
+  const [view, setView] = useState<S | null>(null);
   const [status, setStatus] = useState<NetStatus>("connecting");
   const [attempt, setAttempt] = useState(0);
   const post = useRef<((body: Record<string, unknown>) => Promise<boolean>) | null>(null);
@@ -325,10 +387,10 @@ export function useGuestGame(name: string, code: string): Controller {
     setView(null);
 
     void (async () => {
-      const id = await loadIdentity("pepudo-id");
+      const id = await loadIdentity("pepe-games-id");
       if (dead) return;
       setMe(id.pid);
-      const toHost = hostTopic(code);
+      const toHost = hostTopic(def.id, code);
 
       const send = async (body: Record<string, unknown>) => {
         if (!key || !r || links === 0) return false;
@@ -363,9 +425,9 @@ export function useGuestGame(name: string, code: string): Controller {
           return;
         }
         if (msg.t !== "m" || !key) return;
-        let body: HostBody;
+        let body: HostBody<S>;
         try {
-          body = await unseal<HostBody>(key, msg);
+          body = await unseal<HostBody<S>>(key, msg);
         } catch {
           return;
         }
@@ -389,7 +451,7 @@ export function useGuestGame(name: string, code: string): Controller {
 
       let queue: Promise<unknown> = Promise.resolve();
       r = openRelay(
-        [guestTopic(code, id.pid)],
+        [guestTopic(def.id, code, id.pid)],
         (_topic, payload) => {
           queue = queue.then(() => onMessage(payload)).catch(() => undefined);
         },
@@ -423,9 +485,9 @@ export function useGuestGame(name: string, code: string): Controller {
         .catch(() => false)
         .then(() => setTimeout(() => relayToClose?.close(), 300));
     };
-  }, [code, name, attempt]);
+  }, [code, name, attempt, def]);
 
-  const act = useCallback((a: Action) => {
+  const act = useCallback((a: A) => {
     void (post.current?.({ k: "action", action: a }) ?? Promise.resolve(false)).then((sent) => {
       if (!sent) toast.error("Not connected — trying to reconnect…");
     });

@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound";
 import OfferteGenerator from "./pages/OfferteGenerator";
 import Vee from "./pages/Vee";
 import Pepudo from "./pages/Pepudo";
+import Pepebo from "./pages/Pepebo";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/offerte-generator" element={<OfferteGenerator />} />
           <Route path="/vee" element={<Vee />} />
           <Route path="/pepudo" element={<Pepudo />} />
+          <Route path="/pepebo" element={<Pepebo />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </HashRouter>

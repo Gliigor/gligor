@@ -46,6 +46,15 @@ const projects = [
     githubUrl: "https://github.com",
     liveUrl: "/#/pepudo",
   },
+  {
+    title: "Pepebo",
+    hook: "Empty your stock pile first. Pepes are wild.",
+    description:
+      "A stockpile card race for 2–4 players: build the piles from 1 to 12, play from your hand, stock and discard piles, and block your colleague where you can. Play online with a room link, or against bots.",
+    tags: ["React", "Multiplayer", "Game"],
+    githubUrl: "https://github.com",
+    liveUrl: "/#/pepebo",
+  },
 ];
 
 const Projects = () => {

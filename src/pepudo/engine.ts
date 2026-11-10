@@ -161,13 +161,6 @@ export function removePlayer(s: GameState, id: string): GameState {
   return { ...s, players: s.players.filter((p) => p.id !== id) };
 }
 
-export function setOnline(s: GameState, id: string, online: boolean, name?: string): GameState {
-  return {
-    ...s,
-    players: s.players.map((p) => (p.id === id ? { ...p, online, name: name ?? p.name } : p)),
-  };
-}
-
 export function apply(s: GameState, pid: string, a: Action): GameState {
   switch (a.type) {
     case "start": {

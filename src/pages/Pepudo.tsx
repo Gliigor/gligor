@@ -1,167 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { toast } from "sonner";
-import { ArrowLeft, Bot, Copy, Minus, Plus, Share2, Users, X } from "lucide-react";
-import { Die, FrogHead } from "@/pepudo/Die";
-import {
-  GameState,
-  MAX_PLAYERS,
-  bidText,
-  countFace,
-  faceName,
-  minQty,
-  playerName,
-  totalDice,
-} from "@/pepudo/engine";
-import { Controller, useGuestGame, useHostGame } from "@/pepudo/net";
+import { Minus, Plus, X } from "lucide-react";
+import { Die } from "@/pepudo/Die";
+import { Action, GameState, bidText, countFace, minQty, playerName, totalDice } from "@/pepudo/engine";
+import { pepudo } from "@/pepudo/def";
+import { Controller } from "@/games/net";
+import { GameMeta, GamePage, Rules, btn } from "@/games/shell";
 
-type Mode = { kind: "home" } | { kind: "host"; online: boolean } | { kind: "guest"; code: string };
+type Ctl = Controller<GameState, Action>;
 
-const loadName = () => {
-  try {
-    return localStorage.getItem("pepudo-name") ?? "";
-  } catch {
-    return "";
-  }
-};
-const saveName = (n: string) => {
-  try {
-    localStorage.setItem("pepudo-name", n);
-  } catch {
-    /* ignore */
-  }
-};
-
-const Felt = ({ children }: { children: React.ReactNode }) => (
-  <div
-    className="min-h-screen text-[#eef3e6] px-4 py-5 pb-16"
-    style={{
-      background: "radial-gradient(ellipse at top, #1f5a3c 0%, #123726 55%, #0a2117 100%)",
-      fontFamily: "'Exo 2', sans-serif",
-    }}
-  >
-    <div className="mx-auto w-full max-w-md">{children}</div>
-  </div>
+const rules = (
+  <Rules>
+    <li>Everyone has 5 hidden dice. Each round, take turns bidding how many dice of a face are on the whole table.</li>
+    <li>
+      <b>Pepes are wild</b> — they count as every other face.
+    </li>
+    <li>Raise with more dice, or the same amount of a higher face.</li>
+    <li>Switching to Pepes: half the amount (rounded up) is enough. Back from Pepes: double + 1. You can't open on Pepes.</li>
+    <li>
+      <b>Dudo!</b> = "I doubt it". All dice are shown: if there are fewer than bid, the bidder loses a die, otherwise you do.
+    </li>
+    <li>
+      <b>Calza!</b> = "exactly right". If spot on, you win a die back (max 5); otherwise you lose one.
+    </li>
+    <li>Whoever lost (or won) a die starts the next round. Last frog standing wins.</li>
+  </Rules>
 );
-
-const Title = ({ small = false }: { small?: boolean }) => (
-  <div className={`flex items-center justify-center gap-2 ${small ? "" : "mt-6 mb-2"}`}>
-    <FrogHead size={small ? 30 : 56} />
-    <h1
-      className={`${small ? "text-xl" : "text-4xl"} font-black tracking-widest text-[#b7f27a]`}
-      style={{ fontFamily: "'Orbitron', sans-serif", textShadow: "0 2px 0 #0a2117" }}
-    >
-      PEPUDO
-    </h1>
-  </div>
-);
-
-const btn =
-  "rounded-xl px-4 py-3 font-bold tracking-wide transition active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100";
-
-const Rules = () => (
-  <details className="mt-6 rounded-xl bg-black/20 px-4 py-3 text-sm text-[#cfe0c4]">
-    <summary className="cursor-pointer font-semibold text-[#eef3e6]">How to play</summary>
-    <ul className="mt-2 list-disc space-y-1.5 pl-5">
-      <li>Everyone has 5 hidden dice. Each round, take turns bidding how many dice of a face are on the whole table.</li>
-      <li>
-        <b>Pepes are wild</b> — they count as every other face.
-      </li>
-      <li>Raise with more dice, or the same amount of a higher face.</li>
-      <li>Switching to Pepes: half the amount (rounded up) is enough. Back from Pepes: double + 1. You can't open on Pepes.</li>
-      <li>
-        <b>Dudo!</b> = "I doubt it". All dice are shown: if there are fewer than bid, the bidder loses a die, otherwise you do.
-      </li>
-      <li>
-        <b>Calza!</b> = "exactly right". If spot on, you win a die back (max 5); otherwise you lose one.
-      </li>
-      <li>Whoever lost (or won) a die starts the next round. Last frog standing wins.</li>
-    </ul>
-  </details>
-);
-
-// ---------------------------------------------------------------- home
-
-const Home = ({ onStart, initialRoom }: { onStart: (m: Mode, name: string) => void; initialRoom: string }) => {
-  const [name, setName] = useState(loadName);
-  const [code, setCode] = useState(initialRoom);
-  const cleanName = name.trim().slice(0, 16);
-  const go = (m: Mode) => {
-    if (!cleanName) {
-      toast.error("Pick a name first");
-      return;
-    }
-    saveName(cleanName);
-    onStart(m, cleanName);
-  };
-
-  return (
-    <Felt>
-      <Link to="/" className="inline-flex items-center gap-1 text-sm text-[#9fc79a] hover:text-white">
-        <ArrowLeft size={16} /> gligor.xyz
-      </Link>
-      <Title />
-      <p className="text-center text-sm text-[#a9c7a0]">Liar's dice with frogs. Bluff your colleagues.</p>
-
-      <label className="mt-8 block text-xs font-semibold uppercase tracking-widest text-[#9fc79a]">Your name</label>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        maxLength={16}
-        placeholder="e.g. Gligor"
-        className="mt-1 w-full rounded-xl border border-[#3c6b4b] bg-black/30 px-4 py-3 text-lg outline-none focus:border-[#b7f27a]"
-      />
-
-      {initialRoom && (
-        <div className="mt-6 rounded-2xl border border-[#b7f27a]/40 bg-black/20 p-4">
-          <p className="text-sm text-[#cfe0c4]">
-            You've been invited to room <b className="tracking-widest text-[#b7f27a]">{initialRoom}</b>
-          </p>
-          <button
-            className={`${btn} mt-3 w-full bg-[#b7f27a] text-[#0d2b1b]`}
-            onClick={() => go({ kind: "guest", code: initialRoom })}
-          >
-            Join game
-          </button>
-        </div>
-      )}
-
-      <div className="mt-6 grid gap-3">
-        <button className={`${btn} bg-[#b7f27a] text-[#0d2b1b]`} onClick={() => go({ kind: "host", online: true })}>
-          <Users className="mr-2 inline" size={18} />
-          Create online room
-        </button>
-        <button
-          className={`${btn} border border-[#b7f27a]/50 bg-black/20 text-[#d9f5bd]`}
-          onClick={() => go({ kind: "host", online: false })}
-        >
-          <Bot className="mr-2 inline" size={18} />
-          Play against bots
-        </button>
-      </div>
-
-      <div className="mt-6 flex gap-2">
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4))}
-          placeholder="ROOM"
-          className="w-28 rounded-xl border border-[#3c6b4b] bg-black/30 px-3 py-3 text-center text-lg font-bold tracking-[0.3em] outline-none focus:border-[#b7f27a]"
-        />
-        <button
-          className={`${btn} flex-1 border border-[#b7f27a]/50 bg-black/20 text-[#d9f5bd]`}
-          disabled={code.length !== 4}
-          onClick={() => go({ kind: "guest", code })}
-        >
-          Join with code
-        </button>
-      </div>
-
-      <Rules />
-    </Felt>
-  );
-};
-
-// ---------------------------------------------------------------- table
 
 const DiceRow = ({ dice, count, size, face }: { dice: number[]; count: number; size: number; face?: number }) => (
   <div className="flex flex-wrap gap-1">
@@ -225,7 +88,7 @@ const Players = ({ v, me, isHost, kick }: { v: GameState; me: string; isHost: bo
   );
 };
 
-const BidControls = ({ v, act }: { v: GameState; act: Controller["act"] }) => {
+const BidControls = ({ v, act }: { v: GameState; act: Ctl["act"] }) => {
   const total = totalDice(v);
   const me = v.players.find((p) => p.id === v.turn)!;
   const defaultFace = useMemo(() => {
@@ -328,7 +191,7 @@ const BidControls = ({ v, act }: { v: GameState; act: Controller["act"] }) => {
   );
 };
 
-const RevealPanel = ({ v, act }: { v: GameState; act: Controller["act"] }) => {
+const RevealPanel = ({ v, act }: { v: GameState; act: Ctl["act"] }) => {
   const r = v.reveal!;
   const over = v.phase === "over";
   const won = r.actual >= r.bid.qty;
@@ -363,256 +226,77 @@ const RevealPanel = ({ v, act }: { v: GameState; act: Controller["act"] }) => {
   );
 };
 
-const Lobby = ({ c, v, onLeave }: { c: Controller; v: GameState; onLeave: () => void }) => {
-  const link = c.code ? `${window.location.origin}${window.location.pathname}#/pepudo?room=${c.code}` : "";
-  const share = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Pepudo", text: "Come play Pepudo 🐸🎲", url: link });
-        return;
-      } catch {
-        /* fall through to copy */
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(link);
-      toast.success("Link copied");
-    } catch {
-      toast(link);
-    }
-  };
-  const online = c.status !== "offline";
-
-  return (
-    <div className="space-y-4">
-      {online && (
-        <div className="rounded-2xl border border-[#b7f27a]/40 bg-black/25 p-4 text-center">
-          <p className="text-xs uppercase tracking-widest text-[#9fc79a]">Room code</p>
-          <p className="my-1 text-5xl font-black tracking-[0.3em] text-[#b7f27a]">{c.code ?? "····"}</p>
-          {c.isHost && (
-            <>
-              <p className="text-xs text-[#a9c7a0]">
-                {c.code
-                  ? "Send your colleague the link (or the code), then come back to this page — the game runs here."
-                  : "Opening room…"}
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button className={`${btn} bg-[#b7f27a] py-2 text-[#0d2b1b]`} disabled={!c.code} onClick={share}>
-                  <Share2 size={16} className="mr-1 inline" /> Share link
-                </button>
-                <button
-                  className={`${btn} border border-white/20 py-2`}
-                  disabled={!c.code}
-                  onClick={() => navigator.clipboard?.writeText(c.code!).then(() => toast.success("Code copied"))}
-                >
-                  <Copy size={16} className="mr-1 inline" /> Copy code
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      <div>
-        <p className="mb-2 text-xs uppercase tracking-widest text-[#9fc79a]">
-          Players ({v.players.length}/{MAX_PLAYERS})
-        </p>
-        <Players v={v} me={c.me} isHost={c.isHost} kick={c.kick} />
-      </div>
-
-      {c.isHost ? (
-        <div className="grid gap-2">
-          <button
-            className={`${btn} border border-white/20 bg-black/20`}
-            disabled={v.players.length >= MAX_PLAYERS}
-            onClick={c.addBot}
-          >
-            <Bot size={18} className="mr-1 inline" /> Add a bot
-          </button>
-          <button
-            className={`${btn} bg-[#b7f27a] text-lg text-[#0d2b1b]`}
-            disabled={v.players.length < 2}
-            onClick={() => c.act({ type: "start" })}
-          >
-            {v.players.length < 2 ? "Waiting for players…" : "Start game"}
-          </button>
-        </div>
-      ) : (
-        <p className="animate-pulse text-center text-[#a9c7a0]">Waiting for the host to start…</p>
-      )}
-      <button className="w-full text-center text-sm text-[#9fc79a] underline" onClick={onLeave}>
-        Leave
-      </button>
-    </div>
-  );
+const meta: GameMeta = {
+  name: "Pepudo",
+  path: "/pepudo",
+  tagline: "Liar's dice with frogs. Bluff your colleagues.",
+  background: "radial-gradient(ellipse at top, #1f5a3c 0%, #123726 55%, #0a2117 100%)",
+  rules,
 };
 
-const Table = ({ c, onLeave }: { c: Controller; onLeave: () => void }) => {
-  const v = c.view;
-  const myTurn = v?.phase === "bidding" && v.turn === c.me;
-
-  useEffect(() => {
-    if (!myTurn) return;
-    const prev = document.title;
-    document.title = "🐸 Your turn! — Pepudo";
-    try {
-      navigator.vibrate?.(120);
-    } catch {
-      /* ignore */
-    }
-    return () => {
-      document.title = prev;
-    };
-  }, [myTurn]);
-
-  const statusBar =
-    c.status === "connecting" ? (
-      <p className="animate-pulse rounded-xl bg-black/30 p-3 text-center text-sm">
-        {c.isHost ? (v && c.code ? "Reconnecting…" : "Opening room…") : v ? "Reconnecting…" : "Connecting…"}
-      </p>
-    ) : c.status === "no-host" ? (
-      <p className="rounded-xl border border-[#e6a23c]/50 bg-[#e6a23c]/10 p-3 text-center text-sm">
-        {v ? "Waiting for the host to come back…" : `Looking for room ${c.code}…`}
-        <span className="mt-1 block text-xs text-[#cfe0c4]">
-          The host needs to have the Pepudo page open on their screen. Still trying.
-        </span>
-      </p>
-    ) : c.status === "error" ? (
-      <div className="rounded-xl border border-red-400/40 bg-red-900/30 p-3 text-center text-sm">
-        {c.isHost ? "Couldn't open a room. Check your internet connection." : "Couldn't join this room."}{" "}
-        <button className="font-bold underline" onClick={c.retry}>
-          Try again
-        </button>
-      </div>
-    ) : null;
-
-  if (!v) {
-    return (
-      <Felt>
-        <Title small />
-        <div className="mt-8 space-y-3">
-          {statusBar ?? <p className="animate-pulse text-center">Joining room {c.code}…</p>}
-          <button className="w-full text-center text-sm text-[#9fc79a] underline" onClick={onLeave}>
-            Back
-          </button>
-        </div>
-      </Felt>
-    );
-  }
-
+const Game = ({ c, v }: { c: Ctl; v: GameState }) => {
+  const myTurn = v.phase === "bidding" && v.turn === c.me;
   const meP = v.players.find((p) => p.id === c.me);
   const reveal = v.phase === "reveal" || v.phase === "over";
   const myDice = reveal && v.reveal ? v.reveal.dice[c.me] ?? [] : meP?.dice ?? [];
 
   return (
-    <Felt>
-      <div className="mb-4 flex items-center justify-between">
-        <button onClick={onLeave} className="rounded-lg p-1 text-[#9fc79a] hover:text-white" aria-label="Leave">
-          <ArrowLeft size={20} />
-        </button>
-        <Title small />
-        <span className="w-12 text-right text-xs font-bold tracking-wider text-[#9fc79a]">{c.code ?? ""}</span>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between text-xs uppercase tracking-widest text-[#9fc79a]">
+        <span>Round {v.round}</span>
+        <span>{totalDice(v)} {totalDice(v) === 1 ? "die" : "dice"} on the table</span>
       </div>
-      {statusBar && <div className="mb-3">{statusBar}</div>}
 
-      {v.phase === "lobby" ? (
-        <Lobby c={c} v={v} onLeave={onLeave} />
-      ) : (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs uppercase tracking-widest text-[#9fc79a]">
-            <span>Round {v.round}</span>
-            <span>{totalDice(v)} {totalDice(v) === 1 ? "die" : "dice"} on the table</span>
-          </div>
-
-          {v.phase === "bidding" && (
-            <div className="rounded-2xl bg-black/25 p-3 text-center">
-              {v.bid ? (
-                <>
-                  <p className="text-xs uppercase tracking-widest text-[#9fc79a]">{playerName(v, v.bid.by)} bids</p>
-                  <p className="mt-1 flex items-center justify-center gap-2 text-4xl font-black">
-                    {v.bid.qty} <span className="text-2xl text-[#a9c7a0]">×</span> <Die face={v.bid.face} size={44} />
-                  </p>
-                </>
-              ) : (
-                <p className="py-3 text-[#cfe0c4]">{playerName(v, v.turn)} opens the bidding…</p>
-              )}
-            </div>
+      {v.phase === "bidding" && (
+        <div className="rounded-2xl bg-black/25 p-3 text-center">
+          {v.bid ? (
+            <>
+              <p className="text-xs uppercase tracking-widest text-[#9fc79a]">{playerName(v, v.bid.by)} bids</p>
+              <p className="mt-1 flex items-center justify-center gap-2 text-4xl font-black">
+                {v.bid.qty} <span className="text-2xl text-[#a9c7a0]">×</span> <Die face={v.bid.face} size={44} />
+              </p>
+            </>
+          ) : (
+            <p className="py-3 text-[#cfe0c4]">{playerName(v, v.turn)} opens the bidding…</p>
           )}
-
-          {reveal && v.reveal && <RevealPanel v={v} act={c.act} />}
-
-          {meP && (myDice.length > 0 || meP.count > 0) && (
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-              <p className="mb-2 text-xs uppercase tracking-widest text-[#9fc79a]">Your dice</p>
-              <DiceRow dice={myDice} count={myDice.length} size={46} face={reveal ? v.reveal?.bid.face : undefined} />
-            </div>
-          )}
-          {meP && meP.count === 0 && !reveal && (
-            <p className="text-center text-[#a9c7a0]">You're out — enjoy the show 🐸</p>
-          )}
-
-          {myTurn && <BidControls key={v.round} v={v} act={c.act} />}
-
-          <Players v={v} me={c.me} isHost={c.isHost} />
-
-          <div className="rounded-xl bg-black/20 p-3 text-xs text-[#a9c7a0]">
-            {[...v.log]
-              .reverse()
-              .slice(0, 6)
-              .map((l) => (
-                <p key={l.id} className="py-0.5">
-                  {l.text}
-                </p>
-              ))}
-          </div>
-          <Rules />
         </div>
       )}
-    </Felt>
+
+      {reveal && v.reveal && <RevealPanel v={v} act={c.act} />}
+
+      {meP && (myDice.length > 0 || meP.count > 0) && (
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+          <p className="mb-2 text-xs uppercase tracking-widest text-[#9fc79a]">Your dice</p>
+          <DiceRow dice={myDice} count={myDice.length} size={46} face={reveal ? v.reveal?.bid.face : undefined} />
+        </div>
+      )}
+      {meP && meP.count === 0 && !reveal && (
+        <p className="text-center text-[#a9c7a0]">You're out — enjoy the show 🐸</p>
+      )}
+
+      {myTurn && <BidControls key={v.round} v={v} act={c.act} />}
+
+      <Players v={v} me={c.me} isHost={c.isHost} />
+
+      <div className="rounded-xl bg-black/20 p-3 text-xs text-[#a9c7a0]">
+        {[...v.log]
+          .reverse()
+          .slice(0, 6)
+          .map((l) => (
+            <p key={l.id} className="py-0.5">
+              {l.text}
+            </p>
+          ))}
+      </div>
+      {rules}
+    </div>
   );
 };
 
-const HostTable = ({ name, online, onLeave }: { name: string; online: boolean; onLeave: () => void }) => {
-  const c = useHostGame(name, online);
-  return <Table c={c} onLeave={onLeave} />;
-};
-
-const GuestTable = ({ name, code, onLeave }: { name: string; code: string; onLeave: () => void }) => {
-  const c = useGuestGame(name, code);
-  return <Table c={c} onLeave={onLeave} />;
-};
-
-const Pepudo = () => {
-  const [params, setParams] = useSearchParams();
-  const room = (params.get("room") ?? "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
-  const [mode, setMode] = useState<Mode>({ kind: "home" });
-  const [name, setName] = useState("");
-
-  useEffect(() => {
-    const prev = document.title;
-    document.title = "Pepudo 🐸";
-    return () => {
-      document.title = prev;
-    };
-  }, []);
-
-  const leave = () => {
-    if (mode.kind !== "home" && !window.confirm("Leave this game?")) return;
-    setMode({ kind: "home" });
-    if (room) setParams({});
-  };
-
-  if (mode.kind === "host") return <HostTable name={name} online={mode.online} onLeave={leave} />;
-  if (mode.kind === "guest") return <GuestTable name={name} code={mode.code} onLeave={leave} />;
-  return (
-    <Home
-      initialRoom={room}
-      onStart={(m, n) => {
-        setName(n);
-        setMode(m);
-      }}
-    />
-  );
-};
+const Pepudo = () => (
+  <GamePage def={pepudo} meta={meta}>
+    {(c, v) => <Game c={c} v={v} />}
+  </GamePage>
+);
 
 export default Pepudo;
