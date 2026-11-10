@@ -64,6 +64,15 @@ const projects = [
     githubUrl: "https://github.com",
     liveUrl: "/#/pepe7",
   },
+  {
+    title: "Pepala",
+    hook: "Mancala in the pond. Feed your frog, gulp their eggs.",
+    description:
+      "A 1v1 mancala game: sow frog eggs round the board, land in your frog to go again, and capture the eggs across from an empty pit. Every move plays out on both screens. Play a colleague with a room link, or a bot.",
+    tags: ["React", "Multiplayer", "Game"],
+    githubUrl: "https://github.com",
+    liveUrl: "/#/pepala",
+  },
 ];
 
 const Projects = () => {

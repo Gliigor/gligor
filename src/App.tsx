@@ -15,6 +15,7 @@ import Vee from "./pages/Vee";
 import Pepudo from "./pages/Pepudo";
 import Pepebo from "./pages/Pepebo";
 import Pepe7 from "./pages/Pepe7";
+import Pepala from "./pages/Pepala";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/pepudo" element={<Pepudo />} />
           <Route path="/pepebo" element={<Pepebo />} />
           <Route path="/pepe7" element={<Pepe7 />} />
+          <Route path="/pepala" element={<Pepala />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </HashRouter>
