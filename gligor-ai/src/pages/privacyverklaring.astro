@@ -4,7 +4,7 @@ import { BUSINESS, CONTACT } from "../config";
 ---
 <Legal title="Privacyverklaring" description="Hoe Gligor.ai omgaat met jouw persoonsgegevens." updated="[datum]">
   <p>
-    {BUSINESS.name} ({BUSINESS.legalName}, KvK {BUSINESS.kvk}, {BUSINESS.street}, {BUSINESS.postalCity}) is verantwoordelijk voor de
+    {BUSINESS.name} ({[BUSINESS.legalName, BUSINESS.kvk && `KvK ${BUSINESS.kvk}`, BUSINESS.street, BUSINESS.postalCity].filter(Boolean).join(", ")}) is verantwoordelijk voor de
     verwerking van persoonsgegevens zoals beschreven in deze privacyverklaring.
   </p>
 

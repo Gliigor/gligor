@@ -12,10 +12,10 @@ import { BUSINESS, CONTACT } from "../config";
     <div class="text-sm leading-relaxed">
       <h2 class="mb-3 text-sm font-semibold text-white">Bedrijfsgegevens</h2>
       <p>{BUSINESS.legalName}, h.o.d.n. {BUSINESS.name}</p>
-      <p>{BUSINESS.street}</p>
-      <p>{BUSINESS.postalCity}</p>
-      <p class="mt-2">KvK: {BUSINESS.kvk}</p>
-      <p>Btw-id: {BUSINESS.btw}</p>
+      {BUSINESS.street && <p>{BUSINESS.street}</p>}
+      {BUSINESS.postalCity && <p>{BUSINESS.postalCity}</p>}
+      {BUSINESS.kvk && <p class="mt-2">KvK: {BUSINESS.kvk}</p>}
+      {BUSINESS.btw && <p>Btw-id: {BUSINESS.btw}</p>}
       <p class="mt-2"><a class="hover:text-white hover:underline" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></p>
     </div>
     <div class="text-sm">

@@ -4,7 +4,7 @@ import { BUSINESS, CONTACT, PRICE_PER_MONTH } from "../config";
 ---
 <Legal title="Algemene voorwaarden" description="De algemene voorwaarden van Gligor.ai." updated="[datum]">
   <p>
-    Deze voorwaarden gelden voor alle diensten van {BUSINESS.name} ({BUSINESS.legalName}, KvK {BUSINESS.kvk}).
+    Deze voorwaarden gelden voor alle diensten van {BUSINESS.name} ({[BUSINESS.legalName, BUSINESS.kvk && `KvK ${BUSINESS.kvk}`].filter(Boolean).join(", ")}).
   </p>
 
   <h2>1. Dienst en prijs</h2>

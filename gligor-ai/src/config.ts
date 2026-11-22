@@ -4,25 +4,26 @@
  */
 
 /** Cal.com-link: gebruikersnaam/evenement, zonder https://cal.com/ ervoor. */
-export const CAL_LINK = "gligor/kennismaking";
+export const CAL_LINK = "gligor-jancev-nssmca/kennismaking";
 
 export const CONTACT = {
-  email: "hallo@gligor.ai",
+  email: "gligorjancev@gmail.com",
   /** WhatsApp-nummer in internationaal formaat, alleen cijfers (31 = Nederland). */
-  whatsapp: "31600000000",
+  whatsapp: "31628607702",
   /** Het nummer zoals bezoekers het lezen. */
-  whatsappDisplay: "06 00 00 00 00",
-  linkedin: "https://www.linkedin.com/in/gligor",
+  whatsappDisplay: "06 28 60 77 02",
+  linkedin: "https://www.linkedin.com/in/gligor-jancev-889801299/",
 };
 
 export const BUSINESS = {
   name: "Gligor.ai",
   /** Juridische naam zoals ingeschreven bij de KvK (eenmanszaak). */
-  legalName: "[Handelsnaam / eigen naam]",
-  street: "[Straat en huisnummer]",
-  postalCity: "[Postcode Plaats]",
-  kvk: "[KvK-nummer]",
-  btw: "[Btw-id]",
+  legalName: "Gligor Jancev",
+  /** Lege velden worden op de site niet getoond. Vul ze in zodra de KvK-inschrijving rond is. */
+  street: "",
+  postalCity: "",
+  kvk: "",
+  btw: "",
 };
 
 export const PRICE_PER_MONTH = 100;
