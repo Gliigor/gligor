@@ -4,7 +4,7 @@
  */
 
 /** Cal.com-link: gebruikersnaam/evenement, zonder https://cal.com/ ervoor. */
-export const CAL_LINK = "gligor-jancev-nssmca/kennismaking";
+export const CAL_LINK = "gligorjancev/kennismaking";
 
 export const CONTACT = {
   email: "gligorjancev@gmail.com",
