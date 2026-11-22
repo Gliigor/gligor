@@ -1,0 +1,27 @@
+---
+import Icon from "./Icon.astro";
+
+const items = [
+  { icon: "Inbox", text: "Je bent elke dag uren kwijt aan e-mails." },
+  { icon: "FileSpreadsheet", text: "Je typt gegevens over uit PDF's naar Excel." },
+  { icon: "Moon", text: "Je administratie schuift door naar de avond." },
+];
+---
+<section id="herken-je-dit" class="section bg-mist">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <h2 class="reveal h2">Herken je dit?</h2>
+    </div>
+    <div class="mt-12 grid gap-5 md:grid-cols-3">
+      {items.map((item, i) => (
+        <div class="reveal card group flex items-start gap-4 p-6 transition duration-300 hover:-translate-y-1 hover:shadow-lift sm:p-7" style={`--delay: ${i * 110}ms`}>
+          <span class="icon-tile transition-transform duration-300 group-hover:scale-105"><Icon name={item.icon} /></span>
+          <p class="pt-1 text-lg leading-snug font-semibold text-navy">{item.text}</p>
+        </div>
+      ))}
+    </div>
+    <p class="reveal mx-auto mt-12 max-w-xl text-center text-xl leading-relaxed text-ink" style="--delay: 150ms">
+      Dat kan slimmer. <span class="font-semibold text-navy">Zonder dat je zelf AI-expert hoeft te worden.</span>
+    </p>
+  </div>
+</section>

@@ -1,0 +1,29 @@
+{
+  "name": "gligor-ai",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "assets": "node scripts/generate-assets.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
+    "@tailwindcss/vite": "^4.3.5",
+    "astro": "^7.4.13",
+    "lucide-static": "^1.77.0",
+    "simple-icons": "^16.38.1",
+    "tailwindcss": "^4.3.5"
+  },
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "fontkit": "^3.0.0",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,89 @@
+---
+import Icon from "./Icon.astro";
+import { PRICE_PER_MONTH } from "../config";
+---
+<section id="besparing" class="section">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="reveal eyebrow">Besparingscalculator</p>
+      <h2 class="reveal h2" style="--delay: 60ms">Wat levert AI jou op?</h2>
+      <p class="reveal lead" style="--delay: 120ms">Vul drie dingen in en zie direct wat een paar uur per week waard is.</p>
+    </div>
+
+    <form id="calc" class="reveal mx-auto mt-12 grid max-w-5xl overflow-hidden rounded-3xl border border-line bg-white shadow-lift lg:grid-cols-2" style="--delay: 150ms" data-price={PRICE_PER_MONTH}>
+      <div class="space-y-8 p-6 sm:p-10">
+        <div>
+          <label for="calc-rate" class="block font-semibold text-navy">Wat is jouw uurtarief (of dat van je medewerker)?</label>
+          <div class="relative mt-3">
+            <span class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-lg font-semibold text-muted">€</span>
+            <input id="calc-rate" name="rate" type="number" inputmode="numeric" min="1" max="1000" step="1" value="50"
+              class="w-full rounded-xl border border-line bg-mist py-3.5 pr-20 pl-10 text-lg font-semibold text-navy transition focus:border-accent focus:bg-white focus:outline-none focus:ring-4 focus:ring-accent/15" />
+            <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-muted">per uur</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-baseline justify-between gap-4">
+            <label for="calc-hours" class="font-semibold text-navy">Hoeveel uur per week verwacht je te besparen?</label>
+            <output for="calc-hours" id="calc-hours-out" class="shrink-0 rounded-lg bg-accent/10 px-2.5 py-1 text-base font-bold text-accent">2 uur</output>
+          </div>
+          <input id="calc-hours" name="hours" type="range" min="0" max="10" step="0.5" value="2" class="range mt-5" aria-describedby="calc-hours-out" />
+          <div class="mt-2 flex justify-between text-xs text-muted" aria-hidden="true"><span>0</span><span>5</span><span>10 uur</span></div>
+        </div>
+
+        <div>
+          <label for="calc-people" class="block font-semibold text-navy">Met hoeveel mensen?</label>
+          <div class="mt-3 inline-flex items-center rounded-xl border border-line bg-mist p-1">
+            <button type="button" class="flex size-11 items-center justify-center rounded-lg text-navy transition hover:bg-white hover:shadow-sm" data-step="-1" aria-label="Eén persoon minder">
+              <Icon name="Minus" class="size-5" stroke={2} />
+            </button>
+            <input id="calc-people" name="people" type="number" inputmode="numeric" min="1" max="250" step="1" value="1"
+              class="w-16 bg-transparent text-center text-lg font-semibold text-navy focus:outline-none" />
+            <button type="button" class="flex size-11 items-center justify-center rounded-lg text-navy transition hover:bg-white hover:shadow-sm" data-step="1" aria-label="Eén persoon meer">
+              <Icon name="Plus" class="size-5" stroke={2} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="relative flex flex-col justify-between overflow-hidden bg-navy p-6 text-white sm:p-10" aria-live="polite">
+        <div class="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-accent/40 blur-3xl" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute -bottom-28 -left-16 size-72 rounded-full bg-teal/25 blur-3xl" aria-hidden="true"></div>
+
+        <div class="relative">
+          <p class="text-white/75">Je bespaart ongeveer</p>
+          <p class="mt-1 text-5xl font-extrabold tracking-tight sm:text-6xl">
+            <span data-out="monthly">€ 433</span>
+            <span class="ml-1 text-xl font-bold whitespace-nowrap text-white/70 sm:text-2xl">per maand</span>
+          </p>
+
+          <div class="mt-6 rounded-2xl bg-white/[0.07] p-5 ring-1 ring-white/10">
+            <p class="text-lg" data-net-positive>
+              Dat is <span class="font-extrabold text-teal" data-out="net">€ 333</span> <span class="font-bold">netto</span> na mijn €{PRICE_PER_MONTH}.
+            </p>
+            <p class="hidden text-lg" data-net-negative>
+              Daarmee verdien je mijn €{PRICE_PER_MONTH} nog niet terug. Verschuif de schuif eens een uurtje.
+            </p>
+            <p class="mt-3 leading-relaxed text-white/75">
+              Bij een uurtarief van{" "}<span class="font-semibold text-white" data-out="rate">€ 50</span> heb je mijn maandbedrag al terugverdiend na{" "}
+              <span class="font-semibold text-white" data-out="breakeven">2 uur</span> per maand.
+            </p>
+          </div>
+        </div>
+
+        <div class="relative mt-8">
+          <a href="#kennismaken" class="btn w-full bg-white px-5 py-3.5 text-base whitespace-nowrap text-navy sm:text-[17px] hover:-translate-y-0.5 hover:bg-mist sm:w-auto">
+            Plan een gratis kennismaking
+            <Icon name="ArrowRight" class="size-5" stroke={2} />
+          </a>
+          <p class="mt-4 text-xs text-white/60">Indicatieve berekening. Uitgaande van 4,33 weken per maand, bedragen excl. btw.</p>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<script>
+  import { initCalculator } from "../scripts/calculator";
+  initCalculator();
+</script>

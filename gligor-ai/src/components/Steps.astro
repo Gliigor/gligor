@@ -1,0 +1,92 @@
+---
+const steps = [
+  { title: "Kennismaking", text: "We bespreken waar je tijd naartoe gaat en of AI je echt helpt." },
+  { title: "Inrichten & training", text: "Ik kom langs, richt alles in en leer je ermee werken." },
+  { title: "Doorlopend beter", text: "Ik blijf beschikbaar en we pakken steeds een nieuw proces aan." },
+];
+---
+<section id="werkwijze" class="section">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="reveal eyebrow">Werkwijze</p>
+      <h2 class="reveal h2" style="--delay: 60ms">Zo werkt het</h2>
+    </div>
+
+    <ol class="steps relative mx-auto mt-14 grid max-w-5xl gap-10 md:grid-cols-3 md:gap-8" data-steps>
+      <!-- Verbindingslijn: verticaal op mobiel, horizontaal vanaf md -->
+      <span class="steps-track absolute top-7 bottom-7 left-7 w-0.5 bg-line md:top-7 md:right-[16.6%] md:bottom-auto md:left-[16.6%] md:h-0.5 md:w-auto" aria-hidden="true">
+        <span class="steps-fill absolute inset-0 origin-top bg-gradient-to-b from-accent to-teal md:origin-left md:bg-gradient-to-r"></span>
+      </span>
+      {steps.map((s, i) => (
+        <li class="step relative flex gap-5 md:flex-col md:items-center md:text-center" data-step-index={i}>
+          <span class="step-num relative z-10 flex size-14 shrink-0 items-center justify-center rounded-full border-2 border-line bg-white text-xl font-extrabold text-muted shadow-soft transition-all duration-500">
+            {i + 1}
+          </span>
+          <div class="pt-2 md:pt-0">
+            <h3 class="text-xl font-bold">{s.title}</h3>
+            <p class="mt-2 max-w-xs leading-relaxed text-muted">{s.text}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+<style>
+  .steps-fill { transform: scaleY(var(--progress, 0)); }
+  @media (min-width: 768px) {
+    .steps-fill { transform: scaleX(var(--progress, 0)); }
+  }
+  .step.is-reached .step-num {
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--color-accent), var(--color-teal));
+    color: #fff;
+    box-shadow: 0 10px 24px -8px rgb(37 99 235 / 0.55);
+  }
+  :global(html:not(.js)) .steps-fill { transform: none; }
+  :global(html:not(.js)) .step .step-num { color: var(--color-navy); }
+</style>
+
+<script>
+  const list = document.querySelector<HTMLElement>("[data-steps]");
+  if (list) {
+    const steps = Array.from(list.querySelectorAll<HTMLElement>(".step"));
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const desktop = window.matchMedia("(min-width: 768px)");
+
+    const setProgress = (p: number) => {
+      list.style.setProperty("--progress", String(p));
+      steps.forEach((s, i) => {
+        const at = steps.length > 1 ? i / (steps.length - 1) : 0;
+        s.classList.toggle("is-reached", p > 0 && p >= at - 0.001);
+      });
+    };
+
+    if (reduced) {
+      setProgress(1);
+    } else {
+      let ticking = false;
+      const update = () => {
+        ticking = false;
+        const r = list.getBoundingClientRect();
+        const vh = window.innerHeight;
+        const lineTop = r.top + 28;
+        // Mobiel: de lijn vult zich mee met een punt op 75% van het scherm.
+        // Desktop: de lijn vult zich terwijl de lijst van 85% naar 50% van het scherm schuift.
+        const p = desktop.matches
+          ? (vh * 0.85 - lineTop) / (vh * 0.35)
+          : (vh * 0.75 - lineTop) / Math.max(1, r.height - 56);
+        setProgress(Math.min(1, Math.max(0, p)));
+      };
+      const onScroll = () => {
+        if (!ticking) {
+          ticking = true;
+          requestAnimationFrame(update);
+        }
+      };
+      update();
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll);
+    }
+  }
+</script>

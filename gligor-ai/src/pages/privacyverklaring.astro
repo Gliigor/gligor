@@ -1,0 +1,42 @@
+---
+import Legal from "../layouts/Legal.astro";
+import { BUSINESS, CONTACT } from "../config";
+---
+<Legal title="Privacyverklaring" description="Hoe Gligor.ai omgaat met jouw persoonsgegevens." updated="[datum]">
+  <p>
+    {BUSINESS.name} ({BUSINESS.legalName}, KvK {BUSINESS.kvk}, {BUSINESS.street}, {BUSINESS.postalCity}) is verantwoordelijk voor de
+    verwerking van persoonsgegevens zoals beschreven in deze privacyverklaring.
+  </p>
+
+  <h2>Welke gegevens ik verwerk</h2>
+  <ul>
+    <li>Naam, e-mailadres en eventueel telefoonnummer als je een kennismaking plant of contact opneemt.</li>
+    <li>De inhoud van je berichten via e-mail of WhatsApp.</li>
+    <li>Bedrijfs- en factuurgegevens als je klant wordt.</li>
+  </ul>
+
+  <h2>Waarvoor</h2>
+  <ul>
+    <li>Om je kennismaking te plannen en contact met je te houden.</li>
+    <li>Om mijn diensten te leveren en te factureren.</li>
+    <li>Om te voldoen aan wettelijke verplichtingen, zoals de fiscale bewaarplicht.</li>
+  </ul>
+
+  <h2>Diensten van derden</h2>
+  <ul>
+    <li><strong>Cal.com</strong> voor het plannen van afspraken. De agenda wordt pas geladen als je naar dat deel van de pagina scrolt.</li>
+    <li><strong>WhatsApp</strong> (Meta) als je mij via WhatsApp benadert.</li>
+    <li>[E-mailprovider en boekhoudpakket invullen]</li>
+  </ul>
+  <p>Deze website gebruikt geen tracking- of advertentiecookies. Lettertypes worden vanaf deze website zelf geladen.</p>
+
+  <h2>Hoe lang ik gegevens bewaar</h2>
+  <p>[Bewaartermijnen invullen, bijvoorbeeld: contactgegevens tot 1 jaar na het laatste contact; administratie 7 jaar (fiscale bewaarplicht).]</p>
+
+  <h2>Jouw rechten</h2>
+  <p>
+    Je hebt het recht om je gegevens in te zien, te laten corrigeren of te laten verwijderen, en om bezwaar te maken tegen de verwerking.
+    Stuur hiervoor een e-mail naar <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>. Ben je het niet eens met hoe ik met je gegevens omga,
+    dan kun je een klacht indienen bij de <a href="https://autoriteitpersoonsgegevens.nl" target="_blank" rel="noopener">Autoriteit Persoonsgegevens</a>.
+  </p>
+</Legal>

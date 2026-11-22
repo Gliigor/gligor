@@ -1,0 +1,75 @@
+---
+import Icon from "./Icon.astro";
+import { CAL_LINK, CONTACT } from "../config";
+
+const calUrl = `https://cal.com/${CAL_LINK}`;
+const waText = encodeURIComponent("Hoi Gligor, ik wil graag kennismaken.");
+---
+<section id="kennismaken" class="section bg-mist">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="reveal eyebrow">Kennismaking plannen</p>
+      <h2 class="reveal h2" style="--delay: 60ms">Laten we kennismaken</h2>
+      <p class="reveal lead" style="--delay: 120ms">Een vrijblijvend gesprek van 30 minuten. Kies zelf een moment.</p>
+    </div>
+
+    <div class="mt-12 grid gap-6 lg:grid-cols-[1.65fr_1fr]">
+      <div class="reveal card relative min-h-[640px] overflow-hidden p-2 sm:p-3" style="--delay: 120ms">
+        <div id="cal-inline" class="h-full min-h-[620px] w-full overflow-auto" data-cal-link={CAL_LINK}></div>
+
+        <div id="cal-status" class="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white p-8 text-center">
+          <div data-cal-loading class="flex flex-col items-center gap-4">
+            <span class="size-10 animate-spin rounded-full border-4 border-accent/20 border-t-accent" aria-hidden="true"></span>
+            <p class="text-muted">De agenda wordt geladen…</p>
+          </div>
+          <div data-cal-failed class="hidden max-w-sm flex-col items-center gap-4">
+            <span class="icon-tile"><Icon name="Calendar" /></span>
+            <p class="text-lg font-semibold text-navy">De agenda laadt hier even niet.</p>
+            <p class="text-muted">Geen probleem: open hem in een nieuw venster, of stuur me een berichtje.</p>
+            <a href={calUrl} target="_blank" rel="noopener" class="btn btn-primary">Open de agenda <Icon name="ArrowRight" class="size-5" stroke={2} /></a>
+          </div>
+          <noscript>
+            <p class="max-w-sm text-muted">
+              Je kunt de agenda <a class="font-semibold text-accent underline" href={calUrl}>hier openen</a>.
+            </p>
+          </noscript>
+        </div>
+      </div>
+
+      <aside class="reveal flex flex-col gap-4" style="--delay: 200ms" aria-label="Contact">
+        <div class="card p-6 sm:p-7">
+          <h3 class="text-lg font-bold">Liever direct contact?</h3>
+          <p class="mt-2 text-muted">Stuur me een berichtje. Ik reageer binnen één werkdag.</p>
+          <div class="mt-6 space-y-3">
+            <a href={`https://wa.me/${CONTACT.whatsapp}?text=${waText}`} target="_blank" rel="noopener"
+              class="btn w-full justify-start bg-[#25D366] text-white hover:-translate-y-0.5 hover:bg-[#1fbd5a]">
+              <Icon name="whatsapp" class="size-5" /> WhatsApp
+              <span class="ml-auto text-sm font-medium text-white/85">{CONTACT.whatsappDisplay}</span>
+            </a>
+            <a href={`mailto:${CONTACT.email}`} class="btn btn-secondary w-full justify-start">
+              <Icon name="Mail" class="size-5 text-accent" /> {CONTACT.email}
+            </a>
+            <a href={CONTACT.linkedin} target="_blank" rel="noopener" class="btn btn-secondary w-full justify-start">
+              <Icon name="linkedin" class="size-5 text-[#0A66C2]" /> LinkedIn
+            </a>
+          </div>
+        </div>
+        <div class="card flex gap-4 p-6 sm:p-7">
+          <span class="icon-tile"><Icon name="Coffee" /></span>
+          <div>
+            <h3 class="font-bold">Wat kun je verwachten?</h3>
+            <p class="mt-1 text-[15px] leading-relaxed text-muted">Een open gesprek over jouw bedrijf. Geen verkooppraatje, geen verplichtingen. Je weet daarna precies wat AI voor jou kan doen.</p>
+          </div>
+        </div>
+        <p class="px-2 text-sm text-muted">
+          Werkt de agenda niet? <a href={calUrl} target="_blank" rel="noopener" class="font-semibold text-accent underline-offset-2 hover:underline">Open hem in een nieuw venster</a>.
+        </p>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { initCal } from "../scripts/cal";
+  initCal();
+</script>

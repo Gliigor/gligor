@@ -1,0 +1,325 @@
+---
+import Icon from "./Icon.astro";
+
+/*
+ * Zelflopende demo in een "app-venster". Drie scènes, puur HTML/CSS/JS.
+ * Alle voorbeeldinhoud is verzonnen.
+ */
+const tabs = [
+  { id: "email", icon: "Mail", label: "E-mail", badge: "30 minuten → 2 minuten" },
+  { id: "pdf", icon: "FileSpreadsheet", label: "PDF naar Excel", badge: "Geen overtypen meer" },
+  { id: "offerte", icon: "FileText", label: "Offerte", badge: "Offerte in 5 minuten" },
+];
+
+const reply = `Beste mevrouw De Vries,
+
+Dank voor uw bericht, en vervelend dat de levering nog niet compleet is. Ik heb het nagekeken: de twee ontbrekende stoelen worden donderdag tussen 9:00 en 12:00 bij u bezorgd.
+
+Uw nieuwe adres heb ik aangepast. De factuur stuur ik u opnieuw toe, met het juiste factuurnummer.
+
+Met vriendelijke groet,
+Sanne`;
+
+const invoiceRows = [
+  { key: "date", label: "Datum", value: "12-11-2026" },
+  { key: "nr", label: "Factuurnr.", value: "F-2026-0418" },
+  { key: "supplier", label: "Leverancier", value: "Drukkerij Voorbeeld" },
+  { key: "amount", label: "Bedrag", value: "€ 1.245,50" },
+];
+
+const quoteLines = [
+  { item: "Schilderwerk woonkamer (42 m²)", price: "€ 1.260,00" },
+  { item: "Plafond sausen", price: "€ 380,00" },
+  { item: "Materiaal en afdekken", price: "€ 215,00" },
+];
+---
+<section id="demo" class="section relative overflow-hidden">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="reveal eyebrow">Live demo</p>
+      <h2 class="reveal h2" style="--delay: 60ms">Zo ziet dat eruit</h2>
+      <p class="reveal lead" style="--delay: 120ms">Drie voorbeelden uit de praktijk. Jij geeft de opdracht, AI doet het voorwerk, jij kijkt het na.</p>
+    </div>
+
+    <div class="reveal reveal-scale relative mx-auto mt-12 max-w-5xl" style="--delay: 150ms">
+      <div class="absolute -inset-x-10 -inset-y-8 -z-10 rounded-[48px] bg-gradient-to-br from-accent/10 via-white to-teal/10 blur-2xl" aria-hidden="true"></div>
+
+      <div id="demo-window" class="overflow-hidden rounded-2xl border border-line bg-white shadow-lift" data-demo>
+        <!-- Titelbalk -->
+        <div class="flex items-center gap-3 border-b border-line bg-mist px-4 py-3">
+          <div class="flex gap-1.5" aria-hidden="true">
+            <span class="size-3 rounded-full bg-[#FF5F57]"></span>
+            <span class="size-3 rounded-full bg-[#FEBC2E]"></span>
+            <span class="size-3 rounded-full bg-[#28C840]"></span>
+          </div>
+          <div class="mx-auto hidden items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs text-muted shadow-sm sm:flex">
+            <Icon name="Sparkles" class="size-3.5 text-accent" /> Jouw AI-assistent
+          </div>
+          <div class="ml-auto w-[52px] sm:ml-0" aria-hidden="true"></div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-1 overflow-x-auto border-b border-line px-2 sm:px-4" role="tablist" aria-label="Voorbeelden">
+          {tabs.map((t, i) => (
+            <button
+              type="button"
+              role="tab"
+              id={`demo-tab-${t.id}`}
+              aria-controls={`demo-panel-${t.id}`}
+              aria-selected={i === 0 ? "true" : "false"}
+              tabindex={i === 0 ? 0 : -1}
+              data-tab={t.id}
+              data-badge={t.badge}
+              class="demo-tab relative flex shrink-0 items-center gap-2 px-3 py-3.5 text-sm font-semibold text-muted transition-colors hover:text-navy aria-selected:text-accent sm:px-4 sm:text-[15px]"
+            >
+              <Icon name={t.icon} class="size-[18px]" />
+              {t.label}
+              <span class="demo-progress absolute inset-x-2 bottom-0 z-10 h-0.5 origin-left scale-x-0 rounded-full bg-accent"></span>
+            </button>
+          ))}
+        </div>
+
+        <!-- Scènes -->
+        <div class="demo-stage relative grid" data-stage>
+          <!-- E-mail -->
+          <div id="demo-panel-email" role="tabpanel" aria-labelledby="demo-tab-email" data-panel="email" class="demo-panel is-active grid gap-4 p-4 sm:p-6 md:grid-cols-2 md:gap-6">
+            <div class="d-step rounded-xl border border-line bg-white p-4 sm:p-5" data-step="in">
+              <div class="flex items-center gap-3">
+                <span class="flex size-9 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700">MV</span>
+                <div class="min-w-0 text-sm">
+                  <p class="font-semibold text-navy">Marieke de Vries</p>
+                  <p class="truncate text-muted">Re: re: FW: bestelling + adres??</p>
+                </div>
+              </div>
+              <p class="mt-4 line-clamp-4 text-[13px] leading-relaxed text-ink sm:text-sm md:line-clamp-none">
+                hallo, ik heb vorige week die bestelling gedaan maar er zijn maar 4 stoelen gekomen ipv 6?? en de factuur klopt ook niet want daar staat nog mijn oude adres op, we zijn verhuisd naar de Lindelaan 12 dat had ik al eerder gemaild denk ik. kunnen jullie de rest nog sturen en wanneer dan want ik ben alleen ochtends thuis. ook heeft mijn man gebeld maar die kreeg niemand te pakken. graag snel reactie!! groet marieke
+              </p>
+              <p class="mt-3 flex items-center gap-1.5 text-xs text-muted"><Icon name="Paperclip" class="size-3.5" /> factuur_oud.pdf</p>
+            </div>
+            <div class="d-step flex flex-col rounded-xl border border-accent/25 bg-gradient-to-b from-accent/[0.04] to-white p-4 sm:p-5" data-step="out">
+              <div class="flex items-center justify-between gap-2">
+                <p class="flex items-center gap-2 text-sm font-semibold text-accent"><Icon name="Sparkles" class="size-4" /> Concept-antwoord</p>
+                <span class="d-thinking flex items-center gap-1 text-xs text-muted" aria-hidden="true">
+                  <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                </span>
+              </div>
+              <p class="relative mt-3 whitespace-pre-line text-[13px] leading-relaxed text-ink sm:text-sm">
+                <span class="invisible" aria-hidden="true">{reply}</span>
+                <span class="d-type absolute inset-0" data-text={reply}>{reply}</span>
+              </p>
+              <div class="d-step mt-auto flex flex-wrap gap-2 pt-4" data-step="actions">
+                <span class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white"><Icon name="Send" class="size-3.5" /> Nakijken & versturen</span>
+                <span class="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-muted">Aanpassen</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PDF naar Excel -->
+          <div id="demo-panel-pdf" role="tabpanel" aria-labelledby="demo-tab-pdf" data-panel="pdf" class="demo-panel grid items-start gap-4 p-4 sm:p-6 md:grid-cols-[0.85fr_1.15fr] md:gap-6">
+            <div class="d-step relative rounded-xl border border-line bg-white p-4 shadow-soft sm:p-5" data-step="doc">
+              <div class="flex items-center justify-between">
+                <span class="flex items-center gap-2 text-sm font-semibold text-navy"><span class="rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">PDF</span> factuur-0418.pdf</span>
+              </div>
+              <div class="mt-4 space-y-1">
+                <p class="text-base font-extrabold tracking-tight text-navy">FACTUUR</p>
+                <p class="text-[11px] text-muted">Drukkerij Voorbeeld · Industrieweg 1 · 1234 AB Ergens</p>
+              </div>
+              <dl class="mt-4 space-y-2 text-[13px]">
+                {invoiceRows.map((r) => (
+                  <div class="flex justify-between gap-3 border-b border-dashed border-line pb-1.5">
+                    <dt class="text-muted">{r.label}</dt>
+                    <dd class="d-src rounded px-1 font-semibold text-navy transition-colors duration-300" data-src={r.key}>{r.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <div class="mt-4 space-y-1.5" aria-hidden="true">
+                <div class="h-1.5 w-full rounded bg-line"></div>
+                <div class="h-1.5 w-4/5 rounded bg-line"></div>
+                <div class="h-1.5 w-3/5 rounded bg-line"></div>
+              </div>
+            </div>
+            <div class="d-step overflow-hidden rounded-xl border border-line bg-white shadow-soft" data-step="sheet">
+              <div class="flex items-center gap-2 border-b border-line bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800">
+                <Icon name="Table" class="size-4" /> Facturen 2026.xlsx
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-[12px] sm:text-[13px]">
+                  <thead>
+                    <tr class="bg-mist text-muted">
+                      <th class="hidden w-8 border-r border-line px-2 py-2 text-center font-medium sm:table-cell"></th>
+                      <th class="px-3 py-2 font-semibold">Datum</th>
+                      <th class="hidden px-3 py-2 font-semibold sm:table-cell">Factuurnr.</th>
+                      <th class="px-3 py-2 font-semibold">Leverancier</th>
+                      <th class="px-3 py-2 text-right font-semibold">Bedrag</th>
+                    </tr>
+                  </thead>
+                  <tbody class="text-ink">
+                    <tr class="border-t border-line">
+                      <td class="hidden border-r border-line px-2 py-2 text-center text-muted sm:table-cell">2</td>
+                      <td class="px-3 py-2">03-11-2026</td><td class="hidden px-3 py-2 sm:table-cell">F-2026-0397</td><td class="px-3 py-2">Kantoorhuis Demo</td><td class="px-3 py-2 text-right whitespace-nowrap">€ 89,95</td>
+                    </tr>
+                    <tr class="border-t border-line">
+                      <td class="hidden border-r border-line px-2 py-2 text-center text-muted sm:table-cell">3</td>
+                      <td class="px-3 py-2">07-11-2026</td><td class="hidden px-3 py-2 sm:table-cell">F-2026-0402</td><td class="px-3 py-2">Energie Fictief</td><td class="px-3 py-2 text-right whitespace-nowrap">€ 312,40</td>
+                    </tr>
+                    <tr class="d-newrow border-t border-line transition-colors duration-700">
+                      <td class="hidden border-r border-line px-2 py-2 text-center text-muted sm:table-cell">4</td>
+                      {invoiceRows.map((r) => (
+                        <td class:list={["px-3 py-2", r.key === "amount" && "text-right whitespace-nowrap", r.key === "nr" && "hidden sm:table-cell"]}>
+                          <span class="d-dst inline-block font-semibold text-navy" data-dst={r.key}>{r.value}</span>
+                        </td>
+                      ))}
+                    </tr>
+                    <tr class="border-t border-line">
+                      <td class="hidden border-r border-line px-2 py-2 text-center text-muted sm:table-cell">5</td>
+                      <td class="px-3 py-2"></td><td class="hidden px-3 py-2 sm:table-cell"></td><td class="px-3 py-2"></td><td class="px-3 py-2"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="d-step flex items-center gap-2 border-t border-line px-4 py-3 text-sm font-semibold text-emerald-700" data-step="done">
+                <Icon name="CircleCheck" class="size-4" stroke={2} /> Toegevoegd, klaar om na te kijken
+              </p>
+            </div>
+          </div>
+
+          <!-- Offerte -->
+          <div id="demo-panel-offerte" role="tabpanel" aria-labelledby="demo-tab-offerte" data-panel="offerte" class="demo-panel grid items-start gap-4 p-4 sm:p-6 md:grid-cols-[0.8fr_1.2fr] md:gap-6">
+            <div class="d-step rotate-[-1deg] rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-soft sm:p-5" data-step="notes">
+              <p class="text-sm font-semibold text-amber-800">Notities na bezoek</p>
+              <ul class="mt-3 space-y-2 text-[14px] leading-snug text-amber-950/80">
+                <li class="d-note">• fam. Bakker, woonkamer</li>
+                <li class="d-note">• muren 42m2, 2 lagen</li>
+                <li class="d-note">• plafond ook</li>
+                <li class="d-note">• start wk 49?</li>
+                <li class="d-note">• graag vóór kerst klaar</li>
+              </ul>
+            </div>
+            <div class="d-step rounded-xl border border-line bg-white p-4 shadow-soft sm:p-6" data-step="quote">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-lg font-extrabold tracking-tight text-navy">Offerte</p>
+                  <p class="text-xs text-muted">Schildersbedrijf Voorbeeld · nr. 2026-112</p>
+                </div>
+                <span class="rounded-full bg-teal/15 px-2.5 py-1 text-xs font-semibold text-teal">Concept</span>
+              </div>
+              <p class="relative mt-4 text-[13px] leading-relaxed text-ink sm:text-sm">
+                <span class="invisible" aria-hidden="true">Beste familie Bakker, hartelijk dank voor de prettige kennismaking. Zoals besproken schilderen we uw woonkamer in week 49, zodat alles ruim vóór de kerst klaar is.</span>
+                <span class="d-type absolute inset-0" data-text="Beste familie Bakker, hartelijk dank voor de prettige kennismaking. Zoals besproken schilderen we uw woonkamer in week 49, zodat alles ruim vóór de kerst klaar is.">Beste familie Bakker, hartelijk dank voor de prettige kennismaking. Zoals besproken schilderen we uw woonkamer in week 49, zodat alles ruim vóór de kerst klaar is.</span>
+              </p>
+              <table class="mt-4 w-full text-[13px] sm:text-sm">
+                <tbody>
+                  {quoteLines.map((l) => (
+                    <tr class="d-line border-b border-line">
+                      <td class="py-2 pr-3 text-ink">{l.item}</td>
+                      <td class="py-2 text-right whitespace-nowrap font-medium text-navy">{l.price}</td>
+                    </tr>
+                  ))}
+                  <tr class="d-line">
+                    <td class="pt-3 pr-3 font-bold text-navy">Totaal excl. btw</td>
+                    <td class="pt-3 text-right whitespace-nowrap text-base font-extrabold text-accent">€ 1.855,00</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Voetbalk met tijdwinst -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-mist px-4 py-3 sm:px-6">
+          <span id="demo-badge" class="inline-flex items-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-bold text-white shadow-soft" aria-live="polite">
+            <Icon name="Zap" class="size-4 text-teal" stroke={2} />
+            <span data-badge-text>{tabs[0].badge}</span>
+          </span>
+          <span class="flex items-center gap-1.5 text-sm text-muted">
+            <Icon name="ShieldCheck" class="size-4 text-teal" /> Jij kijkt altijd na, AI verstuurt niets zelf.
+          </span>
+        </div>
+      </div>
+      <p class="mt-4 text-center text-sm text-muted">Voorbeelden met verzonnen gegevens. Klik op een tabblad om zelf te kiezen.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { initDemo } from "../scripts/demo";
+  initDemo();
+</script>
+
+<style>
+  .demo-tab[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0.5rem;
+    bottom: 0;
+    height: 2px;
+    border-radius: 999px;
+    background: rgb(37 99 235 / 0.15);
+  }
+  .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: currentColor;
+    animation: dot 1s infinite ease-in-out;
+  }
+  .dot:nth-child(2) { animation-delay: 0.15s; }
+  .dot:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes dot {
+    0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+    40% { opacity: 1; transform: translateY(-3px); }
+  }
+  /* Animatietoestanden: alleen actief als JS de demo bestuurt. */
+  [data-demo].is-animated .d-step,
+  [data-demo].is-animated .d-note,
+  [data-demo].is-animated .d-line {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  [data-demo].is-animated .is-on { opacity: 1 !important; transform: none !important; }
+  [data-demo].is-animated .d-dst { opacity: 0; }
+  [data-demo].is-animated .d-dst.is-on { opacity: 1; }
+  [data-demo] .d-src.is-hot { background: rgb(37 99 235 / 0.12); color: var(--color-accent); }
+  [data-demo] .d-newrow.is-hot { background: rgb(20 184 166 / 0.10); }
+  .d-thinking { visibility: hidden; }
+  .d-thinking.is-on { visibility: visible; }
+  .caret::after {
+    content: "";
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    margin-left: 1px;
+    vertical-align: -0.2em;
+    background: var(--color-accent);
+    animation: caret 1s steps(1) infinite;
+  }
+  @keyframes caret { 50% { opacity: 0; } }
+  #demo-badge { transition: opacity 0.35s, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+  #demo-badge.is-swapping { opacity: 0; transform: translateY(6px); }
+  .demo-panel {
+    grid-area: 1 / 1;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.4s ease, visibility 0s linear 0.4s;
+  }
+  .demo-panel.is-active {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 0.4s ease 0.1s, visibility 0s;
+  }
+  :global(.fly-chip) {
+    position: absolute;
+    z-index: 20;
+    pointer-events: none;
+    border-radius: 6px;
+    background: var(--color-accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 2px 8px;
+    white-space: nowrap;
+    box-shadow: 0 10px 24px -8px rgb(37 99 235 / 0.6);
+  }
+</style>

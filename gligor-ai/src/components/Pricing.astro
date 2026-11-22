@@ -1,0 +1,57 @@
+---
+import Icon from "./Icon.astro";
+import { PRICE_PER_MONTH } from "../config";
+
+const items = [
+  "Inrichting van je AI-tools en een praktijktraining",
+  "Spiekbriefjes met kant-en-klare prompts",
+  "Vragen via e-mail of WhatsApp, antwoord binnen één werkdag",
+  "Elk kwartaal samen één nieuw proces verbeteren",
+  "Updates over nieuwe AI-functies die jou tijd besparen",
+  "Hulp bij nieuwe medewerkers",
+];
+---
+<section id="prijs" class="section bg-mist">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="reveal eyebrow">Wat zit er in €{PRICE_PER_MONTH} per maand?</p>
+      <h2 class="reveal h2" style="--delay: 60ms">Jouw eigen AI-man voor €{PRICE_PER_MONTH} per maand</h2>
+    </div>
+
+    <div class="reveal reveal-scale relative mx-auto mt-12 max-w-3xl" style="--delay: 120ms">
+      <div class="absolute -inset-px rounded-[26px] bg-gradient-to-br from-accent via-accent/40 to-teal opacity-80" aria-hidden="true"></div>
+      <div class="relative grid overflow-hidden rounded-3xl bg-white shadow-lift md:grid-cols-[0.9fr_1.1fr]">
+        <div class="flex flex-col justify-between bg-gradient-to-br from-navy to-navy-700 p-8 text-white sm:p-10">
+          <div>
+            <p class="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm font-semibold text-teal">
+              <Icon name="Sparkles" class="size-4" /> Alles inbegrepen
+            </p>
+            <p class="mt-6 flex items-end gap-2">
+              <span class="text-6xl font-extrabold tracking-tight">€{PRICE_PER_MONTH}</span>
+              <span class="pb-2 text-lg text-white/75">per maand</span>
+            </p>
+            <p class="mt-1 text-white/70">excl. btw · maandelijks opzegbaar</p>
+          </div>
+          <a href="#kennismaken" class="btn mt-10 w-full bg-white px-4 py-3.5 text-[15px] whitespace-nowrap text-navy hover:-translate-y-0.5 hover:bg-mist">
+            Plan een gratis kennismaking
+          </a>
+        </div>
+        <div class="p-8 sm:p-10">
+          <ul class="space-y-4">
+            {items.map((item) => (
+              <li class="flex gap-3">
+                <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-teal/15 text-teal">
+                  <Icon name="Check" class="size-4" stroke={2.5} />
+                </span>
+                <span class="leading-snug text-ink">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+    <p class="reveal mx-auto mt-6 max-w-2xl text-center text-sm leading-relaxed text-muted">
+      Prijs exclusief btw. Licenties voor AI-tools betaal je zelf rechtstreeks aan de aanbieder. Maandelijks opzegbaar.
+    </p>
+  </div>
+</section>

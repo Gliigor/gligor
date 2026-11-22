@@ -1,0 +1,36 @@
+---
+import Base from "./Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  updated: string;
+}
+const { title, description, updated } = Astro.props;
+---
+<Base title={`${title} · Gligor.ai`} description={description}>
+  <Header />
+  <main id="main" class="pt-28 pb-20 sm:pt-36">
+    <article class="legal container-page max-w-3xl">
+      <a href="/" class="text-sm font-semibold text-accent hover:underline">← Terug naar de homepage</a>
+      <h1 class="mt-6 text-4xl font-extrabold tracking-tight">{title}</h1>
+      <p class="mt-2 text-sm text-muted">Laatst bijgewerkt: {updated}</p>
+      <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        Concepttekst. Vul de gegevens tussen [haken] in en laat de tekst controleren voordat de site live gaat.
+      </div>
+      <div class="mt-10 space-y-4 leading-relaxed">
+        <slot />
+      </div>
+    </article>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .legal :global(h2) { margin-top: 2.5rem; font-size: 1.35rem; font-weight: 700; }
+  .legal :global(ul) { list-style: disc; padding-left: 1.25rem; }
+  .legal :global(li) { margin-top: 0.35rem; }
+  .legal :global(a) { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+</style>

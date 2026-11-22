@@ -8,6 +8,9 @@ deploy it on Vercel, and the per-phase test checklists.
 [`plannr/`](plannr/README.md) as a separate Next.js + Supabase app with its own
 setup guide.
 
+**gligor.ai** — the landing page for the AI consultancy — lives in
+[`gligor-ai/`](gligor-ai/README.md) as a separate static Astro + Tailwind site.
+
 ---
 
 # Welcome to your Lovable project
