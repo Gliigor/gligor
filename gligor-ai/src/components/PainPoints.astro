@@ -1,27 +1,140 @@
 ---
 import Icon from "./Icon.astro";
 
+/*
+ * Bovenaan een roterende kop (één pijnpunt tegelijk), daaronder dezelfde zes
+ * punten als kaarten. De kop is puur visueel (aria-hidden); schermlezers lezen
+ * de kaarten, zodat er geen wisselingen voorgelezen worden.
+ */
 const items = [
-  { icon: "Inbox", text: "Je bent elke dag uren kwijt aan e-mails." },
-  { icon: "FileSpreadsheet", text: "Je typt gegevens over uit PDF's naar Excel." },
-  { icon: "Moon", text: "Je administratie schuift door naar de avond." },
+  { icon: "FileText", question: "Uren kwijt aan offertes?", answer: "Laat AI het eerste concept maken." },
+  { icon: "MessageCircle", question: "Klanten appen 's avonds?", answer: "Laat een AI-assistent de vaste vragen beantwoorden." },
+  { icon: "Receipt", question: "Bonnetjes en PDF's overtypen?", answer: "Laat AI ze voor je uitlezen." },
+  { icon: "Megaphone", question: "Geen tijd voor social media?", answer: "Laat AI je posts voorbereiden." },
+  { icon: "Star", question: "Reviews blijven liggen?", answer: "Laat AI een reactie klaarzetten." },
+  { icon: "Inbox", question: "Je inbox loopt over?", answer: "Laat AI je antwoorden voorschrijven." },
 ];
 ---
 <section id="herken-je-dit" class="section bg-mist">
   <div class="container-page">
-    <div class="mx-auto max-w-2xl text-center">
-      <h2 class="reveal h2">Herken je dit?</h2>
-    </div>
-    <div class="mt-12 grid gap-5 md:grid-cols-3">
-      {items.map((item, i) => (
-        <div class="reveal card group flex items-start gap-4 p-6 transition duration-300 hover:-translate-y-1 hover:shadow-lift sm:p-7" style={`--delay: ${i * 110}ms`}>
-          <span class="icon-tile transition-transform duration-300 group-hover:scale-105"><Icon name={item.icon} /></span>
-          <p class="pt-1 text-lg leading-snug font-semibold text-navy">{item.text}</p>
+    <div class="mx-auto max-w-3xl text-center">
+      <h2 class="reveal eyebrow text-base">Herken je dit?</h2>
+
+      <!-- Roterende kop -->
+      <div class="reveal mt-2" style="--delay: 80ms" data-rotator>
+        <div class="rot-stage grid overflow-hidden py-1" aria-hidden="true">
+          {items.map((item, i) => (
+            <div class:list={["rot-item", i === 0 && "is-active"]} data-rot-item={i}>
+              <p class="text-[2rem] leading-tight font-extrabold tracking-[-0.015em] text-navy sm:text-4xl lg:text-5xl" style="word-spacing: 0.06em">
+                {item.question}
+              </p>
+              <p class="relative mt-3 text-lg leading-snug font-semibold text-accent sm:text-2xl">
+                <span class="invisible">{item.answer}</span>
+                <span class="rot-answer absolute inset-0" data-text={item.answer}>{item.answer}</span>
+              </p>
+            </div>
+          ))}
         </div>
-      ))}
+
+        <div class="mt-5 flex items-center justify-center gap-0.5" role="group" aria-label="Kies een voorbeeld">
+          {items.map((item, i) => (
+            <button
+              type="button"
+              class="rot-dot group flex h-8 items-center justify-center px-1.5"
+              data-rot-dot={i}
+              aria-label={`Voorbeeld ${i + 1} van ${items.length}: ${item.question}`}
+              aria-current={i === 0 ? "true" : undefined}
+            >
+              <span class="rot-dot-mark block h-2 w-2 rounded-full bg-navy/20 transition-all duration-300 group-hover:bg-navy/40"></span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
+
+    <!-- Alle zes de punten, ook leesbaar voor schermlezers -->
+    <ul class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((item, i) => (
+        <li class:list={["pain-card reveal card group flex items-start gap-4 p-6 transition duration-300 hover:-translate-y-1 hover:shadow-lift sm:p-7", i === 0 && "is-current"]} style={`--delay: ${(i % 3) * 100}ms`} data-pain-card={i}>
+          <span class="icon-tile transition-transform duration-300 group-hover:scale-105"><Icon name={item.icon} /></span>
+          <div class="pt-0.5">
+            <p class="text-lg leading-snug font-bold text-navy">{item.question}</p>
+            <p class="mt-1.5 leading-relaxed text-muted">{item.answer}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
+
     <p class="reveal mx-auto mt-12 max-w-xl text-center text-xl leading-relaxed text-ink" style="--delay: 150ms">
       Dat kan slimmer. <span class="font-semibold text-navy">Zonder dat je zelf AI-expert hoeft te worden.</span>
     </p>
+    <ul class="reveal mt-6 flex flex-wrap justify-center gap-3" style="--delay: 200ms">
+      <li class="flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
+        <Icon name="Sparkles" class="size-[18px] text-teal" stroke={2} /> Geen ervaring nodig
+      </li>
+      <li class="flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
+        <Icon name="ShieldCheck" class="size-[18px] text-teal" stroke={2} /> Privacy goed geregeld
+      </li>
+    </ul>
   </div>
 </section>
+
+<script>
+  import { initPainRotator } from "../scripts/pain-rotator";
+  initPainRotator();
+</script>
+
+<style>
+  /* Alle items in dezelfde cel: het blok is zo hoog als het langste item en springt nooit. */
+  .rot-item {
+    grid-area: 1 / 1;
+    opacity: 0;
+    transform: translateY(26px);
+    visibility: hidden;
+    transition:
+      opacity 0.5s ease,
+      transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0.55s;
+  }
+  .rot-item.is-active {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+    transition:
+      opacity 0.5s ease,
+      transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s;
+  }
+  .rot-item.is-leaving {
+    opacity: 0;
+    transform: translateY(-26px);
+    visibility: visible;
+  }
+  .rot-item.no-anim { transition: none; }
+
+  .rot-answer.is-typing::after {
+    content: "";
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.12em;
+    background: currentColor;
+    animation: rot-caret 0.9s steps(1) infinite;
+  }
+  @keyframes rot-caret { 50% { opacity: 0; } }
+
+  .rot-dot[aria-current="true"] .rot-dot-mark {
+    width: 1.5rem;
+    background: var(--color-accent);
+  }
+
+  .pain-card.is-current {
+    border-color: rgb(37 99 235 / 0.55);
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.08), var(--shadow-soft);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rot-item, .rot-item.is-active { transition: none; }
+  }
+</style>
