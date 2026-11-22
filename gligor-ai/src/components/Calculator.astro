@@ -1,6 +1,6 @@
 ---
 import Icon from "./Icon.astro";
-import { PRICE_PER_MONTH } from "../config";
+import { GUARANTEE_HOURS, PRICE_PER_MONTH } from "../config";
 ---
 <section id="besparing" class="section">
   <div class="container-page">
@@ -69,6 +69,10 @@ import { PRICE_PER_MONTH } from "../config";
               <span class="font-semibold text-white" data-out="breakeven">2 uur</span> per maand.
             </p>
           </div>
+          <p class="mt-4 flex items-start gap-2 text-[15px] leading-snug text-white/85">
+            <Icon name="ShieldCheck" class="mt-px size-5 shrink-0 text-teal" stroke={2} />
+            <span>En lukt die eerste {GUARANTEE_HOURS} uur niet? Dan krijg je je startbedrag terug.</span>
+          </p>
         </div>
 
         <div class="relative mt-8">

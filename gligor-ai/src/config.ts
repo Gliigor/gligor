@@ -28,6 +28,11 @@ export const BUSINESS = {
 
 export const PRICE_PER_MONTH = 100;
 
+/** Eenmalig startbedrag (inrichting + starttraining), excl. btw. */
+export const START_FEE = 250;
+/** Tijdbespaargarantie: minimaal zoveel uur besparing in de eerste maand, anders startbedrag terug. */
+export const GUARANTEE_HOURS = 4;
+
 /** Voorbereid voor later: zet op true zodra er een introvideo is. */
 export const SHOW_INTRO_VIDEO = false;
 /** YouTube/Vimeo-embedlink of pad naar een mp4 in /public. */

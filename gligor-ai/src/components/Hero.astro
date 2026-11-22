@@ -2,7 +2,7 @@
 import { Picture } from "astro:assets";
 import Icon from "./Icon.astro";
 import photo from "../assets/gligor.jpg";
-import { SHOW_INTRO_VIDEO } from "../config";
+import { GUARANTEE_HOURS, SHOW_INTRO_VIDEO } from "../config";
 ---
 <section id="top" class="hero-bg relative overflow-hidden pt-28 pb-20 sm:pt-36 sm:pb-24 lg:pt-40 lg:pb-28">
   <div class="container-page grid items-center gap-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
@@ -30,7 +30,11 @@ import { SHOW_INTRO_VIDEO } from "../config";
           Bereken je besparing
         </a>
       </div>
-      <ul class="reveal mt-7 flex flex-wrap gap-x-5 gap-y-2 text-[15px] text-muted" style="--delay: 320ms" aria-label="Voordelen">
+      <p class="reveal mt-5 flex items-start gap-2 text-[15px] leading-snug font-medium text-navy" style="--delay: 280ms">
+        <Icon name="ShieldCheck" class="mt-px size-5 shrink-0 text-teal" stroke={2} />
+        <span>Met tijdbespaargarantie: {GUARANTEE_HOURS} uur besparing in maand 1, of je startbedrag terug.</span>
+      </p>
+      <ul class="reveal mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[15px] text-muted" style="--delay: 320ms" aria-label="Voordelen">
         <li class="flex items-center gap-1.5"><Icon name="CircleCheck" class="size-[18px] text-teal" stroke={2} />Maandelijks opzegbaar</li>
         <li class="flex items-center gap-1.5"><Icon name="CircleCheck" class="size-[18px] text-teal" stroke={2} />Geen technische kennis nodig</li>
         <li class="flex items-center gap-1.5"><Icon name="CircleCheck" class="size-[18px] text-teal" stroke={2} />Persoonlijk contact</li>

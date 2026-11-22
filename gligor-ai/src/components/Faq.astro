@@ -1,11 +1,16 @@
 ---
 import Icon from "./Icon.astro";
+import { GUARANTEE_HOURS, START_FEE } from "../config";
 
 const faqs = [
   { q: "Moet ik verstand hebben van AI?", a: "Nee, daar ben ik juist voor." },
   { q: "Welke tools gebruik je?", a: "Meestal Claude of Microsoft Copilot, afhankelijk van wat bij jou past." },
   { q: "Is mijn data veilig?", a: "We spreken vooraf duidelijk af welke gegevens wel en niet in AI-tools mogen. Jij blijft eigenaar van je accounts." },
   { q: "Kan ik opzeggen?", a: "Ja, maandelijks." },
+  {
+    q: "Hoe werkt de tijdbespaargarantie?",
+    a: `Na vier weken kijken we samen hoeveel tijd je hebt bespaard. Is dat minder dan ${GUARANTEE_HOURS} uur, terwijl je de training hebt gevolgd en de tools gebruikt, dan krijg je je startbedrag van €${START_FEE} volledig terug.`,
+  },
   { q: "Zitten de licenties bij de prijs in?", a: "Nee, die betaal je zelf aan de aanbieder, zo'n €20–25 per gebruiker per maand." },
 ];
 
