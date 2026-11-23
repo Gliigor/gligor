@@ -1,0 +1,51 @@
+---
+import { Picture, getImage } from "astro:assets";
+import Icon from "./Icon.astro";
+import photo from "../assets/gligor.jpg";
+import { ABOUT_PERSONAL_LINE, CONTACT, INTRO_VIDEO_URL, SHOW_INTRO_VIDEO } from "../config";
+const poster = await getImage({ src: photo, width: 600, format: "webp" });
+const isFile = INTRO_VIDEO_URL.endsWith(".mp4") || INTRO_VIDEO_URL.endsWith(".webm");
+---
+<section id="over-mij" class="section overflow-hidden bg-mist">
+  <div class="container-page grid items-center gap-12 md:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+    <div class="reveal reveal-left relative mx-auto w-full max-w-sm">
+      <div class="absolute -inset-4 -z-0 rotate-[-4deg] rounded-[32px] bg-gradient-to-br from-accent/15 to-teal/20" aria-hidden="true"></div>
+      {SHOW_INTRO_VIDEO && INTRO_VIDEO_URL ? (
+        <div class="relative overflow-hidden rounded-3xl border-4 border-white bg-navy shadow-lift">
+          {isFile ? (
+            <video class="aspect-[4/5] w-full object-cover" src={INTRO_VIDEO_URL} poster={poster.src} controls preload="none" playsinline></video>
+          ) : (
+            <iframe class="aspect-[4/5] w-full" src={INTRO_VIDEO_URL} title="Introductievideo van Gligor" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+          )}
+        </div>
+      ) : (
+        <Picture src={photo} alt="Gligor" formats={["avif", "webp"]} widths={[400, 600, 920]}
+          sizes="(min-width: 768px) 384px, calc(100vw - 2rem)"
+          class="relative aspect-[4/5] w-full rounded-3xl border-4 border-white object-cover shadow-lift" />
+      )}
+    </div>
+
+    <div class="max-w-xl">
+      <p class="reveal eyebrow">Over Gligor</p>
+      <h2 class="reveal h2" style="--delay: 60ms">Over mij</h2>
+      <div class="reveal mt-6 space-y-4 text-lg leading-relaxed text-ink" style="--delay: 120ms">
+        <p>
+          Hoi, ik ben Gligor. Met een achtergrond in finance en compliance weet ik hoeveel tijd ondernemers kwijt zijn aan administratie.
+        </p>
+        <p>
+          Ik help je AI zo in te zetten dat je die tijd terugkrijgt, <strong class="font-semibold text-navy">in gewone taal en zonder gedoe.</strong>
+          {ABOUT_PERSONAL_LINE && <> {ABOUT_PERSONAL_LINE}</>}
+        </p>
+      </div>
+      <ul class="reveal mt-8 grid gap-3 sm:grid-cols-2" style="--delay: 180ms">
+        <li class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="Handshake" class="size-5 text-accent" /> Eén vast aanspreekpunt</li>
+        <li class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="ShieldCheck" class="size-5 text-accent" /> Zorgvuldig met je gegevens</li>
+        <li class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="MessagesSquare" class="size-5 text-accent" /> Gewone taal, geen jargon</li>
+        <li class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="MapPin" class="size-5 text-accent" /> Ik kom gewoon langs</li>
+      </ul>
+      <a href={CONTACT.linkedin} target="_blank" rel="noopener" class="reveal mt-8 inline-flex items-center gap-2 font-semibold text-accent hover:underline" style="--delay: 220ms">
+        <Icon name="linkedin" class="size-5" /> Bekijk mijn LinkedIn
+      </a>
+    </div>
+  </div>
+</section>

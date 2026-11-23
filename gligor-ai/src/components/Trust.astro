@@ -1,0 +1,50 @@
+---
+/*
+ * Voorbereid voor later (staat uit via SHOW_TRUST_SECTION in src/config.ts).
+ * Vul logos/certificates/testimonials en zet de vlag op true.
+ */
+import Icon from "./Icon.astro";
+
+const tools: { name: string; src: string }[] = [
+  // { name: "Claude", src: "/images/logos/claude.svg" },
+  // { name: "Microsoft Copilot", src: "/images/logos/copilot.svg" },
+];
+const certificates: string[] = [
+  // "Certificaat ...",
+];
+const testimonials: { quote: string; name: string; company: string }[] = [
+  // { quote: "...", name: "Naam", company: "Bedrijf" },
+];
+---
+<section id="vertrouwen" class="section">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="eyebrow">Vertrouwen</p>
+      <h2 class="h2">Waar ik mee werk</h2>
+    </div>
+    {tools.length > 0 && (
+      <ul class="mt-10 flex flex-wrap items-center justify-center gap-10 opacity-80">
+        {tools.map((t) => <li><img src={t.src} alt={t.name} class="h-8 w-auto" loading="lazy" /></li>)}
+      </ul>
+    )}
+    {certificates.length > 0 && (
+      <ul class="mt-8 flex flex-wrap justify-center gap-3">
+        {certificates.map((c) => (
+          <li class="flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm font-medium text-navy shadow-soft">
+            <Icon name="BadgeCheck" class="size-4 text-teal" /> {c}
+          </li>
+        ))}
+      </ul>
+    )}
+    {testimonials.length > 0 && (
+      <div class="mt-12 grid gap-5 md:grid-cols-3">
+        {testimonials.map((t) => (
+          <figure class="card p-6">
+            <blockquote class="leading-relaxed text-ink">“{t.quote}”</blockquote>
+            <figcaption class="mt-4 text-sm font-semibold text-navy">{t.name} <span class="font-normal text-muted">· {t.company}</span></figcaption>
+          </figure>
+        ))}
+      </div>
+    )}
+  </div>
+</section>

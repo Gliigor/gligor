@@ -1,0 +1,80 @@
+---
+import { Picture } from "astro:assets";
+import Icon from "./Icon.astro";
+import photo from "../assets/gligor.jpg";
+import { GUARANTEE_HOURS, SHOW_INTRO_VIDEO } from "../config";
+---
+<section id="top" class="hero-bg relative overflow-hidden pt-28 pb-20 sm:pt-36 sm:pb-24 lg:pt-40 lg:pb-28">
+  <div class="container-page grid items-center gap-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
+    <div class="max-w-2xl">
+      <p class="reveal eyebrow rounded-full border border-accent/15 bg-white/70 px-3 py-1 backdrop-blur">
+        <span class="relative flex size-2">
+          <span class="absolute inline-flex size-full animate-ping rounded-full bg-teal opacity-60 motion-reduce:hidden"></span>
+          <span class="relative inline-flex size-2 rounded-full bg-teal"></span>
+        </span>
+        Persoonlijke AI-hulp voor ondernemers
+      </p>
+      <h1 class="reveal text-[2.5rem] leading-[1.08] font-extrabold tracking-tight sm:text-5xl lg:text-[3.6rem]" style="--delay: 80ms">
+        AI voor kleine bedrijven, voor <span class="text-gradient whitespace-nowrap">€100 per maand.</span>
+      </h1>
+      <p class="reveal mt-6 text-lg leading-relaxed text-ink sm:text-xl" style="--delay: 160ms">
+        Ik ben Gligor. Ik zet AI in waar het jou tijd oplevert, en blijf je daarna helpen. Zullen we kennismaken?
+      </p>
+      <div class="reveal mt-8 flex flex-col gap-3 sm:flex-row" style="--delay: 240ms">
+        <a href="#kennismaken" class="btn btn-primary px-6 py-3.5 text-[17px]">
+          Plan een gratis kennismaking
+          <Icon name="ArrowRight" class="size-5" stroke={2} />
+        </a>
+        <a href="#besparing" class="btn btn-secondary px-6 py-3.5 text-[17px]">
+          <Icon name="Calculator" class="size-5" />
+          Bereken je besparing
+        </a>
+      </div>
+      <p class="reveal mt-5 flex items-start gap-2 text-[15px] leading-snug font-medium text-navy" style="--delay: 280ms">
+        <Icon name="ShieldCheck" class="mt-px size-5 shrink-0 text-teal" stroke={2} />
+        <span>Met tijdbespaargarantie: {GUARANTEE_HOURS} uur besparing in maand 1, of je startbedrag terug.</span>
+      </p>
+      <ul class="reveal mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[15px] text-muted" style="--delay: 320ms" aria-label="Voordelen">
+        <li class="flex items-center gap-1.5"><Icon name="CircleCheck" class="size-[18px] text-teal" stroke={2} />Maandelijks opzegbaar</li>
+        <li class="flex items-center gap-1.5"><Icon name="CircleCheck" class="size-[18px] text-teal" stroke={2} />Geen technische kennis nodig</li>
+        <li class="flex items-center gap-1.5"><Icon name="CircleCheck" class="size-[18px] text-teal" stroke={2} />Persoonlijk contact</li>
+      </ul>
+      {SHOW_INTRO_VIDEO && (
+        <a href="#over-mij" class="reveal mt-6 inline-flex items-center gap-2 text-[15px] font-semibold text-accent hover:underline">
+          <Icon name="CirclePlay" class="size-5" /> Bekijk mijn introductie (1 minuut)
+        </a>
+      )}
+    </div>
+
+    <div class="reveal reveal-scale relative mx-auto w-full max-w-[420px] lg:max-w-[460px]" style="--delay: 200ms">
+      <div class="blob absolute -inset-6 -z-0 sm:-inset-10" aria-hidden="true"></div>
+      <div class="relative overflow-hidden rounded-[28px] border-4 border-white bg-mist shadow-lift">
+        <Picture
+          src={photo}
+          alt="Gligor, oprichter van Gligor.ai, glimlachend"
+          formats={["avif", "webp"]}
+          widths={[400, 600, 920]}
+          sizes="(min-width: 1024px) 460px, (min-width: 640px) 420px, calc(100vw - 2rem)"
+          class="aspect-[4/5] w-full object-cover"
+          fetchpriority="high"
+          loading="eager"
+        />
+      </div>
+
+      <div class="float-chip absolute -left-3 top-10 flex items-center gap-3 rounded-2xl border border-line bg-white/95 px-4 py-3 shadow-lift backdrop-blur sm:-left-10" aria-hidden="true">
+        <span class="flex size-9 items-center justify-center rounded-xl bg-accent/10 text-accent"><Icon name="Mail" class="size-5" /></span>
+        <span class="leading-tight">
+          <span class="block text-sm font-bold text-navy">Antwoord klaar</span>
+          <span class="block text-xs text-muted">in 2 minuten</span>
+        </span>
+      </div>
+      <div class="float-chip delay absolute -right-3 bottom-12 flex items-center gap-3 rounded-2xl border border-line bg-white/95 px-4 py-3 shadow-lift backdrop-blur sm:-right-8" aria-hidden="true">
+        <span class="flex size-9 items-center justify-center rounded-xl bg-teal/15 text-teal"><Icon name="Clock" class="size-5" /></span>
+        <span class="leading-tight">
+          <span class="block text-sm font-bold text-navy">+ 8 uur per maand</span>
+          <span class="block text-xs text-muted">terug voor jezelf</span>
+        </span>
+      </div>
+    </div>
+  </div>
+</section>

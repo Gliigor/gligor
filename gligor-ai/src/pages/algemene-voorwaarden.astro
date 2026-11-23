@@ -1,0 +1,43 @@
+---
+import Legal from "../layouts/Legal.astro";
+import { BUSINESS, CONTACT, GUARANTEE_HOURS, PRICE_PER_MONTH, START_FEE } from "../config";
+---
+<Legal title="Algemene voorwaarden" description="De algemene voorwaarden van Gligor.ai." updated="[datum]">
+  <p>
+    Deze voorwaarden gelden voor alle diensten van {BUSINESS.name} ({[BUSINESS.legalName, BUSINESS.kvk && `KvK ${BUSINESS.kvk}`].filter(Boolean).join(", ")}).
+  </p>
+
+  <h2>1. Dienst en prijs</h2>
+  <p>
+    Het abonnement kost €{PRICE_PER_MONTH} per maand, exclusief btw. Wat erin zit staat op de homepage onder "Wat zit er in €{PRICE_PER_MONTH} per maand?".
+    Daarnaast betaal je eenmalig een startbedrag van €{START_FEE}, exclusief btw, voor de inrichting en de starttraining.
+    Licenties voor AI-tools (zoals Claude of Microsoft Copilot) sluit je zelf af en betaal je rechtstreeks aan de aanbieder.
+  </p>
+
+  <h2>2. Tijdbespaargarantie</h2>
+  <p>
+    Bespaar je in de eerste maand niet minstens {GUARANTEE_HOURS} uur, dan krijg je het startbedrag van €{START_FEE} volledig terug.
+    Voorwaarde is dat je de starttraining hebt gevolgd en de ingerichte tools gebruikt. We meten de besparing samen bij de check-in na vier weken.
+    [Termijn van terugbetaling invullen.]
+  </p>
+
+  <h2>3. Betaling</h2>
+  <p>[Betaaltermijn en wijze van factureren invullen, bijvoorbeeld: vooraf per maand, binnen 14 dagen.]</p>
+
+  <h2>4. Looptijd en opzeggen</h2>
+  <p>Het abonnement is maandelijks opzegbaar. [Opzegtermijn en manier van opzeggen invullen.]</p>
+
+  <h2>5. Gegevens en accounts</h2>
+  <p>
+    Jij blijft eigenaar van je accounts en gegevens. We spreken vooraf af welke gegevens wel en niet in AI-tools gebruikt mogen worden.
+  </p>
+
+  <h2>6. Aansprakelijkheid</h2>
+  <p>
+    AI-tools maken fouten. Controleer daarom altijd wat een AI-tool voor je maakt voordat je het gebruikt of verstuurt.
+    [Beperking van aansprakelijkheid invullen.]
+  </p>
+
+  <h2>7. Contact</h2>
+  <p>Vragen over deze voorwaarden? Mail naar <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>.</p>
+</Legal>

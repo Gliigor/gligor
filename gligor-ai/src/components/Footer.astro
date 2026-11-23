@@ -1,0 +1,34 @@
+---
+import Logo from "./Logo.astro";
+import { BUSINESS, CONTACT } from "../config";
+---
+<footer class="bg-navy text-white/75">
+  <div class="container-page grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr]">
+    <div>
+      <a href="/#top" aria-label="gligor.ai, naar boven" class="inline-block"><Logo tone="light" class="h-8 w-auto" /></a>
+      <p class="mt-4 text-lg font-semibold text-white">Haal alles uit AI.</p>
+      <p class="mt-2 max-w-xs text-sm leading-relaxed">Persoonlijke AI-hulp voor kleine bedrijven, voor €100 per maand.</p>
+    </div>
+    <div class="text-sm leading-relaxed">
+      <h2 class="mb-3 text-sm font-semibold text-white">Bedrijfsgegevens</h2>
+      <p>{BUSINESS.legalName}, h.o.d.n. {BUSINESS.name}</p>
+      {BUSINESS.street && <p>{BUSINESS.street}</p>}
+      {BUSINESS.postalCity && <p>{BUSINESS.postalCity}</p>}
+      {BUSINESS.kvk && <p class="mt-2">KvK: {BUSINESS.kvk}</p>}
+      {BUSINESS.btw && <p>Btw-id: {BUSINESS.btw}</p>}
+      <p class="mt-2"><a class="hover:text-white hover:underline" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></p>
+    </div>
+    <div class="text-sm">
+      <h2 class="mb-3 text-sm font-semibold text-white">Meer</h2>
+      <ul class="space-y-2">
+        <li><a class="hover:text-white hover:underline" href="/#kennismaken">Plan een kennismaking</a></li>
+        <li><a class="hover:text-white hover:underline" href="/privacyverklaring">Privacyverklaring</a></li>
+        <li><a class="hover:text-white hover:underline" href="/algemene-voorwaarden">Algemene voorwaarden</a></li>
+        <li><a class="hover:text-white hover:underline" href={CONTACT.linkedin} target="_blank" rel="noopener">LinkedIn</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10">
+    <div class="container-page py-6 text-sm text-white/60">© 2026 Gligor.ai</div>
+  </div>
+</footer>

@@ -1,0 +1,190 @@
+@import "tailwindcss";
+@import "@fontsource-variable/plus-jakarta-sans/wght.css";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-navy: #0f2a4a;
+  --color-navy-700: #1a3a60;
+  --color-accent: #2563eb;
+  --color-accent-600: #1d4ed8;
+  --color-teal: #14b8a6;
+  --color-ink: #334155;
+  --color-muted: #64748b;
+  --color-mist: #f8fafc;
+  --color-line: #e2e8f0;
+
+  --radius-card: 16px;
+
+  --shadow-soft: 0 1px 2px rgb(15 42 74 / 0.04), 0 8px 24px -8px rgb(15 42 74 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(15 42 74 / 0.04), 0 24px 48px -16px rgb(15 42 74 / 0.22);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-white font-sans text-ink antialiased;
+    overflow-x: clip;
+    font-feature-settings: "ss01";
+  }
+  h1, h2, h3, h4 {
+    @apply text-navy;
+    text-wrap: balance;
+    /* Plus Jakarta Sans heeft smalle spaties in zware gewichten. */
+    word-spacing: 0.06em;
+  }
+  p { text-wrap: pretty; }
+  ::selection { background: rgb(37 99 235 / 0.18); }
+  :focus-visible {
+    outline: 3px solid rgb(37 99 235 / 0.55);
+    outline-offset: 3px;
+    border-radius: 8px;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+  .section {
+    @apply py-20 sm:py-24 lg:py-28;
+  }
+  .eyebrow {
+    @apply mb-3 inline-flex items-center gap-2 text-sm font-semibold tracking-wide text-accent;
+  }
+  .h2 {
+    @apply text-3xl font-extrabold tracking-[-0.015em] sm:text-4xl;
+  }
+  .lead {
+    @apply mt-4 text-lg leading-relaxed text-muted;
+  }
+  .card {
+    @apply rounded-2xl border border-line/80 bg-white shadow-soft;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-base font-semibold transition duration-200 ease-out;
+    @apply focus-visible:outline-offset-2;
+  }
+  .btn-primary {
+    @apply bg-accent text-white shadow-[0_8px_20px_-6px_rgb(37_99_235/0.55)] hover:-translate-y-0.5 hover:bg-accent-600 hover:shadow-[0_12px_28px_-8px_rgb(37_99_235/0.6)];
+  }
+  .btn-secondary {
+    @apply border border-line bg-white text-navy hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent;
+  }
+  .icon-tile {
+    @apply flex size-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent/10 to-teal/15 text-accent;
+  }
+  .icon-tile svg { @apply size-6; }
+}
+
+/* ---------- Scroll reveal ---------- */
+/* Alleen verbergen als JS draait, zodat de pagina zonder JS gewoon leesbaar is. */
+.js .reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--delay, 0ms);
+}
+.js .reveal.reveal-left { transform: translateX(-18px); }
+.js .reveal.reveal-right { transform: translateX(18px); }
+.js .reveal.reveal-scale { transform: scale(0.97); }
+.js .reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Hero ---------- */
+.hero-bg {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, rgb(37 99 235 / 0.10), transparent 60%),
+    radial-gradient(40rem 24rem at 100% 60%, rgb(20 184 166 / 0.10), transparent 60%),
+    radial-gradient(50rem 30rem at -10% 10%, rgb(37 99 235 / 0.05), transparent 60%);
+}
+.text-gradient {
+  background: linear-gradient(100deg, var(--color-accent) 10%, var(--color-teal) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.blob {
+  border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+  background: linear-gradient(135deg, rgb(37 99 235 / 0.35), rgb(20 184 166 / 0.35));
+  filter: blur(36px);
+  animation: blob 14s ease-in-out infinite alternate;
+}
+@keyframes blob {
+  0% { border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; transform: rotate(0deg) scale(1); }
+  100% { border-radius: 58% 42% 38% 62% / 55% 38% 62% 45%; transform: rotate(18deg) scale(1.06); }
+}
+.float-chip { animation: float 6s ease-in-out infinite; }
+.float-chip.delay { animation-delay: -3s; }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* ---------- Header ---------- */
+.site-header { transition: background-color 0.3s, box-shadow 0.3s, border-color 0.3s; }
+.site-header.is-scrolled {
+  background-color: rgb(255 255 255 / 0.82);
+  backdrop-filter: saturate(1.6) blur(14px);
+  -webkit-backdrop-filter: saturate(1.6) blur(14px);
+  box-shadow: 0 1px 0 rgb(15 42 74 / 0.06), 0 8px 24px -12px rgb(15 42 74 / 0.18);
+}
+
+/* ---------- Accordion ---------- */
+.faq-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.faq-item[data-open="true"] .faq-panel { grid-template-rows: 1fr; }
+.faq-item[data-open="true"] .faq-chevron { transform: rotate(180deg); }
+.faq-chevron { transition: transform 0.3s; }
+
+/* ---------- Calculator slider ---------- */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-teal) var(--fill, 20%), var(--color-line) var(--fill, 20%));
+  cursor: pointer;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--color-accent);
+  box-shadow: 0 4px 10px -2px rgb(15 42 74 / 0.3);
+  transition: transform 0.15s;
+}
+.range::-webkit-slider-thumb:hover { transform: scale(1.08); }
+.range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--color-accent);
+  box-shadow: 0 4px 10px -2px rgb(15 42 74 / 0.3);
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { opacity: 0.4; }
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .js .reveal { opacity: 1; transform: none; }
+}

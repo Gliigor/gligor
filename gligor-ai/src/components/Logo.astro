@@ -1,0 +1,22 @@
+---
+import logo from "./logo-data.json";
+
+interface Props {
+  class?: string;
+  /** "dark" = navy wordmark (on white), "light" = white wordmark (on navy). */
+  tone?: "dark" | "light";
+}
+const { class: className = "h-7 w-auto", tone = "dark" } = Astro.props;
+const id = `spark-${Math.random().toString(36).slice(2, 8)}`;
+---
+<svg class={className} viewBox={logo.viewBox} xmlns="http://www.w3.org/2000/svg" role="img" aria-label="gligor.ai">
+  <defs>
+    <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563EB" />
+      <stop offset="1" stop-color="#14B8A6" />
+    </linearGradient>
+  </defs>
+  <path fill={tone === "dark" ? "#0F2A4A" : "#FFFFFF"} d={logo.word} />
+  <path fill={tone === "dark" ? "#2563EB" : "#60A5FA"} d={logo.tld} />
+  <path fill={`url(#${id})`} d={logo.spark} />
+</svg>

@@ -1,0 +1,41 @@
+---
+import Icon from "./Icon.astro";
+
+const services = [
+  { icon: "Settings", title: "AI-implementatie", text: "Ik richt de juiste AI-tools in voor jouw team, zoals Claude of Microsoft Copilot." },
+  { icon: "ScanSearch", title: "Procesanalyse", text: "We kijken samen waar je tijd verliest en wat AI kan overnemen." },
+  { icon: "GraduationCap", title: "Training & spiekbriefjes", text: "Praktische uitleg met jouw eigen werk, plus handige PDF's om erbij te pakken." },
+  { icon: "MessageCircle", title: "WhatsApp-chatbot", text: "Een slimme assistent die veelgestelde vragen van klanten beantwoordt." },
+  { icon: "FileSpreadsheet", title: "Documentverwerking", text: "Gegevens uit PDF's en mails automatisch in je spreadsheet." },
+  { icon: "PenLine", title: "E-mails & offertes", text: "Sneller en professioneler schrijven met kant-en-klare werkwijzen." },
+  { icon: "ClipboardCheck", title: "Terugkerende controles", text: "AI doet het voorwerk voor maandelijkse checks, jij houdt de regie." },
+];
+---
+<section id="diensten" class="section bg-mist">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="reveal eyebrow">Diensten</p>
+      <h2 class="reveal h2" style="--delay: 60ms">Wat ik voor je kan doen</h2>
+    </div>
+    <div class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {services.map((s, i) => (
+        <article class="reveal card group p-6 transition duration-300 hover:-translate-y-1 hover:border-accent/25 hover:shadow-lift sm:p-7" style={`--delay: ${(i % 3) * 90}ms`}>
+          <span class="icon-tile transition-transform duration-300 group-hover:scale-105"><Icon name={s.icon} /></span>
+          <h3 class="mt-5 text-lg font-bold">{s.title}</h3>
+          <p class="mt-2 leading-relaxed text-muted">{s.text}</p>
+        </article>
+      ))}
+      <a href="#kennismaken" class="reveal group flex flex-col justify-between rounded-2xl bg-navy p-6 text-white shadow-soft transition duration-300 hover:-translate-y-1 hover:shadow-lift sm:p-7 lg:col-span-2" style="--delay: 90ms">
+        <div>
+          <span class="flex size-12 items-center justify-center rounded-xl bg-white/10 text-teal"><Icon name="Lightbulb" /></span>
+          <h3 class="mt-5 text-lg font-bold text-white">Iets anders in gedachten?</h3>
+          <p class="mt-2 max-w-md leading-relaxed text-white/75">Vertel me waar jij tijd verliest. Dan kijken we samen of AI daar iets aan kan doen.</p>
+        </div>
+        <span class="mt-6 inline-flex items-center gap-2 font-semibold text-white">
+          Plan een gratis kennismaking
+          <Icon name="ArrowRight" class="size-5 transition-transform group-hover:translate-x-1" stroke={2} />
+        </span>
+      </a>
+    </div>
+  </div>
+</section>

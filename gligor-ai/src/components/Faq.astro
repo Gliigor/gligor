@@ -1,0 +1,71 @@
+---
+import Icon from "./Icon.astro";
+import { GUARANTEE_HOURS, START_FEE } from "../config";
+
+const faqs = [
+  { q: "Moet ik verstand hebben van AI?", a: "Nee, daar ben ik juist voor." },
+  { q: "Welke tools gebruik je?", a: "Meestal Claude of Microsoft Copilot, afhankelijk van wat bij jou past." },
+  { q: "Is mijn data veilig?", a: "We spreken vooraf duidelijk af welke gegevens wel en niet in AI-tools mogen. Jij blijft eigenaar van je accounts." },
+  { q: "Kan ik opzeggen?", a: "Ja, maandelijks." },
+  {
+    q: "Hoe werkt de tijdbespaargarantie?",
+    a: `Na vier weken kijken we samen hoeveel tijd je hebt bespaard. Is dat minder dan ${GUARANTEE_HOURS} uur, terwijl je de training hebt gevolgd en de tools gebruikt, dan krijg je je startbedrag van €${START_FEE} volledig terug.`,
+  },
+  { q: "Zitten de licenties bij de prijs in?", a: "Nee, die betaal je zelf aan de aanbieder, zo'n €20–25 per gebruiker per maand." },
+];
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+};
+---
+<section id="vragen" class="section">
+  <div class="container-page grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+    <div>
+      <p class="reveal eyebrow">Vragen</p>
+      <h2 class="reveal h2" style="--delay: 60ms">Veelgestelde vragen</h2>
+      <p class="reveal lead" style="--delay: 120ms">Staat je vraag er niet tussen? Stel hem gerust tijdens de kennismaking.</p>
+    </div>
+    <div class="reveal divide-y divide-line rounded-2xl border border-line bg-white shadow-soft" style="--delay: 120ms" data-faq>
+      {faqs.map((f, i) => (
+        <div class="faq-item" data-open="false">
+          <h3>
+            <button type="button" id={`faq-q-${i}`} aria-expanded="false" aria-controls={`faq-a-${i}`}
+              class="flex w-full items-center justify-between gap-4 px-5 py-5 text-left text-[17px] font-semibold text-navy transition-colors hover:text-accent sm:px-7">
+              {f.q}
+              <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-mist text-navy">
+                <Icon name="ChevronDown" class="faq-chevron size-5" stroke={2} />
+              </span>
+            </button>
+          </h3>
+          <div id={`faq-a-${i}`} role="region" aria-labelledby={`faq-q-${i}`} class="faq-panel">
+            <div class="overflow-hidden">
+              <p class="px-5 pb-6 text-[17px] leading-relaxed text-muted sm:px-7">{f.a}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-faq] .faq-item").forEach((item) => {
+    const btn = item.querySelector("button")!;
+    const panel = item.querySelector<HTMLElement>(".faq-panel")!;
+    const set = (open: boolean) => {
+      item.dataset.open = String(open);
+      btn.setAttribute("aria-expanded", String(open));
+      panel.toggleAttribute("inert", !open);
+    };
+    set(false);
+    btn.addEventListener("click", () => set(item.dataset.open !== "true"));
+  });
+</script>
+
+<style>
+  /* Zonder JS staan alle antwoorden gewoon open. */
+  :global(html:not(.js)) .faq-panel { grid-template-rows: 1fr; }
+</style>
