@@ -84,3 +84,18 @@ test("Logboek werkt het laatste contactmoment bij", async () => {
   assert.equal(row.last_contact_at, "2026-11-01T10:00:00.000Z");
   await db.close();
 });
+
+test("AVG: forget_client kan niet anoniem worden aangeroepen", async () => {
+  const db = await createTestDb();
+  const [c] = await db.raw<{ id: string }>("insert into clients (company) values ('Veilig BV') returning id");
+  await assert.rejects(
+    db.driver.transaction(null, async (q) => {
+      await q("set local role anon");
+      return q("select forget_client($1)", [c.id]);
+    }),
+    /geen toegang|permission denied/,
+  );
+  const left = await db.raw<{ n: number }>("select count(*)::int as n from clients where id = $1", [c.id]);
+  assert.equal(left[0].n, 1);
+  await db.close();
+});
