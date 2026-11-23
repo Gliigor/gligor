@@ -2,41 +2,59 @@
 import Legal from "../layouts/Legal.astro";
 import { BUSINESS, CONTACT } from "../config";
 ---
-<Legal title="Privacyverklaring" description="Hoe Gligor.ai omgaat met jouw persoonsgegevens." updated="[datum]">
+<Legal title="Privacyverklaring" description="Hoe Gligor.ai omgaat met jouw persoonsgegevens." updated="23 november 2026">
   <p>
     {BUSINESS.name} ({[BUSINESS.legalName, BUSINESS.kvk && `KvK ${BUSINESS.kvk}`, BUSINESS.street, BUSINESS.postalCity].filter(Boolean).join(", ")}) is verantwoordelijk voor de
-    verwerking van persoonsgegevens zoals beschreven in deze privacyverklaring.
+    verwerking van persoonsgegevens zoals beschreven in deze privacyverklaring. Ik verwerk zo min mogelijk gegevens en verkoop ze nooit door.
   </p>
 
   <h2>Welke gegevens ik verwerk</h2>
   <ul>
     <li>Naam, e-mailadres en eventueel telefoonnummer als je een kennismaking plant of contact opneemt.</li>
-    <li>De inhoud van je berichten via e-mail of WhatsApp.</li>
-    <li>Bedrijfs- en factuurgegevens als je klant wordt.</li>
+    <li>De inhoud van je berichten via e-mail of WhatsApp, inclusief bijlagen die je meestuurt.</li>
+    <li>Bedrijfs- en factuurgegevens als je klant wordt, en aantekeningen van onze gesprekken.</li>
   </ul>
 
-  <h2>Waarvoor</h2>
+  <h2>Waarvoor en op welke grond</h2>
   <ul>
-    <li>Om je kennismaking te plannen en contact met je te houden.</li>
-    <li>Om mijn diensten te leveren en te factureren.</li>
+    <li>Om je kennismaking te plannen en je vragen te beantwoorden (op jouw verzoek, voorafgaand aan een overeenkomst).</li>
+    <li>Om mijn diensten te leveren, je vragen als klant af te handelen en te factureren (uitvoering van de overeenkomst).</li>
     <li>Om te voldoen aan wettelijke verplichtingen, zoals de fiscale bewaarplicht.</li>
   </ul>
 
   <h2>Diensten van derden</h2>
+  <p>Voor mijn werk gebruik ik een paar diensten die gegevens namens mij verwerken:</p>
   <ul>
     <li><strong>Cal.com</strong> voor het plannen van afspraken. De agenda wordt pas geladen als je naar dat deel van de pagina scrolt.</li>
+    <li><strong>Google (Gmail)</strong> voor mijn e-mail.</li>
+    <li><strong>Cloudflare</strong> voor het domein gligor.ai en het doorsturen van e-mail.</li>
+    <li><strong>Resend</strong> voor het versturen en ontvangen van e-mail vanuit mijn klantadministratie.</li>
+    <li><strong>Supabase</strong> voor de opslag van mijn klantadministratie, op servers in de EU.</li>
+    <li><strong>Vercel</strong> voor het hosten van deze website en mijn klantadministratie.</li>
     <li><strong>WhatsApp</strong> (Meta) als je mij via WhatsApp benadert.</li>
-    <li>[E-mailprovider en boekhoudpakket invullen]</li>
   </ul>
+  <p>
+    Een aantal van deze bedrijven zit in de Verenigde Staten. Gegevens kunnen dan buiten de EU worden verwerkt. Dat gebeurt alleen onder de waarborgen die de AVG
+    daarvoor vraagt, zoals het EU-VS Data Privacy Framework of de standaardcontractbepalingen van de Europese Commissie.
+  </p>
   <p>Deze website gebruikt geen tracking- of advertentiecookies. Lettertypes worden vanaf deze website zelf geladen.</p>
 
   <h2>Hoe lang ik gegevens bewaar</h2>
-  <p>[Bewaartermijnen invullen, bijvoorbeeld: contactgegevens tot 1 jaar na het laatste contact; administratie 7 jaar (fiscale bewaarplicht).]</p>
+  <ul>
+    <li>Word je geen klant, dan verwijder ik je gegevens uiterlijk 1 jaar na ons laatste contact.</li>
+    <li>Ben je klant geweest, dan verwijder ik je gegevens uiterlijk 2 jaar na het einde van de samenwerking.</li>
+    <li>Facturen en de administratie die daarbij hoort bewaar ik 7 jaar, omdat de wet dat verplicht.</li>
+  </ul>
+
+  <h2>Beveiliging</h2>
+  <p>
+    Mijn klantadministratie is alleen voor mij toegankelijk, met inloggen in twee stappen. Verbindingen zijn versleuteld.
+  </p>
 
   <h2>Jouw rechten</h2>
   <p>
-    Je hebt het recht om je gegevens in te zien, te laten corrigeren of te laten verwijderen, en om bezwaar te maken tegen de verwerking.
-    Stuur hiervoor een e-mail naar <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>. Ben je het niet eens met hoe ik met je gegevens omga,
+    Je hebt het recht om je gegevens in te zien, te laten corrigeren of te laten verwijderen, om een kopie te krijgen, en om bezwaar te maken tegen de verwerking.
+    Stuur hiervoor een e-mail naar <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>; ik reageer binnen een maand. Ben je het niet eens met hoe ik met je gegevens omga,
     dan kun je een klacht indienen bij de <a href="https://autoriteitpersoonsgegevens.nl" target="_blank" rel="noopener">Autoriteit Persoonsgegevens</a>.
   </p>
 </Legal>
