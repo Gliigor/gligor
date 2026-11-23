@@ -317,9 +317,9 @@ create trigger payments_audit after insert or update or delete on payments for e
 create or replace function public.forget_client(p_client_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  -- Via de app (rol "authenticated") alleen voor de beheerder; de server zelf
-  -- (zonder rolwissel) mag altijd.
-  if current_setting('role', true) = 'authenticated' and not public.is_admin() then
+  -- Via de API (rol anon/authenticated) alleen voor de beheerder met 2FA; de
+  -- server zelf (eigen verbinding, zonder rolwissel) mag altijd.
+  if coalesce(current_setting('role', true), 'none') in ('anon', 'authenticated') and not public.is_admin() then
     raise exception 'geen toegang';
   end if;
   delete from clients where id = p_client_id;

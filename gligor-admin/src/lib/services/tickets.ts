@@ -121,13 +121,27 @@ export async function ingestInbound(
     ],
   );
 
+  // Een bijlage die niet opgeslagen kan worden mag het ticket niet tegenhouden.
+  const failed: string[] = [];
   for (const a of mail.attachments) {
     const path = storage.path(ticket.id, msg.id, a.filename);
-    await storage.save(path, await a.load(), a.contentType);
+    try {
+      await storage.save(path, await a.load(), a.contentType);
+    } catch (err) {
+      console.error("[inbound] bijlage niet opgeslagen:", a.filename, err);
+      failed.push(a.filename);
+      continue;
+    }
     await q(
       "insert into ticket_attachments (message_id, filename, content_type, size_bytes, storage_path) values ($1, $2, $3, $4, $5)",
       [msg.id, a.filename, a.contentType, a.size, path],
     );
+  }
+  if (failed.length) {
+    await q("update ticket_messages set body_text = body_text || $2 where id = $1", [
+      msg.id,
+      `\n\n[Bijlage niet opgeslagen: ${failed.join(", ")}. Bekijk de originele mail in Resend.]`,
+    ]);
   }
 
   if (ticket.client_id) {
