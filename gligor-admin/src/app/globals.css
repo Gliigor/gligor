@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+/* Kleuren als variabelen, zodat licht/donker met één attribuut wisselt. */
+:root {
+  --bg: #0a0a0b;
+  --sidebar: #111113;
+  --tile: #18181b;
+  --tile-hover: #1f1f23;
+  --line: #27272a;
+  --fg: #ededed;
+  --muted: #8b8b93;
+  --accent: #3ee08f;
+  --primary: #ffd23f;
+  --primary-fg: #0a0a0b;
+  --warn: #f5a524;
+  --danger: #f04438;
+  --input: #111113;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #fafafa;
+  --sidebar: #f4f4f5;
+  --tile: #ffffff;
+  --tile-hover: #f4f4f5;
+  --line: #e4e4e7;
+  --fg: #18181b;
+  --muted: #6b6b73;
+  --accent: #12a35f;
+  --primary: #ffd23f;
+  --primary-fg: #0a0a0b;
+  --warn: #c2780b;
+  --danger: #d92d20;
+  --input: #ffffff;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
+  --color-tile: var(--tile);
+  --color-tile-hover: var(--tile-hover);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-input: var(--input);
+  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius-tile: 8px;
+}
+
+@layer base {
+  html {
+    font-size: 14px;
+  }
+  body {
+    @apply bg-bg font-sans text-fg antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: 2px;
+  }
+  * {
+    transition-duration: 150ms;
+  }
+  input,
+  select,
+  textarea {
+    @apply rounded-md border border-line bg-input px-2.5 py-1.5 text-fg placeholder:text-muted/70;
+    outline: none;
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+  }
+  input[type="checkbox"] {
+    @apply size-4 p-0 accent-[var(--accent)];
+  }
+  label {
+    @apply text-muted;
+  }
+}
+
+@layer components {
+  .tile {
+    @apply rounded-[8px] border border-line bg-tile;
+  }
+  .tile-hover {
+    @apply transition-colors hover:bg-tile-hover;
+  }
+  .label {
+    @apply text-[11px] font-medium tracking-[0.08em] text-muted uppercase;
+  }
+  .btn {
+    @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-line bg-tile px-3 text-[13px] font-medium text-fg transition-colors hover:bg-tile-hover disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply border-transparent bg-primary text-primary-fg hover:brightness-95;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent text-muted hover:bg-tile-hover hover:text-fg;
+  }
+  .btn-danger {
+    @apply border-[color-mix(in_srgb,var(--danger)_40%,var(--line))] text-danger hover:bg-[color-mix(in_srgb,var(--danger)_12%,transparent)];
+  }
+  .btn-sm {
+    @apply h-7 px-2 text-xs;
+  }
+  .link {
+    @apply text-accent underline-offset-2 hover:underline;
+  }
+  .num {
+    @apply font-mono tabular-nums;
+  }
+  .table-dense {
+    @apply w-full border-collapse text-left text-[13px];
+  }
+  .table-dense thead th {
+    @apply sticky top-0 z-10 border-b border-line bg-tile px-3 py-2 text-[11px] font-medium tracking-[0.06em] text-muted uppercase;
+  }
+  .table-dense tbody td {
+    @apply border-b border-line/70 px-3 py-2 align-middle;
+  }
+  .table-dense tbody tr {
+    @apply transition-colors;
+  }
+  .table-dense tbody tr:hover,
+  .table-dense tbody tr[data-active="true"] {
+    @apply bg-tile-hover;
+  }
+  .table-dense tbody tr:last-child td {
+    @apply border-b-0;
+  }
+}
