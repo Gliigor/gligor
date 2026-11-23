@@ -233,8 +233,10 @@ export async function forgetClient(q: Query, id: string): Promise<string[]> {
      join tickets t on t.id = m.ticket_id where t.client_id = $1`,
     [id],
   );
+  const list = paths.map((p) => p.storage_path);
+  if (list.length) await q("delete from attachment_blobs where storage_path = any($1::text[])", [pgArray(list)]);
   await q("select forget_client($1)", [id]);
-  return paths.map((p) => p.storage_path);
+  return list;
 }
 
 export function needsAttention(c: ClientListRow): boolean {
