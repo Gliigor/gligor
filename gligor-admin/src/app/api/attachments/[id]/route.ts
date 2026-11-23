@@ -7,9 +7,12 @@ import type { AttachmentRow } from "@/lib/types";
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!/^[0-9a-f-]{36}$/.test(id)) return new NextResponse("Niet gevonden", { status: 404 });
-  const [a] = await asAdmin((q) => q<AttachmentRow>("select * from ticket_attachments where id = $1", [id]));
-  if (!a) return new NextResponse("Niet gevonden", { status: 404 });
-  const file = await readAttachment(a.storage_path);
+  const found = await asAdmin(async (q) => {
+    const [a] = await q<AttachmentRow>("select * from ticket_attachments where id = $1", [id]);
+    return a ? { a, file: await readAttachment(q, a.storage_path) } : null;
+  });
+  if (!found) return new NextResponse("Niet gevonden", { status: 404 });
+  const { a, file } = found;
   if ("url" in file) return NextResponse.redirect(file.url);
   return new NextResponse(new Uint8Array(file.bytes), {
     headers: {

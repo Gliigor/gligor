@@ -4,7 +4,7 @@
  * vandaag, zodat het dashboard er altijd "levend" uitziet.
  */
 import type { Query } from "./db/driver";
-import { addDays, amsDate } from "./domain/dates";
+import { addDays, amsDate, endOfAmsDay } from "./domain/dates";
 import { STAGE_LABEL, type Stage } from "./config";
 import { createClient, moveStage, syncPayments } from "./services/clients";
 import { addLogEntry } from "./services/work";
@@ -197,5 +197,6 @@ export async function seedDemo(q: Query, now: Date): Promise<void> {
   );
 
   // Zoals de dagelijkse job van vanochtend: geplande e-mails van vandaag klaarzetten.
-  await runDaily(q, now);
+  // (Met het einde van de dag, zodat het niet uitmaakt hoe laat de demo start.)
+  await runDaily(q, endOfAmsDay(today));
 }

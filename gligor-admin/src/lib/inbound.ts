@@ -5,7 +5,9 @@ import { attachmentPath, saveAttachment } from "./storage";
 
 /** Gemeenschappelijk eindpunt voor alle inbound-providers. */
 export async function handleInbound(mail: InboundEmail) {
-  return withSystem((q) => ingestInbound(q, mail, { save: saveAttachment, path: attachmentPath }));
+  return withSystem((q) =>
+    ingestInbound(q, mail, { save: (p, bytes, type) => saveAttachment(q, p, bytes, type), path: attachmentPath }),
+  );
 }
 
 /** Headers uit een object of lijst opzoeken, ongeacht hoofdletters. */
