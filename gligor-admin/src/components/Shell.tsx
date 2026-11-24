@@ -175,7 +175,11 @@ export function Shell({
               <Kbd>⌘K</Kbd>
             </button>
             <div className="ml-auto flex items-center gap-2">
-              <button type="button" className="btn btn-primary" onClick={() => openNote()}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => openNote(pathname.match(/^\/klanten\/([0-9a-f-]{36})/)?.[1])}
+              >
                 <Plus className="size-4" strokeWidth={2} />
                 <span className="hidden sm:inline">Notitie</span>
               </button>
