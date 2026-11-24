@@ -139,6 +139,39 @@ export default async function KlantPage({
                 </ActionForm>
               </Tile>
             )}
+            <Tile
+              label="Notitie toevoegen"
+              action={
+                <Link href={`${base}?tab=logboek`} className="text-xs text-muted hover:text-fg">
+                  Logboek ({log.length})
+                </Link>
+              }
+            >
+              <ActionForm action={addNoteAction} className="space-y-2" resetOnSuccess>
+                <input type="hidden" name="client_id" value={c.id} />
+                <div className="flex flex-wrap gap-1.5">
+                  {(Object.keys(LOG_TYPE_LABEL) as LogType[]).map((t) => (
+                    <label
+                      key={t}
+                      className="flex cursor-pointer items-center rounded-md border border-line px-2 py-1 text-xs text-muted has-[:checked]:border-accent has-[:checked]:text-fg"
+                    >
+                      <input type="radio" name="type" value={t} defaultChecked={t === "notitie"} className="sr-only" />
+                      {LOG_TYPE_LABEL[t]}
+                    </label>
+                  ))}
+                </div>
+                <textarea name="summary" rows={3} required placeholder="Wat is er besproken of wat wil je onthouden?" className="w-full" aria-label="Notitie" />
+                <textarea name="agreed_actions" rows={2} placeholder="Afgesproken acties (optioneel, één per regel)" className="w-full" aria-label="Afgesproken acties" />
+                <div className="flex items-center justify-between gap-2">
+                  <label className="flex items-center gap-1.5 text-xs text-muted">
+                    Opvolgen <input type="date" name="follow_up_date" className="h-7 text-xs" aria-label="Opvolgen op" />
+                  </label>
+                  <Submit className="btn btn-primary" pendingLabel="Opslaan…">
+                    Opslaan
+                  </Submit>
+                </div>
+              </ActionForm>
+            </Tile>
             <Tile label="Fase">
               <form action={moveStageFormAction} className="flex gap-2">
                 <input type="hidden" name="client_id" value={c.id} />
@@ -379,7 +412,7 @@ export default async function KlantPage({
             )}
           </Tile>
           <Tile label="Nieuw in het logboek">
-            <ActionForm action={addNoteAction} className="space-y-3">
+            <ActionForm action={addNoteAction} className="space-y-3" resetOnSuccess>
               <input type="hidden" name="client_id" value={c.id} />
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Type">

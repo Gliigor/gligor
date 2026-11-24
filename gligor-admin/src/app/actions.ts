@@ -64,7 +64,7 @@ export async function addNoteAction(_prev: ActionState, fd: FormData): Promise<A
     return fail(err);
   }
   refresh();
-  return { ok: true };
+  return { ok: true, message: "Notitie opgeslagen in het logboek." };
 }
 
 export async function actionsToTasksAction(fd: FormData) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { addNoteAction, type ActionState } from "@/app/actions";
 import { LOG_TYPE_LABEL, type LogType } from "@/lib/config";
 import type { ClientOption } from "./Shell";
@@ -96,6 +97,17 @@ export function QuickNote({
               className="w-full"
               aria-label="Klant zoeken"
             />
+            {clients.length === 0 ? (
+              <p className="mt-2 rounded-md border border-line bg-bg px-3 py-2 text-[13px] text-muted">
+                Je hebt nog geen klanten. Een notitie hoort altijd bij een klant (of lead).{" "}
+                <Link href="/klanten/nieuw" className="link" onClick={onClose}>
+                  Maak eerst een klant aan
+                </Link>
+                .
+              </p>
+            ) : (
+              filtered.length === 0 && <p className="mt-2 px-2 text-[13px] text-muted">Geen klant gevonden met &quot;{search}&quot;.</p>
+            )}
             <ul className="mt-1 max-h-48 overflow-y-auto">
               {filtered.map((c) => (
                 <li key={c.id}>
@@ -136,7 +148,8 @@ export function QuickNote({
           </label>
         </div>
         {state?.error && <p className="text-sm text-danger">{state.error}</p>}
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center justify-end gap-2">
+          {!selected && clients.length > 0 && <span className="mr-auto text-xs text-warn">Kies eerst een klant</span>}
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             Annuleren
           </button>
