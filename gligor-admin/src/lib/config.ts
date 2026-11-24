@@ -75,4 +75,27 @@ export const TEMPLATE_KEYS = {
   garantie4w: "garantie_4w",
   kwartaalUpdate: "kwartaal_update",
   betaalherinnering: "betaalherinnering",
+  bedankt3: "bedankt_3",
+  jubileum: "jubileum",
+  jubileumJaarlijks: "jubileum_jaarlijks",
+  verjaardag: "verjaardag",
+  referralBedankt: "referral_bedankt",
+  intakelink: "intakelink",
 } as const;
+
+export type GiftType = "kaart" | "cadeau" | "diner";
+export const GIFT_TYPE_LABEL: Record<GiftType, string> = { kaart: "Kaart", cadeau: "Cadeau", diner: "Diner" };
+
+export type LeadSource = "handmatig" | "website" | "cal" | "email" | "intakelink";
+export const LEAD_SOURCE_LABEL: Record<LeadSource, string> = {
+  handmatig: "Handmatig",
+  website: "Website",
+  cal: "Cal.com",
+  email: "E-mail",
+  intakelink: "Intakelink",
+};
+
+/** Intakelinks zijn zoveel dagen geldig. */
+export const INTAKE_LINK_DAYS = 7;
+
+export const MONTHS = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"];

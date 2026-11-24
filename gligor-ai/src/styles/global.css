@@ -75,6 +75,13 @@
   .btn-secondary {
     @apply border border-line bg-white text-navy hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent;
   }
+  .field {
+    @apply flex flex-col gap-1.5 text-sm font-semibold text-navy;
+  }
+  .field input,
+  .field textarea {
+    @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-base font-normal text-ink outline-none transition focus:border-accent focus:ring-4 focus:ring-accent/15;
+  }
   .icon-tile {
     @apply flex size-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent/10 to-teal/15 text-accent;
   }

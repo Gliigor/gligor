@@ -3,6 +3,15 @@ import type { ClientRow, EmailRow, TemplateRow } from "../types";
 import { clientVariables, renderTemplate } from "../domain/templates";
 import { amsDate, amsTime } from "../domain/dates";
 import { deliver } from "../email/deliver";
+import { TEMPLATE_KEYS } from "../config";
+
+/** De verjaardagsmail gaat opgemaakt de deur uit; de tekst blijft wat Gligor eventueel aanpaste. */
+async function birthdayHtml(q: Query, email: EmailRow): Promise<string> {
+  const { renderBirthdayEmail } = await import("../email/BirthdayEmail");
+  const [c] = email.client_id ? await q<ClientRow>("select * from clients where id = $1", [email.client_id]) : [];
+  const vars = c ? clientVariables(c) : { voornaam: "" };
+  return (await renderBirthdayEmail({ firstName: vars.voornaam, body: email.body })).html;
+}
 
 export async function getTemplate(q: Query, key: string): Promise<TemplateRow | null> {
   const [t] = await q<TemplateRow>("select * from email_templates where key = $1", [key]);
@@ -30,11 +39,11 @@ export async function createTemplateEmail(
 ): Promise<EmailRow | null> {
   const tpl = await getTemplate(q, opts.templateKey);
   if (!tpl || !opts.client.email) return null;
-  const vars = { ...clientVariables(opts.client), ...opts.extraVars };
+  const vars = { ...clientVariables(opts.client, opts.today), ...opts.extraVars };
   const status = opts.scheduledFor > opts.today ? "gepland" : "concept";
   const [row] = await q<EmailRow>(
-    `insert into emails (client_id, template_key, kind, to_email, subject, body, status, scheduled_for, automation_key, payment_id)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `insert into emails (client_id, template_key, kind, to_email, subject, body, status, scheduled_for, automation_key, payment_id, from_email)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      on conflict (automation_key) do nothing
      returning *`,
     [
@@ -48,6 +57,7 @@ export async function createTemplateEmail(
       amsTime(opts.scheduledFor, 8).toISOString(),
       opts.automationKey ?? null,
       opts.paymentId ?? null,
+      tpl.from_email ?? null,
     ],
   );
   return row ?? null;
@@ -66,7 +76,8 @@ export async function sendEmail(
   if (!email) throw new Error("E-mail niet gevonden.");
   if (email.status === "verzonden") return email;
   try {
-    const sent = await deliver({ to: email.to_email, subject: email.subject, text: email.body, ...thread });
+    const html = email.template_key === TEMPLATE_KEYS.verjaardag ? await birthdayHtml(q, email) : null;
+    const sent = await deliver({ to: email.to_email, from: email.from_email, html, subject: email.subject, text: email.body, ...thread });
     const [updated] = await q<EmailRow>(
       `update emails set status = 'verzonden', sent_at = now(), message_id = $2, provider_id = $3, error = null
        where id = $1 returning *`,

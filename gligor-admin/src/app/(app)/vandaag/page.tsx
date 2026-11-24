@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { Check, Clock } from "lucide-react";
+import { Check, Clock, ExternalLink } from "lucide-react";
+import { CopyButton } from "@/components/CopyButton";
+import { topAmbassadors } from "@/lib/services/loyalty";
 import { asAdmin } from "@/lib/auth";
 import { loadToday } from "@/lib/services/today";
 import { CATEGORY_LABEL, type TodayCategory, type TodayItem } from "@/lib/domain/today";
@@ -32,6 +34,14 @@ function Actions({ item }: { item: TodayItem }) {
                 {a.label ?? "Openen"}
               </Link>
             );
+          case "external":
+            return (
+              <a key={i} href={a.href} className="btn btn-sm" target="_blank" rel="noreferrer">
+                <ExternalLink className="size-3.5" /> {a.label}
+              </a>
+            );
+          case "copy":
+            return <CopyButton key={i} text={a.text} label={a.label} />;
           case "send-email":
             return (
               <form key={i} action={sendEmailAction}>
@@ -104,7 +114,10 @@ function Actions({ item }: { item: TodayItem }) {
 }
 
 export default async function VandaagPage() {
-  const { items, summary, today } = await asAdmin((q) => loadToday(q, new Date()));
+  const { items, summary, today, ambassadors } = await asAdmin(async (q) => ({
+    ...(await loadToday(q, new Date())),
+    ambassadors: await topAmbassadors(q, 5),
+  }));
   const groups = new Map<TodayCategory, TodayItem[]>();
   for (const item of items) groups.set(item.category, [...(groups.get(item.category) ?? []), item]);
 
@@ -153,6 +166,7 @@ export default async function VandaagPage() {
                         item.detail
                       )}
                     </div>
+                    {item.note && <div className="mt-0.5 text-[13px] whitespace-pre-line text-muted/80">{item.note}</div>}
                   </div>
                   <Actions item={item} />
                 </li>
@@ -161,6 +175,26 @@ export default async function VandaagPage() {
           </section>
         ))}
       </div>
+
+      {ambassadors.length > 0 && (
+        <section className="tile mt-4 max-w-md p-4">
+          <h2 className="label mb-3">Top ambassadeurs</h2>
+          <ol className="space-y-1.5">
+            {ambassadors.map((a, i) => (
+              <li key={a.id} className="flex items-center justify-between gap-3">
+                <Link href={`/klanten/${a.id}`} className="truncate hover:text-accent">
+                  <span className="num mr-2 text-muted">{i + 1}.</span>
+                  {a.company}
+                </Link>
+                <span className="flex shrink-0 gap-1.5">
+                  <Pill tone="green">{a.succeeded} geslaagd</Pill>
+                  {a.pending > 0 && <Pill tone="grey">{a.pending} lopend</Pill>}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
     </>
   );
 }

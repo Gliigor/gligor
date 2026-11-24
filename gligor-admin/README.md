@@ -107,13 +107,16 @@ Resend shows the exact values for your account after you add the domain. Copy th
 | `DATABASE_URL` | `postgres://postgres.xxxx:…@aws-0-eu-central-1.pooler.supabase.com:6543/postgres` | yes |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://xxxx.supabase.co` | yes |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_…` | yes |
-| `SUPABASE_SECRET_KEY` | `sb_secret_…` | yes (attachments) |
+| `SUPABASE_SECRET_KEY` | `sb_secret_…` | no: without it, attachments are stored in the database |
 | `NEXT_PUBLIC_SITE_URL` | `https://admin.gligor.ai` | yes (login links) |
 | `RESEND_API_KEY` | `re_…` | yes |
 | `RESEND_WEBHOOK_SECRET` | `whsec_…` | yes (inbound mail) |
 | `EMAIL_FROM` | `Gligor van Gligor.ai <hello@gligor.ai>` | no (this is the default) |
 | `CRON_SECRET` | long random string | yes |
 | `INBOUND_TOKEN` | long random string | only with Postmark |
+| `CAL_WEBHOOK_SECRET` | long random string | for Cal.com bookings (see below) |
+| `FORM_SECRET` | long random string | no (salt for hashing IP addresses; falls back to `CRON_SECRET`) |
+| `LEAD_ALLOWED_ORIGINS` | `https://gligor.ai,https://www.gligor.ai` | no (this is the default) |
 
 Secrets live only in environment variables, never in code. For local development, put them in `.env.local` (that file is never committed).
 
@@ -156,6 +159,35 @@ Moving a client back and forth never creates anything twice. **Templates** decid
 Overdue payments appear in Vandaag with a ready-made friendly reminder.
 
 **Response times.** Basis: 2 working days, Plus: 1 working day. The deadline is the end of the working day in Amsterdam, skipping weekends and Dutch public holidays. Change this in `src/lib/config.ts`.
+
+### 5. Website leads and Cal.com
+
+- **Contact form.** The form on gligor.ai posts to `https://admin.gligor.ai/api/leads` (set in `gligor-ai/src/config.ts`, `LEAD_ENDPOINT`). Each message becomes a Lead (or is added to the existing client with that e-mail address), lands in the logbook, and creates the task "Reageren binnen 1 werkdag" in Vandaag. Spam protection: a hidden honeypot field and at most 5 messages per hour per IP address (only a hash of the IP is stored, for 2 days). Only `LEAD_ALLOWED_ORIGINS` may post from a browser.
+- **Cal.com.** In Cal.com → Settings → Developer → Webhooks → New: subscriber URL `https://admin.gligor.ai/api/webhooks/cal`, events *Booking created*, *Booking rescheduled* and *Booking cancelled*, and a secret (the same value as `CAL_WEBHOOK_SECRET`). A booking creates or updates the Lead, moves it to Kennismaking and puts the meeting in Vandaag on that day. A reschedule moves it, a cancellation closes it.
+
+## Intake, milestones and referrals
+
+**Intake form.** "Nieuwe klant" opens one screen to fill in together with the client (large fields, works on a tablet). Saving sets the stage to Intake, puts "Waar gaat je tijd naartoe?" in the logbook, drafts the welcome e-mail, creates the expected payments from the start date and plans the milestone and birthday reminders. On a lead, **Omzetten naar klant** opens the same form pre-filled.
+
+**Intake link.** **Stuur intakelink** (on a lead) e-mails a single-use link, valid for 7 days, to a public version of the form (`/intake/…`). The submission appears in Vandaag as "Intakeformulier nakijken". Opening it shows the form pre-filled; saving processes it like a normal intake. Only a hash of the link is stored.
+
+**Milestones** (`src/lib/domain/milestones.ts`, timings editable in Instellingen). Everything creates tasks and draft e-mails for review; nothing is sent or bought automatically.
+
+| Moment | What appears |
+| --- | --- |
+| 3rd monthly payment marked as paid | draft *Bedankt, {{voornaam}}!* (from gligor@gligor.ai) |
+| 4 weeks before 1 year as a client | task "Cadeau regelen" with the client's **Cadeau-ideeën** |
+| 1 week before 1 year | reminder task + draft *Al een jaar samen* |
+| Every following year | card task + draft *Alweer {{jaren}} jaar samen* |
+| 1 week before a birthday | task "Kaart sturen" with the address (copy button) and a link to Greetz |
+| On the birthday | designed birthday e-mail as a draft (React Email, `src/lib/email/BirthdayEmail.tsx`) |
+| 5 successful referrals | task "Persoonlijk bedanken: diner of groter cadeau" |
+
+Birthdays are only stored with the client's consent (checkbox), and only as day and month.
+
+**Referrals** (one level). Set **Aangebracht door** on the new client. Once that client has paid 2 months and hasn't cancelled, the referral is *geslaagd*: both get a free month ("Gratis maand — referral", applied to their next open monthly payment as €0), and the referrer gets a draft thank-you e-mail. The client page shows referrals (pending/successful) and the value they brought in; Vandaag shows the **Top ambassadeurs**.
+
+**Gift log.** Log a card, gift or dinner on the client page (date, what, amount). It goes into the logbook and the yearly overview under Betalingen, with a CSV export for the bookkeeper (business gifts and meals are only partly tax-deductible).
 
 ## Security and privacy (AVG/GDPR)
 

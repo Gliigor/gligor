@@ -22,8 +22,43 @@ export interface ClientRow {
   notes: string;
   tags: string[];
   last_contact_at: string | null;
+  first_name: string;
+  last_name: string;
+  address: string;
+  card_address: string;
+  birthday_day: number | null;
+  birthday_month: number | null;
+  birthday_consent: boolean;
+  gift_ideas: string;
+  referred_by: string | null;
+  referral_succeeded_at: string | null;
+  lead_source: import("./config").LeadSource;
   created_at: string;
   updated_at: string;
+}
+
+export interface GiftRow {
+  id: string;
+  client_id: string | null;
+  client_label: string;
+  given_on: string;
+  type: import("./config").GiftType;
+  description: string;
+  amount: number;
+  log_entry_id: string | null;
+  created_at: string;
+}
+
+export interface IntakeLinkRow {
+  id: string;
+  token_hash: string;
+  client_id: string | null;
+  email: string;
+  expires_at: string;
+  submitted_at: string | null;
+  data: Record<string, string> | null;
+  reviewed_at: string | null;
+  created_at: string;
 }
 
 export interface LogEntryRow {
@@ -47,8 +82,10 @@ export interface TaskRow {
   title: string;
   due_date: string | null;
   status: "open" | "klaar";
-  source: "handmatig" | "logboek" | "levenscyclus" | "systeem";
+  source: "handmatig" | "logboek" | "levenscyclus" | "systeem" | "mijlpaal" | "lead";
   automation_key: string | null;
+  details: string;
+  href: string | null;
   log_entry_id: string | null;
   completed_at: string | null;
   created_at: string;
@@ -61,7 +98,8 @@ export interface EmailRow {
   client_id: string | null;
   ticket_id: string | null;
   template_key: string | null;
-  kind: "sjabloon" | "ticket" | "herinnering" | "nieuwsbrief" | "digest" | "los";
+  kind: "sjabloon" | "ticket" | "herinnering" | "nieuwsbrief" | "digest" | "los" | "mijlpaal" | "intakelink";
+  from_email: string | null;
   to_email: string;
   subject: string;
   body: string;
@@ -84,6 +122,7 @@ export interface TemplateRow {
   subject: string;
   body: string;
   auto_send: boolean;
+  from_email: string | null;
   sort: number;
   updated_at: string;
 }
@@ -135,7 +174,8 @@ export interface PaymentRow {
   amount: number;
   paid_at: string | null;
   cancelled: boolean;
-  source: "handmatig" | "stripe";
+  source: "handmatig" | "stripe" | "tegoed";
+  credit_reason: string | null;
   external_provider: string | null;
   external_id: string | null;
   created_at: string;

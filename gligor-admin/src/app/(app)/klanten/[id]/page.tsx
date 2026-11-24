@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download, ListChecks } from "lucide-react";
+import { Download, ListChecks, Send, UserPlus } from "lucide-react";
+import { getMilestoneSettings, paidMonths, referralSummary } from "@/lib/services/loyalty";
+import { upcomingMilestones } from "@/lib/domain/milestones";
 import { asAdmin } from "@/lib/auth";
 import { clientBundle } from "@/lib/services/clients";
 import { amsDate, diffDays } from "@/lib/domain/dates";
 import { paymentStatus } from "@/lib/domain/payments";
 import { deadlineState, responseDeadline } from "@/lib/domain/tickets";
-import { CHANNEL_LABEL, LOG_TYPE_LABEL, PACKAGES, SETUP_LABEL, STAGES, STAGE_LABEL, type LogType } from "@/lib/config";
+import { CHANNEL_LABEL, MONTHS, GIFT_TYPE_LABEL, LEAD_SOURCE_LABEL, LOG_TYPE_LABEL, PACKAGES, SETUP_LABEL, STAGES, STAGE_LABEL, type LogType } from "@/lib/config";
 import { formatDate, formatDateTime, formatEuro, relativeDays } from "@/lib/format";
-import type { TemplateRow } from "@/lib/types";
+import type { GiftRow, TemplateRow } from "@/lib/types";
 import { Empty, Field, PageHeader, Pill, Tabs, Tile } from "@/components/ui";
 import { DeadlinePill, StagePill, TicketPill } from "@/components/status";
 import { ContactLinks } from "@/components/ContactLinks";
@@ -22,6 +24,8 @@ import {
   composeEmailAction,
   createTaskAction,
   forgetClientAction,
+  logGiftAction,
+  sendIntakeLinkAction,
   moveStageFormAction,
   toggleTaskAction,
   updateClientAction,
@@ -44,11 +48,24 @@ export default async function KlantPage({
 
   const data = await asAdmin(async (q) => {
     const bundle = await clientBundle(q, id);
-    const templates = await q<TemplateRow>("select * from email_templates order by sort");
-    return bundle && { ...bundle, templates };
+    if (!bundle) return null;
+    const [templates, settings, paid, referrals, gifts, others, referrer] = await Promise.all([
+      q<TemplateRow>("select * from email_templates order by sort"),
+      getMilestoneSettings(q),
+      paidMonths(q, id),
+      referralSummary(q, id),
+      q<GiftRow>("select * from gifts where client_id = $1 order by given_on desc", [id]),
+      q<{ id: string; company: string }>("select id, company from clients where id <> $1 and stage <> 'lead' order by lower(company)", [id]),
+      bundle.client.referred_by
+        ? q<{ id: string; company: string }>("select id, company from clients where id = $1", [bundle.client.referred_by])
+        : Promise.resolve([]),
+    ]);
+    return { ...bundle, templates, settings, paid, referrals, gifts, others, referrer: referrer[0] ?? null };
   });
   if (!data) notFound();
-  const { client: c, log, tasks, tickets, payments, history, emails, templates } = data;
+  const { client: c, log, tasks, tickets, payments, history, emails, templates, settings, paid, referrals, gifts, others, referrer } = data;
+  const milestones = upcomingMilestones(c, { today: amsDate(), paidMonths: paid, settings });
+  const isLead = c.stage === "lead" || c.stage === "kennismaking";
   const today = amsDate();
   const now = new Date();
   const openTasks = tasks.filter((t) => t.status === "open");
@@ -65,6 +82,12 @@ export default async function KlantPage({
             <span>{PACKAGES[c.package].label}</span>
             <span className="text-line">·</span>
             <span>{c.owner_name || "Eigenaar onbekend"}</span>
+            {c.birthday_consent && c.birthday_day && c.birthday_month && (
+              <>
+                <span className="text-line">·</span>
+                <span>jarig {c.birthday_day} {MONTHS[c.birthday_month - 1]}</span>
+              </>
+            )}
             {c.city && (
               <>
                 <span className="text-line">·</span>
@@ -98,10 +121,24 @@ export default async function KlantPage({
         <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
           <div className="space-y-4">
             <Tile label="Gegevens">
-              <ClientForm action={updateClientAction} client={c} submitLabel="Opslaan" />
+              <ClientForm action={updateClientAction} client={c} submitLabel="Opslaan" clients={others} />
             </Tile>
           </div>
           <div className="space-y-4">
+            {isLead && (
+              <Tile label={`Lead · via ${LEAD_SOURCE_LABEL[c.lead_source]}`}>
+                <Link href={`/klanten/nieuw?van=${c.id}`} className="btn btn-primary w-full">
+                  <UserPlus className="size-4" /> Omzetten naar klant (intake)
+                </Link>
+                <ActionForm action={sendIntakeLinkAction} className="mt-2">
+                  <input type="hidden" name="client_id" value={c.id} />
+                  <Submit className="btn w-full" pendingLabel="Versturen…">
+                    <Send className="size-4" /> Stuur intakelink
+                  </Submit>
+                  <p className="mt-1.5 text-xs text-muted">De klant vult het formulier zelf in (eenmalige link, 7 dagen geldig). Je kijkt het daarna na.</p>
+                </ActionForm>
+              </Tile>
+            )}
             <Tile label="Fase">
               <form action={moveStageFormAction} className="flex gap-2">
                 <input type="hidden" name="client_id" value={c.id} />
@@ -148,6 +185,90 @@ export default async function KlantPage({
                   ))}
                 </div>
               )}
+            </Tile>
+
+            <Tile label="Mijlpalen">
+              {milestones.length === 0 ? (
+                <p className="text-[13px] text-muted">Mijlpalen starten zodra de klant een startdatum heeft{c.birthday_consent ? "" : " (verjaardag: alleen met toestemming)"}.</p>
+              ) : (
+                <ul className="space-y-2 text-[13px]">
+                  {milestones.map((m) => (
+                    <li key={m.label}>
+                      <div>{m.label}</div>
+                      <div className="num text-xs text-muted">
+                        {m.date && m.inDays !== null ? `${formatDate(m.date)} · ${relativeDays(m.inDays)}` : "bij de volgende betaling"}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {c.gift_ideas && (
+                <div className="mt-3 rounded-md border border-line bg-bg px-3 py-2 text-[13px]">
+                  <div className="label mb-1">Cadeau-ideeën</div>
+                  <p className="whitespace-pre-line">{c.gift_ideas}</p>
+                </div>
+              )}
+            </Tile>
+
+            <Tile label="Referrals">
+              {referrer && (
+                <p className="mb-2 text-[13px]">
+                  Aangebracht door{" "}
+                  <Link href={`/klanten/${referrer.id}`} className="link">
+                    {referrer.company}
+                  </Link>
+                  {c.referral_succeeded_at ? ` · geslaagd op ${formatDate(c.referral_succeeded_at)}` : " · nog lopend"}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                <Pill tone="green">{referrals.succeeded} geslaagd</Pill>
+                <Pill tone="grey">{referrals.pending} lopend</Pill>
+                <Pill tone="blue">{formatEuro(referrals.value)} binnengebracht</Pill>
+              </div>
+              {referrals.referrals.length > 0 && (
+                <ul className="mt-3 space-y-1 text-[13px]">
+                  {referrals.referrals.map((r) => (
+                    <li key={r.id} className="flex justify-between gap-2">
+                      <Link href={`/klanten/${r.id}`} className="truncate hover:underline">
+                        {r.company}
+                      </Link>
+                      <Pill tone={r.status === "geslaagd" ? "green" : r.status === "vervallen" ? "red" : "grey"}>{r.status}</Pill>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Tile>
+
+            <Tile label="Cadeaus en kaarten">
+              {gifts.length > 0 && (
+                <ul className="mb-3 space-y-1 text-[13px]">
+                  {gifts.map((g) => (
+                    <li key={g.id} className="flex justify-between gap-2">
+                      <span className="truncate">
+                        <span className="num text-muted">{formatDate(g.given_on)}</span> {GIFT_TYPE_LABEL[g.type]}
+                        {g.description ? `: ${g.description}` : ""}
+                      </span>
+                      <span className="num shrink-0">{formatEuro(g.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <ActionForm action={logGiftAction} className="grid grid-cols-2 gap-2">
+                <input type="hidden" name="client_id" value={c.id} />
+                <input type="date" name="given_on" defaultValue={today} aria-label="Datum" />
+                <select name="type" defaultValue="kaart" aria-label="Soort">
+                  {Object.entries(GIFT_TYPE_LABEL).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+                <input name="description" placeholder="Wat (bijv. bonbons uit Zeist)" className="col-span-2" aria-label="Omschrijving" />
+                <input name="amount" inputMode="decimal" placeholder="Bedrag €" aria-label="Bedrag" />
+                <Submit className="btn" pendingLabel="Opslaan…">
+                  Vastleggen
+                </Submit>
+              </ActionForm>
             </Tile>
 
             <Tile label="E-mail schrijven">

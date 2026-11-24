@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { asAdmin } from "@/lib/auth";
-import { isDemo } from "@/lib/env";
+import { isDemo, siteUrl } from "@/lib/env";
 import { addDays, amsDate } from "@/lib/domain/dates";
 import { STAGES, type Stage, type TicketStatus } from "@/lib/config";
 import { createClient, forgetClient, moveStage, updateClient, type ClientInput } from "@/lib/services/clients";
@@ -14,6 +14,11 @@ import { createLooseEmail, createTemplateEmail, sendEmail, sendNewsletter } from
 import { firstName } from "@/lib/domain/templates";
 import { linkTicketToClient, replyToTicket, setTicketStatus } from "@/lib/services/tickets";
 import { runDaily } from "@/lib/services/today";
+import { saveIntake, sendIntakeLink } from "@/lib/services/leads";
+import { logGift, saveMilestoneSettings } from "@/lib/services/loyalty";
+import { intakeSchema } from "@/lib/domain/leads";
+import { isoDateOrNull } from "@/lib/domain/dates";
+
 import { removeAttachments } from "@/lib/storage";
 import type { ClientRow, EmailRow } from "@/lib/types";
 
@@ -92,6 +97,15 @@ const clientSchema = z.object({
   users_count: z.string().optional(),
   notes: z.string().optional(),
   tags: z.string().optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  address: z.string().optional(),
+  card_address: z.string().optional(),
+  birthday_day: z.string().optional(),
+  birthday_month: z.string().optional(),
+  birthday_consent: z.string().optional(),
+  gift_ideas: z.string().optional(),
+  referred_by: z.string().optional(),
 });
 
 function toClientInput(fd: FormData): ClientInput | { error: string } {
@@ -118,6 +132,15 @@ function toClientInput(fd: FormData): ClientInput | { error: string } {
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean),
+    first_name: d.first_name?.trim() ?? "",
+    last_name: d.last_name?.trim() ?? "",
+    address: d.address ?? "",
+    card_address: d.card_address ?? "",
+    birthday_day: num(d.birthday_day),
+    birthday_month: num(d.birthday_month),
+    birthday_consent: d.birthday_consent === "on",
+    gift_ideas: d.gift_ideas ?? "",
+    referred_by: d.referred_by && /^[0-9a-f-]{36}$/.test(d.referred_by) ? d.referred_by : null,
   };
 }
 
@@ -282,12 +305,13 @@ export async function sendNewsletterAction(_prev: ActionState, fd: FormData): Pr
 export async function saveTemplateAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
     await asAdmin((q) =>
-      q("update email_templates set name = $2, subject = $3, body = $4, auto_send = $5 where key = $1", [
+      q("update email_templates set name = $2, subject = $3, body = $4, auto_send = $5, from_email = $6 where key = $1", [
         str(fd, "key"),
         str(fd, "name"),
         str(fd, "subject"),
         String(fd.get("body") ?? ""),
         fd.get("auto_send") === "on",
+        /^[^@\s]+@gligor\.ai$/i.test(str(fd, "from_email")) ? str(fd, "from_email").toLowerCase() : null,
       ]),
     );
   } catch (err) {
@@ -384,4 +408,74 @@ export async function signOutAction() {
     await (await createSupabaseServer()).auth.signOut();
   }
   redirect("/login");
+}
+
+// ---------------------------------------------------------------------------
+// Intake, intakelink, mijlpalen en cadeaus
+// ---------------------------------------------------------------------------
+
+export async function saveIntakeAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const parsed = intakeSchema.safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Controleer het formulier." };
+  const uuid = (k: string) => (/^[0-9a-f-]{36}$/.test(str(fd, k)) ? str(fd, k) : null);
+  let id: string;
+  try {
+    id = await asAdmin(async (q) => {
+      const c = await saveIntake(
+        q,
+        { ...parsed.data, start_date: isoDateOrNull(str(fd, "start_date")), referred_by: fd.has("referred_by") ? uuid("referred_by") : undefined },
+        { clientId: uuid("client_id"), intakeLinkId: uuid("intake_link_id") },
+        today(),
+      );
+      return c.id;
+    });
+  } catch (err) {
+    return fail(err);
+  }
+  refresh();
+  redirect(`/klanten/${id}?melding=intake`);
+}
+
+export async function sendIntakeLinkAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    await asAdmin((q) => sendIntakeLink(q, str(fd, "client_id"), siteUrl(), today()));
+  } catch (err) {
+    return fail(err);
+  }
+  refresh();
+  return { ok: true, message: "Intakelink verstuurd (7 dagen geldig)." };
+}
+
+const giftSchema = z.object({
+  client_id: z.uuid(),
+  given_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Kies een datum."),
+  type: z.enum(["kaart", "cadeau", "diner"]),
+  description: z.string().max(300).optional().default(""),
+  amount: z.string().optional().default("0"),
+});
+
+export async function logGiftAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const parsed = giftSchema.safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Controleer het formulier." };
+  const amount = Number(parsed.data.amount.replace(",", ".") || 0);
+  if (!Number.isFinite(amount) || amount < 0) return { error: "Vul een geldig bedrag in." };
+  try {
+    await asAdmin((q) => logGift(q, { ...parsed.data, amount }));
+  } catch (err) {
+    return fail(err);
+  }
+  refresh();
+  return { ok: true, message: "Vastgelegd in het cadeaulog en het logboek." };
+}
+
+export async function saveMilestoneSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const input: Record<string, number> = {};
+  for (const [k, v] of fd.entries()) if (typeof v === "string" && v.trim() !== "") input[k] = Number(v);
+  try {
+    await asAdmin((q) => saveMilestoneSettings(q, input));
+  } catch (err) {
+    return fail(err);
+  }
+  refresh();
+  return { ok: true, message: "Opgeslagen. De dagelijkse job gebruikt de nieuwe instellingen." };
 }

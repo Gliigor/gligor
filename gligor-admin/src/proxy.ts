@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { refreshSession } from "@/lib/supabase/proxy";
 
 /** Paden die zonder login bereikbaar moeten zijn (met hun eigen beveiliging). */
-const PUBLIC = [/^\/login/, /^\/auth\//, /^\/api\/inbound\//, /^\/api\/cron\//, /^\/api\/webhooks\//];
+const PUBLIC = [/^\/login/, /^\/auth\//, /^\/api\/inbound\//, /^\/api\/cron\//, /^\/api\/webhooks\//, /^\/api\/leads$/, /^\/intake\//];
 
 function demoMode() {
   if (process.env.DEMO_MODE === "true") return true;

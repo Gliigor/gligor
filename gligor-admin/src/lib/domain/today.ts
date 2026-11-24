@@ -26,6 +26,8 @@ export interface ContactInfo {
 
 export type TodayAction =
   | { type: "open"; href: string; label?: string }
+  | { type: "external"; href: string; label: string }
+  | { type: "copy"; text: string; label: string }
   | { type: "send-email"; emailId: string }
   | { type: "edit-email"; emailId: string }
   | { type: "complete-task"; taskId: string }
@@ -40,6 +42,8 @@ export interface TodayItem {
   category: TodayCategory;
   title: string;
   detail: string;
+  /** Extra regel, bijv. het adres voor een kaartje of de cadeau-ideeën. */
+  note?: string;
   /** Hoger = urgenter; sorteert binnen een categorie. */
   urgency: number;
   tone: "danger" | "warning" | "neutral" | "accent";
@@ -54,11 +58,21 @@ export interface TodayInput {
   clients: (ContactInfo & { stage: Stage; package: PackageKey; lastContactAt: string | null; createdAt: string })[];
   tickets: { id: string; number: number; subject: string; status: string; awaitingSince: string | null; clientId: string | null }[];
   payments: { id: string; clientId: string; kind: PaymentKind; periodStart: string; dueDate: string; amount: number; paidAt: string | null; cancelled: boolean }[];
-  tasks: { id: string; clientId: string | null; title: string; dueDate: string | null; source: string }[];
+  tasks: { id: string; clientId: string | null; title: string; dueDate: string | null; source: string; details?: string; href?: string | null }[];
   followUps: { id: string; clientId: string; summary: string; agreedActions: string; followUpDate: string }[];
   drafts: { id: string; clientId: string | null; subject: string; toEmail: string; templateName: string | null; createdAt: string }[];
   /** item_key → snooze tot (exclusief) deze datum. */
   snoozes: Map<string, string>;
+}
+
+/** Knoppen bij een taak: een link (bijv. Greetz of het intakeformulier) en het adres kopiëren. */
+function taskExtras(t: TodayInput["tasks"][number]): TodayAction[] {
+  const out: TodayAction[] = [];
+  if (t.href?.startsWith("/")) out.push({ type: "open", href: t.href, label: "Openen" });
+  else if (t.href) out.push({ type: "external", href: t.href, label: new URL(t.href).hostname.replace(/^www\./, "") });
+  const address = t.details?.match(/^Adres: (.+)$/)?.[1];
+  if (address && !address.startsWith("Nog geen adres")) out.push({ type: "copy", text: address, label: "Adres kopiëren" });
+  return out;
 }
 
 /** De lijst voor vandaag, gesorteerd: eerst op categorie (1–6), dan op urgentie. */
@@ -128,11 +142,12 @@ export function buildToday(input: TodayInput): TodayItem[] {
       category: 3,
       title: t.title,
       detail: client?.company ?? "Algemeen",
+      note: t.details || undefined,
       urgency: late,
       tone: late > 0 ? "warning" : "accent",
       badge: late > 0 ? relativeDays(-late) : "vandaag",
       contact: client ?? null,
-      actions: [{ type: "complete-task", taskId: t.id }, ...(client ? [{ type: "contact" } as const] : [])],
+      actions: [...taskExtras(t), { type: "complete-task", taskId: t.id }, ...(client ? [{ type: "contact" } as const] : [])],
     });
   }
   for (const f of input.followUps) {
@@ -171,7 +186,7 @@ export function buildToday(input: TodayInput): TodayItem[] {
   // 5. Levenscyclusmomenten in de komende 7 dagen.
   const weekEnd = addDays(today, 7);
   for (const t of input.tasks) {
-    if (t.source !== "levenscyclus" || !t.dueDate || t.dueDate <= today || t.dueDate > weekEnd) continue;
+    if (!["levenscyclus", "mijlpaal"].includes(t.source) || !t.dueDate || t.dueDate <= today || t.dueDate > weekEnd) continue;
     const client = t.clientId ? byId.get(t.clientId) : undefined;
     const days = diffDays(today, t.dueDate);
     push({

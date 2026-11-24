@@ -9,6 +9,7 @@ import { STAGE_LABEL, type Stage } from "./config";
 import { createClient, moveStage, syncPayments } from "./services/clients";
 import { addLogEntry } from "./services/work";
 import { runDaily } from "./services/today";
+import { logGift } from "./services/loyalty";
 
 export const DEMO_ADMIN_ID = "00000000-0000-4000-8000-00000000a001";
 
@@ -24,7 +25,14 @@ export async function seedDemo(q: Query, now: Date): Promise<void> {
       company: "Installatiebedrijf Demo B.V.",
       sector: "Installatietechniek",
       city: "Amersfoort",
-      owner_name: "Henk Jansen",
+      first_name: "Henk",
+      last_name: "Jansen",
+      address: "Voorbeeldweg 12\n3811 AA Amersfoort",
+      // Verjaardag over 5 dagen (met toestemming), zodat de kaarttaak in Vandaag staat.
+      birthday_day: Number(addDays(today, 5).slice(8, 10)),
+      birthday_month: Number(addDays(today, 5).slice(5, 7)),
+      birthday_consent: true,
+      gift_ideas: "Fietst elk weekend. Fan van drop. Praatte over een nieuwe koffiemachine op kantoor.",
       email: "henk@installatie-demo.example",
       phone: "06 11 22 33 44",
       preferred_channel: "telefoon",
@@ -52,7 +60,9 @@ export async function seedDemo(q: Query, now: Date): Promise<void> {
       company: "Bakkerij Voorbeeld",
       sector: "Bakkerij",
       city: "Utrecht",
-      owner_name: "Marieke de Vries",
+      first_name: "Marieke",
+      last_name: "de Vries",
+      address: "Proefstraat 3\n3511 AB Utrecht",
       email: "marieke@bakkerij-voorbeeld.example",
       phone: "06 55 66 77 88",
       preferred_channel: "whatsapp",
@@ -65,6 +75,7 @@ export async function seedDemo(q: Query, now: Date): Promise<void> {
     "lead",
     d(-40),
   );
+  await q("update clients set referred_by = $2 where id = $1", [b.id, a.id]);
   await moveStage(q, b.id, "kennismaking", d(-40));
   await moveStage(q, b.id, "intake", d(-35));
   await q("update clients set start_date = $2 where id = $1", [b.id, d(-28)]);
@@ -79,7 +90,9 @@ export async function seedDemo(q: Query, now: Date): Promise<void> {
       company: "Kapsalon Testlaan",
       sector: "Kapper",
       city: "Zwolle",
-      owner_name: "Sanne Bakker",
+      first_name: "Sanne",
+      last_name: "Bakker",
+      lead_source: "website",
       email: "sanne@kapsalon-testlaan.example",
       phone: "06 99 88 77 66",
       preferred_channel: "telefoon",
@@ -195,6 +208,9 @@ export async function seedDemo(q: Query, now: Date): Promise<void> {
        select id from payments where client_id = $1 and kind = 'maand' and due_date < $2 order by period_start desc limit 1)`,
     [a.id, today],
   );
+
+  // Cadeaulog: een kaartje bij de start van klant 1.
+  await logGift(q, { client_id: a.id, given_on: d(-80), type: "kaart", description: "Succeskaart bij de starttraining", amount: 4.95 });
 
   // Zoals de dagelijkse job van vanochtend: geplande e-mails van vandaag klaarzetten.
   // (Met het einde van de dag, zodat het niet uitmaakt hoe laat de demo start.)

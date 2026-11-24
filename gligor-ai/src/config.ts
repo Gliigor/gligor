@@ -15,6 +15,9 @@ export const CONTACT = {
   linkedin: "https://www.linkedin.com/in/gligor-jancev-889801299/",
 };
 
+/** Het contactformulier stuurt berichten naar het dashboard (als lead met een taak "Reageren binnen 1 werkdag"). */
+export const LEAD_ENDPOINT = "https://admin.gligor.ai/api/leads";
+
 export const BUSINESS = {
   name: "Gligor.ai",
   /** Juridische naam zoals ingeschreven bij de KvK (eenmanszaak). */
