@@ -1,11 +1,12 @@
 import type { Query } from "../db/driver";
 import { pgArray } from "../db/driver";
 import type { ClientRow, EmailRow, LogEntryRow, PaymentRow, TaskRow, TicketRow } from "../types";
-import { PACKAGES, STAGE_LABEL, START_FEE, type Channel, type PackageKey, type SetupType, type Stage } from "../config";
+import { PACKAGES, STAGE_LABEL, START_FEE, type Channel, type LeadSource, type PackageKey, type SetupType, type Stage } from "../config";
 import { addDays } from "../domain/dates";
 import { expectedPayments, paymentStatus } from "../domain/payments";
 import { planStageChange, quarterlyEmail, quarterlyTask, nextQuarterlyMoment } from "../domain/lifecycle";
 import { createTemplateEmail, getTemplate, sendEmail } from "./emails";
+import { applyCredits, runMilestones } from "./loyalty";
 
 export interface ClientInput {
   company: string;
@@ -23,6 +24,31 @@ export interface ClientInput {
   users_count?: number;
   notes?: string;
   tags?: string[];
+  first_name?: string;
+  last_name?: string;
+  address?: string;
+  card_address?: string;
+  birthday_day?: number | null;
+  birthday_month?: number | null;
+  birthday_consent?: boolean;
+  gift_ideas?: string;
+  referred_by?: string | null;
+  lead_source?: LeadSource;
+}
+
+/** Volledige naam uit voor- en achternaam, of de losse naam als die er alleen is. */
+function ownerName(input: ClientInput, fallback = ""): string {
+  const full = [input.first_name?.trim(), input.last_name?.trim()].filter(Boolean).join(" ");
+  return full || input.owner_name?.trim() || fallback;
+}
+
+/** Zonder toestemming geen verjaardag bewaren. */
+function birthday(input: ClientInput, before?: ClientRow) {
+  const consent = input.birthday_consent ?? before?.birthday_consent ?? false;
+  const day = input.birthday_day !== undefined ? input.birthday_day : (before?.birthday_day ?? null);
+  const month = input.birthday_month !== undefined ? input.birthday_month : (before?.birthday_month ?? null);
+  if (!consent || !day || !month) return { day: null, month: null, consent: false };
+  return { day, month, consent: true };
 }
 
 export async function getClient(q: Query, id: string): Promise<ClientRow | null> {
@@ -34,14 +60,17 @@ export async function createClient(q: Query, input: ClientInput, stage: Stage, t
   const pkg = input.package ?? "basis";
   const [c] = await q<ClientRow>(
     `insert into clients (company, sector, city, owner_name, email, phone, preferred_channel, package, monthly_fee,
-                          start_fee, start_date, setup_type, users_count, notes, tags, stage)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::text[], 'lead')
+                          start_fee, start_date, setup_type, users_count, notes, tags, stage,
+                          first_name, last_name, address, card_address, birthday_day, birthday_month, birthday_consent,
+                          gift_ideas, referred_by, lead_source)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::text[], 'lead',
+             $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
      returning *`,
     [
       input.company,
       input.sector ?? null,
       input.city ?? null,
-      input.owner_name ?? "",
+      ownerName(input),
       input.email?.trim().toLowerCase() || null,
       input.phone ?? null,
       input.preferred_channel ?? "email",
@@ -53,6 +82,16 @@ export async function createClient(q: Query, input: ClientInput, stage: Stage, t
       input.users_count ?? 1,
       input.notes ?? "",
       pgArray(input.tags ?? []),
+      input.first_name?.trim() ?? "",
+      input.last_name?.trim() ?? "",
+      input.address?.trim() ?? "",
+      input.card_address?.trim() ?? "",
+      birthday(input).day,
+      birthday(input).month,
+      birthday(input).consent,
+      input.gift_ideas?.trim() ?? "",
+      input.referred_by || null,
+      input.lead_source ?? "handmatig",
     ],
   );
   await q("insert into client_stage_history (client_id, from_stage, to_stage) values ($1, null, 'lead')", [c.id]);
@@ -67,14 +106,16 @@ export async function updateClient(q: Query, id: string, input: ClientInput, tod
   const [c] = await q<ClientRow>(
     `update clients set company = $2, sector = $3, city = $4, owner_name = $5, email = $6, phone = $7,
        preferred_channel = $8, package = $9, monthly_fee = $10, start_fee = $11, start_date = $12,
-       setup_type = $13, users_count = $14, notes = $15, tags = $16::text[]
+       setup_type = $13, users_count = $14, notes = $15, tags = $16::text[],
+       first_name = $17, last_name = $18, address = $19, card_address = $20, birthday_day = $21, birthday_month = $22,
+       birthday_consent = $23, gift_ideas = $24, referred_by = $25
      where id = $1 returning *`,
     [
       id,
       input.company,
       input.sector ?? null,
       input.city ?? null,
-      input.owner_name ?? "",
+      ownerName(input, before.owner_name),
       input.email?.trim().toLowerCase() || null,
       input.phone ?? null,
       input.preferred_channel ?? before.preferred_channel,
@@ -86,9 +127,20 @@ export async function updateClient(q: Query, id: string, input: ClientInput, tod
       input.users_count ?? before.users_count,
       input.notes ?? before.notes,
       pgArray(input.tags ?? before.tags),
+      input.first_name?.trim() ?? before.first_name,
+      input.last_name?.trim() ?? before.last_name,
+      input.address?.trim() ?? before.address,
+      input.card_address?.trim() ?? before.card_address,
+      birthday(input, before).day,
+      birthday(input, before).month,
+      birthday(input, before).consent,
+      input.gift_ideas?.trim() ?? before.gift_ideas,
+      input.referred_by !== undefined ? input.referred_by || null : before.referred_by,
     ],
   );
   await syncPayments(q, c, today);
+  await applyCredits(q, c.id, today);
+  await runMilestones(q, c, today);
   return c;
 }
 
@@ -148,6 +200,7 @@ export async function moveStage(q: Query, clientId: string, to: Stage, today: st
     [clientId, `Fase gewijzigd: ${STAGE_LABEL[client.stage]} → ${STAGE_LABEL[to]}`],
   );
   await syncPayments(q, updated, today);
+  await runMilestones(q, updated, today);
   return updated;
 }
 

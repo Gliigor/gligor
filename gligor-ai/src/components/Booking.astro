@@ -1,6 +1,6 @@
 ---
 import Icon from "./Icon.astro";
-import { CAL_LINK, CONTACT } from "../config";
+import { CAL_LINK, CONTACT, LEAD_ENDPOINT } from "../config";
 
 const calUrl = `https://cal.com/${CAL_LINK}`;
 const waText = encodeURIComponent("Hoi Gligor, ik wil graag kennismaken.");
@@ -54,6 +54,36 @@ const waText = encodeURIComponent("Hoi Gligor, ik wil graag kennismaken.");
             </a>
           </div>
         </div>
+        <div id="contact" class="card scroll-mt-24 p-6 sm:p-7">
+          <h3 class="text-lg font-bold">Of stel je vraag hier</h3>
+          <form id="contact-form" action={LEAD_ENDPOINT} method="post" class="mt-4 space-y-3" novalidate>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              <label class="field">
+                <span>Naam</span>
+                <input name="naam" required autocomplete="name" maxlength="120" />
+              </label>
+              <label class="field">
+                <span>E-mail</span>
+                <input name="email" type="email" required autocomplete="email" maxlength="200" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Bedrijfsnaam</span>
+              <input name="bedrijf" autocomplete="organization" maxlength="160" />
+            </label>
+            <label class="field">
+              <span>Waar kan ik je mee helpen?</span>
+              <textarea name="bericht" rows="3" required maxlength="4000"></textarea>
+            </label>
+            <!-- Voor spambots: mensen zien dit veld niet. -->
+            <div class="hidden" aria-hidden="true">
+              <label>Website <input name="website" tabindex="-1" autocomplete="off" /></label>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Versturen <Icon name="ArrowRight" class="size-5" stroke={2} /></button>
+            <p data-contact-status class="hidden text-sm" role="status" aria-live="polite"></p>
+            <p class="text-xs text-muted">Ik gebruik je gegevens alleen om te reageren. Zie de <a href="/privacyverklaring" class="underline">privacyverklaring</a>.</p>
+          </form>
+        </div>
         <div class="card flex gap-4 p-6 sm:p-7">
           <span class="icon-tile"><Icon name="Coffee" /></span>
           <div>
@@ -71,5 +101,7 @@ const waText = encodeURIComponent("Hoi Gligor, ik wil graag kennismaken.");
 
 <script>
   import { initCal } from "../scripts/cal";
+  import { initContactForm } from "../scripts/contact";
   initCal();
+  initContactForm();
 </script>

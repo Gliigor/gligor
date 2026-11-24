@@ -4,6 +4,9 @@ import { emailFrom, fromAddress, isDemo } from "../env";
 import { textToHtml } from "../domain/templates";
 
 export interface OutgoingMail {
+  /** Ander afzenderadres dan EMAIL_FROM, bijv. gligor@gligor.ai voor persoonlijke mails. */
+  from?: string | null;
+  html?: string | null;
   to: string;
   subject: string;
   text: string;
@@ -28,6 +31,12 @@ export function resendClient(): Resend {
   return client();
 }
 
+/** De naam uit EMAIL_FROM ("Gligor van Gligor.ai"), voor andere afzenderadressen. */
+function senderName(): string {
+  const m = emailFrom().match(/^\s*"?([^"<]+?)"?\s*</);
+  return m ? m[1] : "Gligor";
+}
+
 /** Nieuwe Message-ID op ons eigen domein, zodat antwoorden aan het juiste ticket gekoppeld worden. */
 export function newMessageId(): string {
   const domain = fromAddress().split("@")[1] ?? "gligor.ai";
@@ -46,13 +55,14 @@ export async function deliver(mail: OutgoingMail): Promise<Delivered> {
   if (mail.inReplyTo) headers["In-Reply-To"] = mail.inReplyTo;
   if (mail.references?.length) headers["References"] = mail.references.join(" ");
 
+  const from = mail.from ? `${senderName()} <${mail.from}>` : emailFrom();
   const { data, error } = await client().emails.send({
-    from: emailFrom(),
+    from,
     to: [mail.to],
-    replyTo: fromAddress(),
+    replyTo: mail.from ?? fromAddress(),
     subject: mail.subject,
     text: mail.text,
-    html: textToHtml(mail.text),
+    html: mail.html ?? textToHtml(mail.text),
     headers,
   });
   if (error || !data) throw new Error(`Versturen mislukt: ${error?.message ?? "onbekende fout"}`);

@@ -61,7 +61,8 @@ export interface ExpectedPayment {
  */
 export function expectedPayments(client: BillableClient, until: string): ExpectedPayment[] {
   if (!client.start_date) return [];
-  if (["lead", "kennismaking", "intake"].includes(client.stage)) return [];
+  // Leads nog niet; vanaf de intake (met startdatum) wel, zodat het startbedrag direct klaarstaat.
+  if (["lead", "kennismaking"].includes(client.stage)) return [];
   const out: ExpectedPayment[] = [];
   const start = client.start_date;
 

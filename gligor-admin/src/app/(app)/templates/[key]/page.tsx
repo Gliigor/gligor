@@ -33,9 +33,18 @@ export default async function TemplatePage({ params }: { params: Promise<{ key: 
             <Field label="Onderwerp">
               <input name="subject" defaultValue={t.subject} required />
             </Field>
+            <Field label="Afzender" hint="Leeg = het standaardadres (EMAIL_FROM). Alleen adressen op @gligor.ai.">
+              <input name="from_email" type="email" defaultValue={t.from_email ?? ""} placeholder="hello@gligor.ai" />
+            </Field>
             <Field label="Tekst">
               <textarea name="body" rows={18} defaultValue={t.body} className="leading-relaxed" />
             </Field>
+            {t.key === "verjaardag" && (
+              <p className="rounded-md border border-line bg-bg px-3 py-2 text-[13px] text-muted">
+                Deze mail gaat opgemaakt de deur uit (logo, confetti en handtekening), met deze tekst erin. Een platte-tekstversie gaat automatisch mee. De
+                vormgeving staat in <code className="num">src/lib/email/BirthdayEmail.tsx</code>.
+              </p>
+            )}
             <label className="flex items-center gap-2 text-[13px] text-fg">
               <input type="checkbox" name="auto_send" defaultChecked={t.auto_send} />
               Automatisch versturen (zonder controle vooraf)

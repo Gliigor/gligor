@@ -7,6 +7,7 @@ import { addDays } from "../domain/dates";
 import { paymentDescription } from "../domain/payments";
 import { formatDateLong, formatEuro } from "../format";
 import { createTemplateEmail, sendEmail } from "./emails";
+import { checkReferral, runMilestones } from "./loyalty";
 
 export interface LogInput {
   client_id: string;
@@ -96,7 +97,16 @@ export async function snooze(q: Query, itemKey: string, until: string): Promise<
 // ---------------------------------------------------------------------------
 
 export async function markPaid(q: Query, paymentId: string, paidAt: string, source: "handmatig" | "stripe" = "handmatig"): Promise<void> {
-  await q("update payments set paid_at = $2, source = $3 where id = $1", [paymentId, paidAt, source]);
+  const [p] = await q<PaymentRow>("update payments set paid_at = $2, source = $3 where id = $1 returning *", [paymentId, paidAt, source]);
+  if (p) await afterPayment(q, p.client_id, paidAt);
+}
+
+/** Na een betaling: bedankmail na de 3e maand en referrals controleren (direct, niet pas morgen). */
+async function afterPayment(q: Query, clientId: string, today: string): Promise<void> {
+  const [client] = await q<ClientRow>("select * from clients where id = $1", [clientId]);
+  if (!client) return;
+  await runMilestones(q, client, today);
+  await checkReferral(q, client, today);
 }
 
 export async function markUnpaid(q: Query, paymentId: string): Promise<void> {
@@ -105,10 +115,11 @@ export async function markUnpaid(q: Query, paymentId: string): Promise<void> {
 
 /** Voor de Stripe-koppeling later: betaling op basis van het externe factuur-id. */
 export async function markPaidByExternalId(q: Query, provider: string, externalId: string, paidAt: string): Promise<boolean> {
-  const rows = await q(
-    "update payments set paid_at = $3, source = 'stripe' where external_provider = $1 and external_id = $2 returning id",
+  const rows = await q<PaymentRow>(
+    "update payments set paid_at = $3, source = 'stripe' where external_provider = $1 and external_id = $2 returning *",
     [provider, externalId, paidAt],
   );
+  for (const p of rows) await afterPayment(q, p.client_id, paidAt);
   return rows.length > 0;
 }
 

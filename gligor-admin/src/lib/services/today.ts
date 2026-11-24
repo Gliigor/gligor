@@ -5,6 +5,7 @@ import { buildToday, summarize, type TodayItem, type TodaySummary } from "../dom
 import { ACTIVE_STAGES } from "../config";
 import { ensureQuarterly, syncPayments } from "./clients";
 import { processDueEmails } from "./emails";
+import { runLoyalty } from "./loyalty";
 
 export async function loadToday(q: Query, now: Date): Promise<{ items: TodayItem[]; summary: TodaySummary; today: string }> {
   const today = amsDate(now);
@@ -58,7 +59,7 @@ export async function loadToday(q: Query, now: Date): Promise<{ items: TodayItem
     clients: contactClients,
     tickets: ticketsIn,
     payments: paymentsIn,
-    tasks: tasks.map((t) => ({ id: t.id, clientId: t.client_id, title: t.title, dueDate: t.due_date, source: t.source })),
+    tasks: tasks.map((t) => ({ id: t.id, clientId: t.client_id, title: t.title, dueDate: t.due_date, source: t.source, details: t.details, href: t.href })),
     followUps: followUps.map((f) => ({
       id: f.id,
       clientId: f.client_id,
@@ -98,9 +99,11 @@ export async function runDaily(q: Query, now: Date) {
     payments += await syncPayments(q, c, today);
     if (ACTIVE_STAGES.includes(c.stage)) await ensureQuarterly(q, c, today);
   }
+  const loyalty = await runLoyalty(q, today);
   await q("delete from snoozes where until <= $1", [today]);
+  await q("delete from form_hits where created_at < now() - interval '2 days'");
   const emails = await processDueEmails(q, now);
-  return { today, paymentsCreated: payments, ...emails };
+  return { today, paymentsCreated: payments, ...loyalty, ...emails };
 }
 
 /**

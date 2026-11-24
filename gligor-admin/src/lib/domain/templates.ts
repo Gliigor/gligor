@@ -1,9 +1,12 @@
 import { PACKAGES, type PackageKey } from "../config";
 import { formatDateLong, formatEuro } from "../format";
+import { amsDate } from "./dates";
+import { monthsAsClient } from "./milestones";
 
 export interface TemplateClient {
   company: string;
   owner_name: string;
+  first_name?: string;
   package: PackageKey;
   monthly_fee: number;
   start_date: string | null;
@@ -20,20 +23,25 @@ export const TEMPLATE_VARIABLES = [
   { name: "bedrag", desc: "Bedrag (betaalherinnering)" },
   { name: "omschrijving", desc: "Omschrijving (betaalherinnering)" },
   { name: "vervaldatum", desc: "Vervaldatum (betaalherinnering)" },
+  { name: "maanden_klant", desc: "Aantal hele maanden klant" },
+  { name: "jaren", desc: "Aantal jaren klant (jubileum)" },
+  { name: "aangebracht_bedrijf", desc: "Bedrijf dat via de klant binnenkwam (referral)" },
+  { name: "link", desc: "Persoonlijke link (intakeformulier)" },
 ] as const;
 
 export function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? "";
 }
 
-export function clientVariables(c: TemplateClient): Record<string, string> {
+export function clientVariables(c: TemplateClient, today: string = amsDate(new Date())): Record<string, string> {
   return {
-    voornaam: firstName(c.owner_name) || "daar",
+    voornaam: c.first_name?.trim() || firstName(c.owner_name) || "daar",
     naam: c.owner_name,
     bedrijf: c.company,
     pakket: PACKAGES[c.package].label,
     maandbedrag: formatEuro(c.monthly_fee),
     startdatum: c.start_date ? formatDateLong(c.start_date) : "",
+    maanden_klant: String(monthsAsClient(c.start_date, today)),
   };
 }
 

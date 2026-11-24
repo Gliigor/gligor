@@ -40,7 +40,10 @@ export function PaymentsTable({
                   </Link>
                 </td>
               )}
-              <td>{paymentDescription(p)}</td>
+              <td>
+                {paymentDescription(p)}
+                {p.credit_reason && <span className="ml-2 text-xs text-accent">{p.credit_reason}</span>}
+              </td>
               <td className="num text-right">{formatEuro(p.amount)}</td>
               <td className="num">{formatDate(p.due_date)}</td>
               <td>

@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import type { ActionState } from "@/app/actions";
-import { CHANNEL_LABEL, PACKAGES, SETUP_LABEL, STAGES, START_FEE, type PackageKey } from "@/lib/config";
+import { CHANNEL_LABEL, MONTHS, PACKAGES, SETUP_LABEL, STAGES, START_FEE, type PackageKey } from "@/lib/config";
 import type { ClientRow } from "@/lib/types";
 import { Field } from "./ui";
 
@@ -11,14 +11,21 @@ export function ClientForm({
   client,
   submitLabel,
   showStage = false,
+  clients = [],
 }: {
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>;
   client?: ClientRow;
   submitLabel: string;
   showStage?: boolean;
+  /** Voor "Aangebracht door". */
+  clients?: { id: string; company: string }[];
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const [pkg, setPkg] = useState<PackageKey>(client?.package ?? "basis");
+  // Oudere klanten hebben alleen een volledige naam; splits die als startpunt.
+  const legacy = client && !client.first_name && client.owner_name ? client.owner_name.trim().split(/\s+/) : null;
+  const firstName = client?.first_name || legacy?.[0] || "";
+  const lastName = client?.last_name || legacy?.slice(1).join(" ") || "";
 
   return (
     <form action={formAction} className="space-y-5">
@@ -36,10 +43,13 @@ export function ClientForm({
         </Field>
       </fieldset>
 
-      <fieldset className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <fieldset className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <legend className="label mb-2">Contact</legend>
-        <Field label="Naam eigenaar">
-          <input name="owner_name" defaultValue={client?.owner_name ?? ""} />
+        <Field label="Voornaam">
+          <input name="first_name" defaultValue={firstName} />
+        </Field>
+        <Field label="Achternaam">
+          <input name="last_name" defaultValue={lastName} />
         </Field>
         <Field label="E-mail">
           <input name="email" type="email" defaultValue={client?.email ?? ""} />
@@ -109,6 +119,56 @@ export function ClientForm({
         )}
         <Field label="Tags" hint="Gescheiden door komma's">
           <input name="tags" defaultValue={client?.tags.join(", ") ?? ""} placeholder="offertes, social media" />
+        </Field>
+      </fieldset>
+
+      <fieldset className="grid gap-3 sm:grid-cols-2">
+        <legend className="label mb-2">Adres en persoonlijk</legend>
+        <Field label="Bedrijfsadres" hint="Voor facturen en kaartjes">
+          <textarea name="address" rows={2} defaultValue={client?.address ?? ""} placeholder={"Straat 1\n1234 AB Plaats"} />
+        </Field>
+        <Field label="Ander adres voor een kaartje" hint="Leeg = bedrijfsadres">
+          <textarea name="card_address" rows={2} defaultValue={client?.card_address ?? ""} />
+        </Field>
+        <div className="space-y-2">
+          <span className="label block">Verjaardag (alleen dag en maand)</span>
+          <div className="flex gap-2">
+            <select name="birthday_day" defaultValue={String(client?.birthday_day ?? "")} aria-label="Dag" className="w-24">
+              <option value="">Dag</option>
+              {Array.from({ length: 31 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  {i + 1}
+                </option>
+              ))}
+            </select>
+            <select name="birthday_month" defaultValue={String(client?.birthday_month ?? "")} aria-label="Maand" className="flex-1">
+              <option value="">Maand</option>
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+          <label className="flex items-start gap-2 text-[13px]">
+            <input type="checkbox" name="birthday_consent" defaultChecked={client?.birthday_consent ?? false} className="mt-0.5" />
+            <span>Toestemming om de verjaardag te gebruiken (kaartje en felicitatie). Zonder vinkje wordt de datum niet bewaard.</span>
+          </label>
+        </div>
+        <Field label="Aangebracht door" hint="Referral: beide krijgen een gratis maand na 2 betaalde maanden">
+          <select name="referred_by" defaultValue={client?.referred_by ?? ""}>
+            <option value="">Niemand</option>
+            {clients
+              .filter((o) => o.id !== client?.id)
+              .map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.company}
+                </option>
+              ))}
+          </select>
+        </Field>
+        <Field label="Cadeau-ideeën" hint="Hobby's, lievelingstraktatie, dingen die ter sprake kwamen">
+          <textarea name="gift_ideas" rows={3} defaultValue={client?.gift_ideas ?? ""} className="sm:col-span-2" />
         </Field>
       </fieldset>
 
