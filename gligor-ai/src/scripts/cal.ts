@@ -75,11 +75,15 @@ export function initCal() {
       Cal("init", NAMESPACE, { origin: "https://app.cal.com" });
       const ns = Cal.ns[NAMESPACE];
       ns("inline", { elementOrSelector: "#cal-inline", calLink, config: { layout: "month_view" } });
+      // Agenda in hetzelfde thema als de site (licht of donker), met dezelfde groen.
       ns("ui", {
-        theme: "light",
+        theme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
         layout: "month_view",
         hideEventTypeDetails: false,
-        cssVarsPerTheme: { light: { "cal-brand": "#2563EB" } },
+        cssVarsPerTheme: { light: { "cal-brand": "#12A35F" }, dark: { "cal-brand": "#3EE08F" } },
+      });
+      window.addEventListener("themechange", (e) => {
+        ns("ui", { theme: (e as CustomEvent<string>).detail === "dark" ? "dark" : "light" });
       });
       ns("on", { action: "linkReady", callback: showReady });
       ns("on", { action: "linkFailed", callback: showFailed });

@@ -7,18 +7,18 @@ import { Body, Container, Head, Html, Img, Preview, Section, Text } from "@react
 import { render } from "@react-email/render";
 
 const COLORS = {
-  navy: "#0f2a4a",
-  accent: "#2563eb",
-  teal: "#14b8a6",
-  ink: "#334155",
-  mist: "#f8fafc",
-  line: "#e2e8f0",
+  navy: "#0a0a0b",
+  accent: "#12a35f",
+  teal: "#3ee08f",
+  ink: "#3a3d40",
+  mist: "#f6f7f6",
+  line: "#e6e8e7",
 };
 const LOGO_URL = "https://gligor.ai/icon-192.png";
-const FONT = "'Plus Jakarta Sans', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
+const FONT = "'DM Sans', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
 
 /** Confetti als gekleurde bolletjes in een tabel: werkt ook in Outlook, zonder afbeeldingen. */
-const CONFETTI = [COLORS.accent, COLORS.teal, "#fbbf24", COLORS.accent, "#f472b6", COLORS.teal, "#fbbf24", COLORS.accent];
+const CONFETTI = [COLORS.teal, "#fbbf24", "#ffffff", COLORS.teal, "#f472b6", "#fbbf24", COLORS.teal, "#ffffff"];
 
 export function BirthdayEmail({ firstName, body }: { firstName: string; body: string }) {
   const paragraphs = body.trim().split(/\n{2,}/);
@@ -62,7 +62,10 @@ export function BirthdayEmail({ firstName, body }: { firstName: string; body: st
                   <td style={{ verticalAlign: "middle" }}>
                     <Text style={{ margin: 0, fontSize: 14, fontWeight: 700, color: COLORS.navy }}>Gligor Jancev</Text>
                     <Text style={{ margin: 0, fontSize: 13, color: COLORS.ink }}>
-                      gligor<span style={{ color: COLORS.teal, fontStyle: "italic" }}>.ai</span> · gligor@gligor.ai
+                      <span style={{ fontStyle: "italic", fontWeight: 700 }}>
+                        gligor<span style={{ color: COLORS.accent }}>.ai</span>
+                      </span>{" "}
+                      · gligor@gligor.ai
                     </Text>
                   </td>
                 </tr>

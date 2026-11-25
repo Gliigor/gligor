@@ -11,7 +11,7 @@ const isFile = INTRO_VIDEO_URL.endsWith(".mp4") || INTRO_VIDEO_URL.endsWith(".we
     <div class="reveal reveal-left relative mx-auto w-full max-w-sm">
       <div class="absolute -inset-4 -z-0 rotate-[-4deg] rounded-[32px] bg-gradient-to-br from-accent/15 to-teal/20" aria-hidden="true"></div>
       {SHOW_INTRO_VIDEO && INTRO_VIDEO_URL ? (
-        <div class="relative overflow-hidden rounded-3xl border-4 border-white bg-navy shadow-lift">
+        <div class="relative overflow-hidden rounded-3xl border-4 border-surface bg-block shadow-lift">
           {isFile ? (
             <video class="aspect-[4/5] w-full object-cover" src={INTRO_VIDEO_URL} poster={poster.src} controls preload="none" playsinline></video>
           ) : (
@@ -21,7 +21,7 @@ const isFile = INTRO_VIDEO_URL.endsWith(".mp4") || INTRO_VIDEO_URL.endsWith(".we
       ) : (
         <Picture src={photo} alt="Gligor" formats={["avif", "webp"]} widths={[400, 600, 920]}
           sizes="(min-width: 768px) 384px, calc(100vw - 2rem)"
-          class="relative aspect-[4/5] w-full rounded-3xl border-4 border-white object-cover shadow-lift" />
+          class="relative aspect-[4/5] w-full rounded-3xl border-4 border-surface object-cover shadow-lift" />
       )}
     </div>
 
@@ -38,10 +38,10 @@ const isFile = INTRO_VIDEO_URL.endsWith(".mp4") || INTRO_VIDEO_URL.endsWith(".we
         </p>
       </div>
       <ul class="reveal mt-8 grid gap-3 sm:grid-cols-2" style="--delay: 180ms">
-        <li class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="Handshake" class="size-5 text-accent" /> Eén vast aanspreekpunt</li>
-        <li class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="ShieldCheck" class="size-5 text-accent" /> Zorgvuldig met je gegevens</li>
-        <li class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="MessagesSquare" class="size-5 text-accent" /> Gewone taal, geen jargon</li>
-        <li class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="MapPin" class="size-5 text-accent" /> Ik kom gewoon langs</li>
+        <li class="flex items-center gap-3 rounded-xl bg-surface px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="Handshake" class="size-5 text-accent" /> Eén vast aanspreekpunt</li>
+        <li class="flex items-center gap-3 rounded-xl bg-surface px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="ShieldCheck" class="size-5 text-accent" /> Zorgvuldig met je gegevens</li>
+        <li class="flex items-center gap-3 rounded-xl bg-surface px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="MessagesSquare" class="size-5 text-accent" /> Gewone taal, geen jargon</li>
+        <li class="flex items-center gap-3 rounded-xl bg-surface px-4 py-3 text-[15px] font-medium text-navy shadow-soft"><Icon name="MapPin" class="size-5 text-accent" /> Ik kom gewoon langs</li>
       </ul>
       <a href={CONTACT.linkedin} target="_blank" rel="noopener" class="reveal mt-8 inline-flex items-center gap-2 font-semibold text-accent hover:underline" style="--delay: 220ms">
         <Icon name="linkedin" class="size-5" /> Bekijk mijn LinkedIn

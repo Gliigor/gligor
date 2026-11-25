@@ -25,7 +25,7 @@ const items = [
         <div class="rot-stage grid overflow-hidden py-1" aria-hidden="true">
           {items.map((item, i) => (
             <div class:list={["rot-item", i === 0 && "is-active"]} data-rot-item={i}>
-              <p class="text-[2rem] leading-tight font-extrabold tracking-[-0.015em] text-navy sm:text-4xl lg:text-5xl" style="word-spacing: 0.06em">
+              <p class="text-[2rem] leading-tight font-bold tracking-[-0.015em] text-navy sm:text-4xl lg:text-5xl" style="word-spacing: 0.06em">
                 {item.question}
               </p>
               <p class="relative mt-3 text-lg leading-snug font-semibold text-accent sm:text-2xl">
@@ -69,10 +69,10 @@ const items = [
       Dat kan slimmer. <span class="font-semibold text-navy">Zonder dat je zelf AI-expert hoeft te worden.</span>
     </p>
     <ul class="reveal mt-6 flex flex-wrap justify-center gap-3" style="--delay: 200ms">
-      <li class="flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
+      <li class="flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
         <Icon name="Sparkles" class="size-[18px] text-teal" stroke={2} /> Geen ervaring nodig
       </li>
-      <li class="flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
+      <li class="flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
         <Icon name="ShieldCheck" class="size-[18px] text-teal" stroke={2} /> Privacy goed geregeld
       </li>
     </ul>
@@ -130,8 +130,8 @@ const items = [
   }
 
   .pain-card.is-current {
-    border-color: rgb(37 99 235 / 0.55);
-    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.08), var(--shadow-soft);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
   }
 
   @media (prefers-reduced-motion: reduce) {
