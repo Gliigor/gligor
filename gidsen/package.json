@@ -1,0 +1,12 @@
+{
+  "name": "gligor-gidsen",
+  "private": true,
+  "type": "module",
+  "description": "Implementatiegidsen per workflow (Markdown → PDF).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "marked": "18.3.0"
+  }
+}

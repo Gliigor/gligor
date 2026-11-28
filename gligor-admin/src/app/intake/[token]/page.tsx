@@ -19,8 +19,8 @@ export default async function PublicIntakePage({ params }: { params: Promise<{ t
   return (
     <main data-theme="light" className="min-h-screen bg-bg px-4 py-10 text-fg">
       <div className="mx-auto max-w-2xl">
-        <p className="text-[22px] font-semibold tracking-tight">
-          gligor<span className="text-accent italic">.ai</span>
+        <p className="text-[22px] font-bold tracking-[-0.03em] italic">
+          gligor<span className="text-accent">.ai</span>
         </p>
         {state === "gebruikt" && (
           <div className="tile mt-6 p-6">

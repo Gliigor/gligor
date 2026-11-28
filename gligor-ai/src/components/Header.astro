@@ -1,5 +1,6 @@
 ---
 import Logo from "./Logo.astro";
+import Icon from "./Icon.astro";
 
 const links = [
   { href: "#demo", label: "Demo" },
@@ -21,13 +22,41 @@ const links = [
         ))}
       </ul>
     </nav>
-    <a href="/#kennismaken" class="btn btn-primary whitespace-nowrap px-3.5 py-2.5 text-sm sm:px-5 sm:text-[15px]">
-      Plan een kennismaking
-    </a>
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        class="theme-toggle flex size-10 items-center justify-center rounded-xl border border-line bg-surface text-ink transition-colors hover:text-navy"
+        aria-label="Wissel tussen licht en donker"
+        title="Licht / donker"
+      >
+        <Icon name="Moon" class="icon-moon size-[18px]" />
+        <Icon name="Sun" class="icon-sun size-[18px]" />
+      </button>
+      <a href="/#kennismaken" class="btn btn-primary whitespace-nowrap px-3.5 py-2.5 text-sm sm:px-5 sm:text-[15px]">
+        Plan een kennismaking
+      </a>
+    </div>
   </div>
 </header>
 
 <script>
+  // Licht/donker: de keuze wordt onthouden; zonder keuze volgt de site het apparaat.
+  const root = document.documentElement;
+  const apply = (theme: string) => {
+    root.dataset.theme = theme;
+    window.dispatchEvent(new CustomEvent("themechange", { detail: theme }));
+  };
+  document.querySelector(".theme-toggle")?.addEventListener("click", () => {
+    const next = root.dataset.theme === "dark" ? "light" : "dark";
+    try { localStorage.setItem("theme", next); } catch {}
+    apply(next);
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    let saved: string | null = null;
+    try { saved = localStorage.getItem("theme"); } catch {}
+    if (!saved) apply(e.matches ? "dark" : "light");
+  });
+
   const header = document.getElementById("site-header");
   if (header) {
     const update = () => header.classList.toggle("is-scrolled", window.scrollY > 8);

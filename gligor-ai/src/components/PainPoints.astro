@@ -1,5 +1,6 @@
 ---
 import Icon from "./Icon.astro";
+import Clips from "./Clips.astro";
 
 /*
  * Bovenaan een roterende kop (één pijnpunt tegelijk), daaronder dezelfde zes
@@ -25,7 +26,7 @@ const items = [
         <div class="rot-stage grid overflow-hidden py-1" aria-hidden="true">
           {items.map((item, i) => (
             <div class:list={["rot-item", i === 0 && "is-active"]} data-rot-item={i}>
-              <p class="text-[2rem] leading-tight font-extrabold tracking-[-0.015em] text-navy sm:text-4xl lg:text-5xl" style="word-spacing: 0.06em">
+              <p class="text-[2rem] leading-tight font-bold tracking-[-0.015em] text-navy sm:text-4xl lg:text-5xl" style="word-spacing: 0.06em">
                 {item.question}
               </p>
               <p class="relative mt-3 text-lg leading-snug font-semibold text-accent sm:text-2xl">
@@ -49,13 +50,15 @@ const items = [
             </button>
           ))}
         </div>
+
+        <Clips />
       </div>
     </div>
 
     <!-- Alle zes de punten, ook leesbaar voor schermlezers -->
     <ul class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item, i) => (
-        <li class:list={["pain-card reveal card group flex items-start gap-4 p-6 transition duration-300 hover:-translate-y-1 hover:shadow-lift sm:p-7", i === 0 && "is-current"]} style={`--delay: ${(i % 3) * 100}ms`} data-pain-card={i}>
+        <li class:list={["pain-card reveal card group flex cursor-pointer items-start gap-4 p-6 transition duration-300 hover:-translate-y-1 hover:shadow-lift sm:p-7", i === 0 && "is-current"]} style={`--delay: ${(i % 3) * 100}ms`} data-pain-card={i}>
           <span class="icon-tile transition-transform duration-300 group-hover:scale-105"><Icon name={item.icon} /></span>
           <div class="pt-0.5">
             <p class="text-lg leading-snug font-bold text-navy">{item.question}</p>
@@ -69,10 +72,10 @@ const items = [
       Dat kan slimmer. <span class="font-semibold text-navy">Zonder dat je zelf AI-expert hoeft te worden.</span>
     </p>
     <ul class="reveal mt-6 flex flex-wrap justify-center gap-3" style="--delay: 200ms">
-      <li class="flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
+      <li class="flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
         <Icon name="Sparkles" class="size-[18px] text-teal" stroke={2} /> Geen ervaring nodig
       </li>
-      <li class="flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
+      <li class="flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-[15px] font-semibold text-navy shadow-soft">
         <Icon name="ShieldCheck" class="size-[18px] text-teal" stroke={2} /> Privacy goed geregeld
       </li>
     </ul>
@@ -81,6 +84,8 @@ const items = [
 
 <script>
   import { initPainRotator } from "../scripts/pain-rotator";
+  import { initClips } from "../scripts/clips";
+  initClips();
   initPainRotator();
 </script>
 
@@ -130,8 +135,8 @@ const items = [
   }
 
   .pain-card.is-current {
-    border-color: rgb(37 99 235 / 0.55);
-    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.08), var(--shadow-soft);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
   }
 
   @media (prefers-reduced-motion: reduce) {
