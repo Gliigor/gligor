@@ -1,5 +1,8 @@
+import { clipDuration } from "./clips";
+
 /**
- * Roterende kop in "Herken je dit?": elke 3 seconden het volgende pijnpunt.
+ * Roterende kop in "Herken je dit?": het volgende pijnpunt zodra de clip
+ * eronder klaar is (zonder clip: elke 3 seconden).
  * Pauzeert bij hover/focus en buiten beeld; bij prefers-reduced-motion blijft
  * het eerste item staan (de bolletjes werken dan nog wel, zonder animatie).
  */
@@ -107,6 +110,7 @@ export function initPainRotator() {
       else d.removeAttribute("aria-current");
     });
     cards.forEach((c, i) => c.classList.toggle("is-current", i === current));
+    window.dispatchEvent(new CustomEvent("pain:show", { detail: current }));
   }
 
   function schedule() {
@@ -116,13 +120,21 @@ export function initPainRotator() {
     timer = window.setTimeout(() => {
       show(current + 1);
       schedule();
-    }, INTERVAL_MS);
+    }, (clipDuration(current) ?? INTERVAL_MS) + 600);
   }
 
   dots.forEach((dot, i) =>
     dot.addEventListener("click", () => {
       show(i);
-      schedule(); // na een klik weer de volle 3 seconden voor dit item
+      schedule(); // na een klik weer de volle tijd voor dit item
+    }),
+  );
+  // Een kaart aanklikken speelt de bijbehorende clip.
+  cards.forEach((card, i) =>
+    card.addEventListener("click", () => {
+      if (i === current) window.dispatchEvent(new CustomEvent("pain:show", { detail: i }));
+      else show(i);
+      schedule();
     }),
   );
 

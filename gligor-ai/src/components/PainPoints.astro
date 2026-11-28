@@ -1,5 +1,6 @@
 ---
 import Icon from "./Icon.astro";
+import Clips from "./Clips.astro";
 
 /*
  * Bovenaan een roterende kop (één pijnpunt tegelijk), daaronder dezelfde zes
@@ -49,13 +50,15 @@ const items = [
             </button>
           ))}
         </div>
+
+        <Clips />
       </div>
     </div>
 
     <!-- Alle zes de punten, ook leesbaar voor schermlezers -->
     <ul class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item, i) => (
-        <li class:list={["pain-card reveal card group flex items-start gap-4 p-6 transition duration-300 hover:-translate-y-1 hover:shadow-lift sm:p-7", i === 0 && "is-current"]} style={`--delay: ${(i % 3) * 100}ms`} data-pain-card={i}>
+        <li class:list={["pain-card reveal card group flex cursor-pointer items-start gap-4 p-6 transition duration-300 hover:-translate-y-1 hover:shadow-lift sm:p-7", i === 0 && "is-current"]} style={`--delay: ${(i % 3) * 100}ms`} data-pain-card={i}>
           <span class="icon-tile transition-transform duration-300 group-hover:scale-105"><Icon name={item.icon} /></span>
           <div class="pt-0.5">
             <p class="text-lg leading-snug font-bold text-navy">{item.question}</p>
@@ -81,6 +84,8 @@ const items = [
 
 <script>
   import { initPainRotator } from "../scripts/pain-rotator";
+  import { initClips } from "../scripts/clips";
+  initClips();
   initPainRotator();
 </script>
 
